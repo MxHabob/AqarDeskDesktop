@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { Building2, Globe2, ShieldCheck } from '@lucide/svelte';
+	import { Button } from '@aqardesk/ui';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import ConnectionSetup from '#lib/features/connection/ConnectionSetup.svelte';
+	import ConnectionForm from '#lib/features/connection/ConnectionForm.svelte';
+	import * as m from '#lib/paraglide/messages';
+	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
 
 	const app = getAppContext();
 
@@ -11,36 +15,105 @@
 		}
 	}
 
-	async function toggleLanguage() {
-		await app.changeLanguage(app.locale === 'ar' ? 'en' : 'ar');
-	}
 </script>
 
-<ConnectionSetup
-	mode={app.mode}
-	databasePath={app.databasePath}
-	serverUrl={app.serverUrl}
-	host={app.host}
-	port={app.port}
-	databaseName={app.databaseName}
-	username={app.username}
-	password={app.password}
-	sslMode={app.sslMode}
-	configured={app.configured}
-	busy={app.busy}
-	error={app.error}
-	notice={app.notice}
-	locale={app.locale}
-	onSubmit={saveAndContinue}
-	onApiCheck={app.checkApi}
-	onModeChange={(value) => (app.mode = value)}
-	onLanguageChange={toggleLanguage}
-	onDatabasePathChange={(value) => (app.databasePath = value)}
-	onServerUrlChange={(value) => (app.serverUrl = value)}
-	onHostChange={(value) => (app.host = value)}
-	onPortChange={(value) => (app.port = value)}
-	onDatabaseNameChange={(value) => (app.databaseName = value)}
-	onUsernameChange={(value) => (app.username = value)}
-	onPasswordChange={(value) => (app.password = value)}
-	onSslModeChange={(value) => (app.sslMode = value)}
-/>
+<main class="grid min-h-dvh overflow-y-auto bg-background font-sans text-foreground scrollbar-none lg:grid-cols-[minmax(18rem,0.8fr)_minmax(30rem,1.2fr)]">
+	<aside class="hidden flex-col justify-between bg-foreground p-10 text-background lg:flex">
+		<a href="/" class="flex items-center gap-3 text-background no-underline">
+			<span class="grid size-10 place-items-center rounded-lg bg-background/10 text-primary">
+				<Building2 size={21} />
+			</span>
+			<strong class="text-lg">{m.app_name()}</strong>
+		</a>
+		<div class="grid gap-4">
+			<span class="grid size-14 place-items-center rounded-xl bg-background/10 text-primary">
+				<Building2 size={28} />
+			</span>
+			<p class="text-xs font-semibold tracking-widest text-primary">{m.setup_kicker()}</p>
+			<h1 class="text-3xl font-semibold leading-tight">{m.setup_title()}</h1>
+			<p class="max-w-md text-sm leading-7 text-background/70">{m.setup_description()}</p>
+		</div>
+		<div class="grid gap-3 text-sm text-background/80">
+			<div class="flex items-center gap-3">
+				<span class="grid size-7 place-items-center rounded-full bg-background/10">1</span>
+				{m.setup_step_connection()}
+			</div>
+			<div class="ms-3 h-4 border-s border-background/20"></div>
+			<div class="flex items-center gap-3">
+				<span class="grid size-7 place-items-center rounded-full bg-background/10">2</span>
+				{m.setup_step_account()}
+			</div>
+			<div class="ms-3 h-4 border-s border-background/20"></div>
+			<div class="flex items-center gap-3">
+				<span class="grid size-7 place-items-center rounded-full bg-background/10">
+					{app.configured ? '✓' : '3'}
+				</span>
+				{m.setup_step_ready()}
+			</div>
+		</div>
+		<p class="flex items-center gap-2 text-xs text-background/70">
+			<ShieldCheck size={15} />{m.connection_security_note()}
+		</p>
+	</aside>
+
+	<section class="flex min-h-dvh flex-col p-5 sm:p-8 lg:px-14">
+		<div class="flex items-center justify-between">
+			<a href="/" class="flex items-center gap-2 text-sm font-semibold text-foreground no-underline lg:hidden">
+				<Building2 size={20} />{m.app_name()}
+			</a>
+			<span class="hidden lg:block"></span>
+			<Button
+				variant="outline"
+				class="rounded-md"
+				onclick={() => void app.changeLanguage(app.locale === 'ar' ? 'en' : 'ar')}
+			>
+				<Globe2 size={16} />
+				{app.locale === 'ar' ? m.language_english() : m.language_arabic()}
+			</Button>
+		</div>
+
+		<div class="mx-auto my-auto grid w-full max-w-2xl gap-5 py-8">
+			<div class="grid gap-2">
+				<p class="text-xs font-semibold tracking-wide text-muted-foreground">{m.setup_step_connection()}</p>
+				<h2 class="text-2xl font-semibold tracking-tight text-foreground">
+					{m.setup_connection_title()}
+				</h2>
+				<p class="text-sm leading-relaxed text-muted-foreground">
+					{m.setup_connection_description()}
+				</p>
+			</div>
+
+			{#if app.error}<MessageBanner message={app.error} />{/if}
+			{#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
+
+			<ConnectionForm
+				mode={app.mode}
+				databasePath={app.databasePath}
+				serverUrl={app.serverUrl}
+				host={app.host}
+				port={app.port}
+				databaseName={app.databaseName}
+				username={app.username}
+				password={app.password}
+				sslMode={app.sslMode}
+				busy={app.busy}
+				onSubmit={saveAndContinue}
+				onApiCheck={app.checkApi}
+				onModeChange={(value) => (app.mode = value)}
+				onDatabasePathChange={(value) => (app.databasePath = value)}
+				onServerUrlChange={(value) => (app.serverUrl = value)}
+				onHostChange={(value) => (app.host = value)}
+				onPortChange={(value) => (app.port = value)}
+				onDatabaseNameChange={(value) => (app.databaseName = value)}
+				onUsernameChange={(value) => (app.username = value)}
+				onPasswordChange={(value) => (app.password = value)}
+				onSslModeChange={(value) => (app.sslMode = value)}
+			/>
+
+			<footer class="flex justify-between text-xs text-muted-foreground">
+				<span>© {new Date().getFullYear()} AqarDesk</span>
+				<span>{m.setup_step_connection()}</span>
+			</footer>
+		</div>
+	</section>
+</main>

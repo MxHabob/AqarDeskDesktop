@@ -7,6 +7,6 @@ export const localeState = $state({
 });
 
 export async function changeAppLocale(locale: AppLocale): Promise<void> {
-	await setLocale(locale, { reload: false });
+	await setLocale(locale);
 	localeState.revision += 1;
 }

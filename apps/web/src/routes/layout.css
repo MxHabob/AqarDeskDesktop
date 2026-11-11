@@ -1,14 +1,2 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/inter';
-
-@theme {
-	--font-sans: 'Inter Variable', 'Segoe UI', Tahoma, sans-serif;
-}
-
-@utility scrollbar-none {
-	scrollbar-width: none;
-
-	&::-webkit-scrollbar {
-		display: none;
-	}
-}
+@import '@aqardesk/ui/styles/app.css';

@@ -5,6 +5,7 @@
 	import ModulePlaceholder from '#lib/features/dashboard/ModulePlaceholder.svelte';
 	import { getViewPath } from '#lib/shell/navigation';
 	import * as m from '#lib/paraglide/messages';
+	import PageHeader from '#lib/shared/components/PageHeader.svelte';
 
 	let { data }: PageProps = $props();
 	const app = getAppContext();
@@ -12,10 +13,6 @@
 </script>
 
 {#if app.currentUser}
-	<ModulePlaceholder
-		title={m.nav_properties()}
-		description={m.dashboard_properties_description()}
-		currentUser={app.currentUser}
-		onSelect={(view) => void goto(getViewPath(organizationId, view))}
-	/>
+	<PageHeader title={m.nav_properties()} description={m.dashboard_properties_description()} eyebrow={m.nav_workspace()} />
+	<ModulePlaceholder title={m.nav_properties()} description={m.dashboard_properties_description()} currentUser={app.currentUser} onSelect={(view) => void goto(getViewPath(organizationId, view))} />
 {/if}

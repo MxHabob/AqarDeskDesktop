@@ -2,7 +2,11 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { userQueries, userQueryKeys } from '#lib/features/users/queries';
-	import UsersPage from '#lib/features/users/UsersPage.svelte';
+	import AddUserSheet from '#lib/features/users/AddUserSheet.svelte';
+	import UsersDirectory from '#lib/features/users/UsersDirectory.svelte';
+	import * as m from '#lib/paraglide/messages';
+	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
+	import PageHeader from '#lib/shared/components/PageHeader.svelte';
 	import type { User } from '#lib/features/auth/types';
 
 	const app = getAppContext();
@@ -12,21 +16,34 @@
 		enabled: app.currentUser?.role === 'admin'
 	}));
 	const users = $derived(usersQuery.data ?? []);
+
+	async function addUser(event: SubmitEvent): Promise<boolean> {
+		return app.addUser(event);
+	}
 </script>
 
-<UsersPage
+<div class="flex items-start justify-between gap-4">
+	<PageHeader title={m.users_title()} description={m.users_description()} eyebrow={m.nav_workspace()} />
+	<AddUserSheet
+		busy={app.busy}
+		name={app.newUserName}
+		email={app.newUserEmail}
+		password={app.newUserPassword}
+		role={app.newUserRole}
+		onAdd={addUser}
+		onCancel={app.resetNewUser}
+		onNameChange={(value) => (app.newUserName = value)}
+		onEmailChange={(value) => (app.newUserEmail = value)}
+		onPasswordChange={(value) => (app.newUserPassword = value)}
+		onRoleChange={(value) => (app.newUserRole = value)}
+	/>
+</div>
+{#if usersQuery.error || app.error}
+	<MessageBanner message={usersQuery.error ? String(usersQuery.error) : app.error} />
+{/if}
+<UsersDirectory
 	{users}
 	loading={usersQuery.isLoading}
-	queryError={usersQuery.error ? String(usersQuery.error) : ''}
 	busy={app.busy}
-	name={app.newUserName}
-	email={app.newUserEmail}
-	password={app.newUserPassword}
-	role={app.newUserRole}
-	onAdd={app.addUser}
 	onToggle={(user: User) => void app.setUserActive(user)}
-	onNameChange={(value) => (app.newUserName = value)}
-	onEmailChange={(value) => (app.newUserEmail = value)}
-	onPasswordChange={(value) => (app.newUserPassword = value)}
-	onRoleChange={(value) => (app.newUserRole = value)}
 />

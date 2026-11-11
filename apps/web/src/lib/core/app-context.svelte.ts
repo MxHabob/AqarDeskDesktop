@@ -1,4 +1,5 @@
 import { desktopApi, type ConnectionConfig, type ConnectionMode, type UpdateProgress, type UpdateResult } from '#lib/api/desktop';
+import { confirmStore } from '#lib/core/confirm.svelte';
 import { changeAppLocale, localeState, type AppLocale } from '#lib/core/i18n';
 import { queryClient } from '#lib/core/query-client';
 import type { User } from '#lib/features/auth/types';
@@ -185,8 +186,10 @@ export function createAppContext() {
 				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
 			});
 			notice = m.notification_user_added();
+			return true;
 		} catch (cause) {
 			setError(cause);
+			return false;
 		} finally {
 			busy = false;
 		}
@@ -196,6 +199,19 @@ export function createAppContext() {
 		busy = true;
 		clearMessages();
 		try {
+			const confirmed = await confirmStore.prompt({
+				title: user.is_active
+					? m.users_deactivate_confirm_title()
+					: m.users_activate_confirm_title(),
+				description: user.is_active
+					? m.users_deactivate_confirm_description({ name: user.name })
+					: m.users_activate_confirm_description({ name: user.name }),
+				confirmText: user.is_active ? m.users_deactivate() : m.users_activate(),
+				cancelText: m.common_cancel(),
+				variant: user.is_active ? 'destructive' : 'default'
+			});
+			if (!confirmed) return;
+
 			await desktopApi.setUserActive(user.id, !user.is_active);
 			await queryClient.invalidateQueries({
 				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
@@ -205,6 +221,13 @@ export function createAppContext() {
 		} finally {
 			busy = false;
 		}
+	}
+
+	function resetNewUser() {
+		newUserName = '';
+		newUserEmail = '';
+		newUserPassword = '';
+		newUserRole = 'staff';
 	}
 
 	async function signOut() {
@@ -333,6 +356,7 @@ export function createAppContext() {
 		signIn,
 		addUser,
 		setUserActive,
+		resetNewUser,
 		signOut,
 		checkForUpdates,
 		downloadUpdate,

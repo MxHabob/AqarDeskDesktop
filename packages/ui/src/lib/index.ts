@@ -33,4 +33,29 @@ export {
 	TooltipProvider,
 	TooltipTrigger
 } from './components/ui/tooltip';
+export {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogOverlay,
+	DialogPortal,
+	DialogTitle,
+	DialogTrigger
+} from './components/ui/dialog';
+export {
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetOverlay,
+	SheetPortal,
+	SheetTitle,
+	SheetTrigger
+} from './components/ui/sheet';
+export type { SheetSide } from './components/ui/sheet/sheet-content.svelte';
 export { cn } from './utils';

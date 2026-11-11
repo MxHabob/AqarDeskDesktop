@@ -3,6 +3,8 @@
 @import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));
+@source "../../../../apps/web/src/**/*.{svelte,ts}";
+@source "../lib/**/*.{svelte,ts}";
 
 @layer base {
 	* {
@@ -16,23 +18,31 @@
 	}
 }
 
+@utility scrollbar-none {
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
 :root {
 
 	--background: oklch(1 0 0);
 
 	--foreground: oklch(0.145 0 0);
 
-	--card: oklch(1 0 0);
+	--card: oklch(0.9722 0.0038 91.44);
 
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.1405 0.0044 285.82);
 
-	--popover: oklch(1 0 0);
+	--popover: oklch(0.9722 0.0038 91.44);
 
-	--popover-foreground: oklch(0.145 0 0);
+	--popover-foreground: oklch(0.1405 0.0044 285.82);
 
-	--primary: oklch(0.488 0.243 264.376);
+	--primary: oklch(86.14% 0.1753 89.35);
 
-	--primary-foreground: oklch(0.97 0.014 254.604);
+	--primary-foreground: oklch(0.405 0.101 131.063);
 
 	--secondary: oklch(0.967 0.001 286.375);
 
@@ -64,17 +74,31 @@
 
 	--chart-5: oklch(0.269 0 0);
 
-	--radius: 0rem;
+	--radius: 0.5rem;
+
+	--overlay: oklch(0.1815 0 0 / 50%);
+
+	--shadow-card-value: 0 1px 2px rgb(0 0 0 / 5%), 0 1px 3px rgb(0 0 0 / 8%);
+
+	--shadow-floating-value: 0 18px 48px -16px rgb(0 0 0 / 28%), 0 4px 12px -4px rgb(0 0 0 / 10%);
+
+	--layer-sheet: 70;
+
+	--layer-dialog: 80;
+
+	--layer-popover: 90;
+
+	--layer-toast: 100;
 
 	--sidebar: oklch(0.985 0 0);
 
 	--sidebar-foreground: oklch(0.145 0 0);
 
-	--sidebar-primary: oklch(0.546 0.245 262.881);
+	--sidebar-primary: oklch(86.14% 0.1753 89.35);
 
-	--sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+	--sidebar-primary-foreground: oklch(0.405 0.101 131.063);
 
-	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent: oklch(0.956 0.0029 84.56);
 
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 
@@ -97,9 +121,9 @@
 
 	--popover-foreground: oklch(0.985 0 0);
 
-	--primary: oklch(0.424 0.199 265.638);
+	--primary: oklch(86.14% 0.1753 89.35);
 
-	--primary-foreground: oklch(0.97 0.014 254.604);
+	--primary-foreground: oklch(0.405 0.101 131.063);
 
 	--secondary: oklch(0.274 0.006 286.033);
 
@@ -135,9 +159,9 @@
 
 	--sidebar-foreground: oklch(0.985 0 0);
 
-	--sidebar-primary: oklch(0.623 0.214 259.815);
+	--sidebar-primary: oklch(86.14% 0.1753 89.35);
 
-	--sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+	--sidebar-primary-foreground: oklch(0.405 0.101 131.063);
 
 	--sidebar-accent: oklch(0.269 0 0);
 
@@ -146,6 +170,12 @@
 	--sidebar-border: oklch(1 0 0 / 10%);
 
 	--sidebar-ring: oklch(0.556 0 0);
+
+	--overlay: oklch(0 0 0 / 55%);
+
+	--shadow-card-value: 0 1px 2px rgb(0 0 0 / 18%), 0 1px 3px rgb(0 0 0 / 24%);
+
+	--shadow-floating-value: 0 18px 48px -16px rgb(0 0 0 / 68%), 0 4px 12px -4px rgb(0 0 0 / 32%);
 }
 
 @theme inline {
@@ -185,6 +215,7 @@
 	--color-border: var(--border);
 
 	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
 
 	--color-accent-foreground: var(--accent-foreground);
 
@@ -213,6 +244,13 @@
 	--color-foreground: var(--foreground);
 
 	--color-background: var(--background);
+	--color-overlay: var(--overlay);
+	--shadow-card: var(--shadow-card-value);
+	--shadow-floating: var(--shadow-floating-value);
+	--z-index-sheet: var(--layer-sheet);
+	--z-index-dialog: var(--layer-dialog);
+	--z-index-popover: var(--layer-popover);
+	--z-index-toast: var(--layer-toast);
 
 	--radius-sm: calc(var(--radius) * 0.6);
 

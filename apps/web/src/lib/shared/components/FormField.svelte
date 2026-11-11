@@ -13,9 +13,9 @@
 </script>
 
 <div class="grid min-w-0 gap-2">
-	<Label for={id} class="font-medium text-slate-700">{label}</Label>
+	<Label for={id} class="font-medium text-foreground">{label}</Label>
 	{@render children()}
 	{#if description}
-		<p class="text-xs leading-relaxed text-slate-500">{description}</p>
+		<p class="text-xs leading-relaxed text-muted-foreground">{description}</p>
 	{/if}
 </div>

@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AqarDesk Desktop",
-  "version": "0.1.0",
-  "identifier": "com.aqardesk.desktop",
+  "identifier": "com.mulverse.aqardesk.desktop",
+  "version": "1.0.0",
   "build": {
     "frontendDist": "../../web/build",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:1520",
     "beforeDevCommand": "cd ../web && bun run dev",
     "beforeBuildCommand": "cd ../web && bun run build"
   },

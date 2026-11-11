@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/lib/index.ts"
+    ".": "./src/lib/index.ts",
+    "./styles/app.css": "./src/styles/app.css",
+    "./*": "./src/lib/*",
+    "./components/*": "./src/lib/components/*",
+    "./utils": "./src/lib/utils.ts",
+    "./utils.js": "./src/lib/utils.ts"
   },
   "dependencies": {
     "@lucide/svelte": "^1.70.0",

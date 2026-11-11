@@ -8,16 +8,14 @@
 </script>
 
 <span
-	class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium"
-	class:bg-emerald-50={active}
-	class:text-emerald-800={active}
-	class:bg-slate-100={!active}
-	class:text-slate-600={!active}
+	class={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium ${
+		active ? 'bg-primary/20 text-foreground' : 'bg-muted text-muted-foreground'
+	}`}
 >
 	<span
 		class="size-1.5 rounded-full"
-		class:bg-emerald-600={active}
-		class:bg-slate-400={!active}
+		class:bg-primary-foreground={active}
+		class:bg-muted-foreground={!active}
 	></span>
 	{label}
 </span>

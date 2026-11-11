@@ -5,8 +5,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { queryClient } from '#lib/core/query-client';
-	import { getLocale } from '#lib/paraglide/runtime';
-	import { localeState } from '#lib/core/i18n';
+	import ConfirmDialog from '#lib/shared/components/ConfirmDialog.svelte';
 	import { createAppContext, setAppContext } from '#lib/core/app-context.svelte';
 	import type { UpdateProgress } from '#lib/api/desktop';
 	import type { LayoutProps } from './$types';
@@ -33,15 +32,6 @@
 			unlisten?.();
 		};
 	});
-
-	$effect(() => {
-		localeState.revision;
-		const locale = getLocale();
-		if (typeof document !== 'undefined') {
-			document.documentElement.lang = locale;
-			document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
-		}
-	});
 </script>
 
 <svelte:head>
@@ -51,3 +41,4 @@
 <QueryClientProvider client={queryClient}>
 	{@render children()}
 </QueryClientProvider>
+<ConfirmDialog />
