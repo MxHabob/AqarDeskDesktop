@@ -61,6 +61,8 @@
 	"system_support_details": "تفاصيل المشكلة",
 	"system_support_details_placeholder": "اشرح ما حدث والخطوات اللازمة لإعادة المشكلة...",
 	"system_support_diagnostics": "تشخيص التطبيق والجهاز",
+	"system_support_show_diagnostics": "عرض",
+	"system_support_hide_diagnostics": "إخفاء",
 	"system_support_loading_diagnostics": "جارٍ تحميل معلومات التطبيق والجهاز...",
 	"system_support_diagnostics_unavailable": "تعذر تحميل معلومات التطبيق:",
 	"system_support_unavailable": "غير متاح",

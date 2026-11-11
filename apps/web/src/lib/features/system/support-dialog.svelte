@@ -1,16 +1,8 @@
 <script lang="ts">
 	import {
-		Check,
-		ChevronDown,
-		ChevronUp,
-		CircleHelp,
-		LoaderCircle
-	} from '@lucide/svelte';
-	import {
 		Button,
 		Dialog,
 		DialogContent,
-		DialogDescription,
 		DialogHeader,
 		DialogTitle,
 		Input,
@@ -107,6 +99,7 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 		} catch (cause) {
 			console.error('Failed to copy support diagnostics.', cause);
 			submitError = cause instanceof Error ? cause.message : String(cause);
+			toast.error(submitError);
 		}
 	}
 
@@ -147,36 +140,18 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 
 <Dialog bind:open>
 	<DialogContent
-		class="flex max-h-[90dvh] max-w-2xl flex-col gap-0 overflow-hidden border-border/60 bg-background/95 p-0 shadow-2xl backdrop-blur-md"
+		class="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden"
 	>
-		<DialogHeader class="space-y-1 border-b border-border/40 bg-muted/20 px-6 py-4 text-start">
-			<div class="flex items-center gap-2">
-				<span class="flex size-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
-					<CircleHelp size={14} />
-				</span>
-				<DialogTitle class="text-base font-semibold tracking-tight">
-					{m.system_support_diagnostics_title()}
-				</DialogTitle>
-			</div>
-			<DialogDescription class="text-xs text-muted-foreground">
-				{m.system_support_description()}
-			</DialogDescription>
+		<DialogHeader>
+			<DialogTitle>{m.system_support_diagnostics_title()}</DialogTitle>
 		</DialogHeader>
 
 		{#if isComposeOpened}
-			<div class="my-auto space-y-4 p-8 text-center">
-				<div class="mx-auto flex size-12 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
-					<Check size={24} strokeWidth={2.5} />
-				</div>
-				<div class="space-y-1.5">
-					<h3 class="text-base font-bold text-foreground">{m.system_support_compose_ready()}</h3>
-					<p class="mx-auto max-w-md text-xs leading-relaxed text-muted-foreground">
-						{m.system_support_compose_instructions()}
-					</p>
-				</div>
-				<div class="flex items-center justify-center gap-3 pt-2">
+			<div class="my-auto space-y-4 py-6 text-center">
+				<h3 class="font-semibold">{m.system_support_compose_ready()}</h3>
+				<p class="text-sm text-muted-foreground">{m.system_support_compose_instructions()}</p>
+				<div class="flex items-center justify-center gap-3">
 					<Button variant="outline" size="sm" onclick={() => void copyDiagnosticReport()}>
-						{#if isCopied}<Check size={13} class="text-emerald-500" />{/if}
 						{isCopied ? m.system_support_copied() : m.system_support_copy_full_report()}
 					</Button>
 					<Button size="sm" onclick={resetForm}>{m.system_support_done()}</Button>
@@ -244,11 +219,11 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 					></textarea>
 				</div>
 
-				<div class="overflow-hidden rounded-lg border border-border/50 bg-muted/20 text-xs">
+				<div class="overflow-hidden rounded-lg border border-border text-xs">
 					<button
 						type="button"
 						aria-expanded={showDiagnosticsPreview}
-						class="flex w-full cursor-pointer items-center justify-between px-3.5 py-2.5 text-start text-muted-foreground transition-colors hover:text-foreground"
+						class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-start text-muted-foreground transition-colors hover:text-foreground"
 						onclick={() => (showDiagnosticsPreview = !showDiagnosticsPreview)}
 					>
 						<span class="flex items-center gap-2">
@@ -259,7 +234,11 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 								</span>
 							{/if}
 						</span>
-						{#if showDiagnosticsPreview}<ChevronUp size={13} />{:else}<ChevronDown size={13} />{/if}
+						<span>
+							{showDiagnosticsPreview
+								? m.system_support_hide_diagnostics()
+								: m.system_support_show_diagnostics()}
+						</span>
 					</button>
 					{#if showDiagnosticsPreview}
 						<pre class="max-h-36 overflow-y-auto border-t border-border/40 bg-background/50 p-3 text-start font-mono text-[10px] text-muted-foreground" dir="ltr">{JSON.stringify(diagnosticPayload, null, 2)}</pre>
@@ -290,9 +269,13 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 				{/if}
 			</form>
 
-			<div class="flex items-center justify-between border-t border-border/40 bg-muted/20 px-6 py-3">
-				<Button type="button" variant="outline" size="sm" onclick={() => void copyDiagnosticReport()}>
-					{#if isCopied}<Check size={13} class="text-emerald-500" />{/if}
+			<div class="flex items-center justify-between border-t border-border pt-3">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={() => void copyDiagnosticReport()}
+				>
 					{isCopied ? m.system_support_report_copied() : m.system_support_copy_report()}
 				</Button>
 				<div class="flex items-center gap-2">
@@ -306,7 +289,6 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 						disabled={isSubmitting || !subject.trim() || !message.trim()}
 					>
 						{#if isSubmitting}
-							<LoaderCircle size={13} class="animate-spin" />
 							{m.system_support_sending()}
 						{:else}
 							{m.system_support_send_report()}

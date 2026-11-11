@@ -61,6 +61,8 @@
 	"system_support_details": "Issue details",
 	"system_support_details_placeholder": "Describe what happened and the steps to reproduce it...",
 	"system_support_diagnostics": "Application and device diagnostics",
+	"system_support_show_diagnostics": "Show",
+	"system_support_hide_diagnostics": "Hide",
 	"system_support_loading_diagnostics": "Loading application and device details...",
 	"system_support_diagnostics_unavailable": "Could not load application details:",
 	"system_support_unavailable": "Unavailable",
