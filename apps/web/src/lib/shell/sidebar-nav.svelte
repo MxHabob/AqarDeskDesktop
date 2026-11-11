@@ -64,7 +64,7 @@
 	});
 </script>
 
-<aside class="flex h-full min-h-0 flex-col overflow-hidden bg-card/60">
+<aside class="flex h-full min-h-0 flex-col overflow-hidden bg-background">
 	{#if collapsed}
 		<div class="flex flex-1 flex-col items-center gap-3 py-3">
 			<Button

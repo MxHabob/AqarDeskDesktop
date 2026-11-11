@@ -49,6 +49,10 @@
 	animation-duration: 100ms !important;
 }
 
+[dir='rtl'] [data-slot='dropdown-menu-sub-trigger'] > svg:last-child {
+	transform: scaleX(-1);
+}
+
 :root {
 
 	--background: oklch(1 0 0);
