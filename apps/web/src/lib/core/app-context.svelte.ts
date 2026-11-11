@@ -1,0 +1,356 @@
+import { desktopApi, type ConnectionConfig, type ConnectionMode, type UpdateProgress, type UpdateResult } from '#lib/api/desktop';
+import { changeAppLocale, localeState, type AppLocale } from '#lib/core/i18n';
+import { queryClient } from '#lib/core/query-client';
+import type { User } from '#lib/features/auth/types';
+import { userQueryKeys } from '#lib/features/users/queries';
+import * as m from '#lib/paraglide/messages';
+import { getLocale } from '#lib/paraglide/runtime';
+import { getContext, setContext } from 'svelte';
+
+export const APP_CONTEXT = Symbol('aqardesk-app');
+
+export function createAppContext() {
+	let mode = $state<ConnectionMode>('local');
+	let databasePath = $state('aqardesk.sqlite');
+	let serverUrl = $state('');
+	let host = $state('localhost');
+	let port = $state(5432);
+	let databaseName = $state('aqardesk');
+	let username = $state('');
+	let password = $state('');
+	let sslMode = $state('prefer');
+	let configured = $state(false);
+	let connected = $state(false);
+	let needsAdmin = $state(false);
+	let currentUser = $state<User | null>(null);
+	let error = $state('');
+	let notice = $state('');
+	let busy = $state(false);
+	let booting = $state(true);
+	let organizationName = $state('');
+	let fullName = $state('');
+	let email = $state('');
+	let accountPassword = $state('');
+	let newUserName = $state('');
+	let newUserEmail = $state('');
+	let newUserPassword = $state('');
+	let newUserRole = $state('staff');
+	let updateResult = $state<UpdateResult | null>(null);
+	let updateProgress = $state<UpdateProgress | null>(null);
+	let initialization: Promise<void> | undefined;
+
+	const locale = $derived.by(() => {
+		localeState.revision;
+		return getLocale();
+	});
+	const progressPercent = $derived(
+		updateProgress?.total_bytes
+			? Math.min(100, Math.round((updateProgress.downloaded_bytes / updateProgress.total_bytes) * 100))
+			: null
+	);
+
+	async function initialize() {
+		if (!initialization) {
+			initialization = (async () => {
+				try {
+					const config = await desktopApi.getConnection();
+					if (config) {
+						loadConfig(config);
+						configured = true;
+						await connectConfigured();
+					}
+				} catch (cause) {
+					setError(cause);
+				} finally {
+					booting = false;
+				}
+			})();
+		}
+		return initialization;
+	}
+
+	function loadConfig(config: ConnectionConfig) {
+		mode = config.mode;
+		databasePath = config.local?.database_path ?? 'aqardesk.sqlite';
+		serverUrl = config.api?.server_url ?? '';
+		host = config.direct?.host ?? 'localhost';
+		port = config.direct?.port ?? 5432;
+		databaseName = config.direct?.database_name ?? 'aqardesk';
+		username = config.direct?.username ?? '';
+		sslMode = config.direct?.ssl_mode ?? 'prefer';
+		password = '';
+	}
+
+	async function saveAndConnect(event: SubmitEvent) {
+		event.preventDefault();
+		busy = true;
+		clearMessages();
+		try {
+			const config = await desktopApi.setConnection({
+				mode,
+				databasePath: mode === 'local' ? databasePath : null,
+				serverUrl: mode === 'api' ? serverUrl : null,
+				host: mode === 'direct' ? host : null,
+				port: mode === 'direct' ? Number(port) : null,
+				databaseName: mode === 'direct' ? databaseName : null,
+				username: mode === 'direct' ? username : null,
+				password: mode === 'direct' ? password : null,
+				sslMode: mode === 'direct' ? sslMode : null
+			});
+			loadConfig(config);
+			configured = true;
+			await connectConfigured();
+			return true;
+		} catch (cause) {
+			connected = false;
+			setError(cause);
+			return false;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function connectConfigured() {
+		await desktopApi.connect();
+		connected = true;
+		const status = await desktopApi.getSetupStatus();
+		needsAdmin = status.needs_admin;
+		currentUser = status.current_user;
+	}
+
+	async function checkApi() {
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.checkApi(serverUrl);
+			notice = m.status_connected();
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function createInitialAdmin(event: SubmitEvent) {
+		event.preventDefault();
+		busy = true;
+		clearMessages();
+		try {
+			currentUser = await desktopApi.createAdmin({
+				organizationName,
+				name: fullName,
+				email,
+				password: accountPassword
+			});
+			needsAdmin = false;
+			accountPassword = '';
+			notice = m.notification_admin_created();
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function signIn(event: SubmitEvent) {
+		event.preventDefault();
+		busy = true;
+		clearMessages();
+		try {
+			currentUser = await desktopApi.signIn(email, accountPassword);
+			accountPassword = '';
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function addUser(event: SubmitEvent) {
+		event.preventDefault();
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.createUser({
+				name: newUserName,
+				email: newUserEmail,
+				password: newUserPassword,
+				role: newUserRole
+			});
+			newUserName = '';
+			newUserEmail = '';
+			newUserPassword = '';
+			newUserRole = 'staff';
+			await queryClient.invalidateQueries({
+				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
+			});
+			notice = m.notification_user_added();
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function setUserActive(user: User) {
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.setUserActive(user.id, !user.is_active);
+			await queryClient.invalidateQueries({
+				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
+			});
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function signOut() {
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.signOut();
+			currentUser = null;
+			return true;
+		} catch (cause) {
+			setError(cause);
+			return false;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function checkForUpdates() {
+		busy = true;
+		clearMessages();
+		updateProgress = null;
+		try {
+			updateResult = await desktopApi.checkForUpdates();
+			notice = updateResult.has_update ? m.settings_update_available() : m.settings_up_to_date();
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function downloadUpdate() {
+		busy = true;
+		clearMessages();
+		updateProgress = null;
+		try {
+			await desktopApi.downloadUpdate();
+			notice = m.notification_update_ready();
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function installUpdate() {
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.installUpdate();
+		} catch (cause) {
+			setError(cause);
+			busy = false;
+		}
+	}
+
+	async function changeLanguage(nextLocale: AppLocale) {
+		try {
+			await changeAppLocale(nextLocale);
+		} catch (cause) {
+			setError(cause);
+		}
+	}
+
+	function setError(cause: unknown) {
+		error = cause instanceof Error ? cause.message : String(cause);
+	}
+
+	function clearMessages() {
+		error = '';
+		notice = '';
+	}
+
+	return {
+		get mode() { return mode; },
+		set mode(value: ConnectionMode) { mode = value; },
+		get databasePath() { return databasePath; },
+		set databasePath(value: string) { databasePath = value; },
+		get serverUrl() { return serverUrl; },
+		set serverUrl(value: string) { serverUrl = value; },
+		get host() { return host; },
+		set host(value: string) { host = value; },
+		get port() { return port; },
+		set port(value: number) { port = value; },
+		get databaseName() { return databaseName; },
+		set databaseName(value: string) { databaseName = value; },
+		get username() { return username; },
+		set username(value: string) { username = value; },
+		get password() { return password; },
+		set password(value: string) { password = value; },
+		get sslMode() { return sslMode; },
+		set sslMode(value: string) { sslMode = value; },
+		get configured() { return configured; },
+		get connected() { return connected; },
+		get needsAdmin() { return needsAdmin; },
+		get currentUser() { return currentUser; },
+		get error() { return error; },
+		get notice() { return notice; },
+		get busy() { return busy; },
+		get booting() { return booting; },
+		get locale() { return locale; },
+		get organizationName() { return organizationName; },
+		set organizationName(value: string) { organizationName = value; },
+		get fullName() { return fullName; },
+		set fullName(value: string) { fullName = value; },
+		get email() { return email; },
+		set email(value: string) { email = value; },
+		get accountPassword() { return accountPassword; },
+		set accountPassword(value: string) { accountPassword = value; },
+		get newUserName() { return newUserName; },
+		set newUserName(value: string) { newUserName = value; },
+		get newUserEmail() { return newUserEmail; },
+		set newUserEmail(value: string) { newUserEmail = value; },
+		get newUserPassword() { return newUserPassword; },
+		set newUserPassword(value: string) { newUserPassword = value; },
+		get newUserRole() { return newUserRole; },
+		set newUserRole(value: string) { newUserRole = value; },
+		get updateResult() { return updateResult; },
+		get updateProgress() { return updateProgress; },
+		get progressPercent() { return progressPercent; },
+		set updateProgress(value: UpdateProgress | null) { updateProgress = value; },
+		initialize,
+		saveAndConnect,
+		checkApi,
+		createInitialAdmin,
+		signIn,
+		addUser,
+		setUserActive,
+		signOut,
+		checkForUpdates,
+		downloadUpdate,
+		installUpdate,
+		changeLanguage,
+		setError,
+		clearMessages
+	};
+}
+
+export type AppContext = ReturnType<typeof createAppContext>;
+
+export function setAppContext(context: AppContext) {
+	setContext(APP_CONTEXT, context);
+}
+
+export function getAppContext() {
+	const context = getContext<AppContext | undefined>(APP_CONTEXT);
+	if (!context) throw new Error('AqarDesk app context is missing');
+	return context;
+}

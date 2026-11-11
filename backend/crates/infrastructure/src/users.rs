@@ -15,6 +15,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSummary {
     pub id: String,
+    pub organization_id: String,
     pub name: String,
     pub email: String,
     pub role: String,
@@ -234,6 +235,7 @@ fn validate_user_input(name: &str, email: &str, password: &str) -> Result<(), St
 fn summary(model: user::Model) -> UserSummary {
     UserSummary {
         id: model.id,
+        organization_id: model.organization_id,
         name: model.full_name,
         email: model.email,
         role: model.access_role,
@@ -269,6 +271,7 @@ mod tests {
         .await
         .expect("create initial administrator");
         assert_eq!(admin.role, "admin");
+        assert!(!admin.organization_id.is_empty());
 
         let stored_admin = user::Entity::find_by_id(&admin.id)
             .one(&database)
@@ -286,6 +289,7 @@ mod tests {
             .await
             .expect("authenticate initial administrator");
         assert_eq!(authenticated.id, admin.id);
+        assert_eq!(authenticated.organization_id, admin.organization_id);
         assert!(
             create_initial_admin(
                 &database,

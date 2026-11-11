@@ -2,11 +2,13 @@
   "extends": "$app/tsconfig",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
     "paths": {
+      "#lib": ["./src/lib/index.js"],
+      "#lib/*": ["./src/lib/*"],
       "@aqardesk/ui": ["../../packages/ui/src/lib/index.ts"],
       "@aqardesk/ui/*": ["../../packages/ui/src/lib/*"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["src/lib/paraglide/server.js"]
 }

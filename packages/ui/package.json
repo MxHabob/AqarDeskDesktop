@@ -2,7 +2,16 @@
   "name": "@aqardesk/ui",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/lib/index.ts"
+  },
   "dependencies": {
-    "@aqardesk/api-contracts": "workspace:*"
+    "@lucide/svelte": "^1.70.0",
+    "bits-ui": "^2.20.0",
+    "cn": "^0.5.2",
+    "tailwind-variants": "^4.0.1"
+  },
+  "peerDependencies": {
+    "svelte": "^5.25.0"
   }
 }
