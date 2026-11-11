@@ -266,6 +266,213 @@ pub struct OperationResult {
     pub ok: bool,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OrganizationSettingsInput {
+    pub name: String,
+    pub legal_name: Option<String>,
+    pub default_currency: String,
+    pub timezone: String,
+}
+
+impl From<OrganizationSettingsInput>
+    for aqardesk_app::services::settings::OrganizationSettingsInput
+{
+    fn from(input: OrganizationSettingsInput) -> Self {
+        Self {
+            name: input.name,
+            legal_name: input.legal_name,
+            default_currency: input.default_currency,
+            timezone: input.timezone,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OrganizationSettings {
+    pub id: String,
+    pub name: String,
+    pub legal_name: Option<String>,
+    pub default_currency: String,
+    pub timezone: String,
+}
+
+impl From<aqardesk_app::services::settings::OrganizationSettings> for OrganizationSettings {
+    fn from(value: aqardesk_app::services::settings::OrganizationSettings) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            legal_name: value.legal_name,
+            default_currency: value.default_currency,
+            timezone: value.timezone,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ProfileSettingsInput {
+    pub name: String,
+    pub email: String,
+    pub current_password: Option<String>,
+    pub new_password: Option<String>,
+}
+
+impl From<ProfileSettingsInput> for aqardesk_app::services::settings::ProfileSettingsInput {
+    fn from(input: ProfileSettingsInput) -> Self {
+        Self {
+            name: input.name,
+            email: input.email,
+            current_password: input.current_password,
+            new_password: input.new_password,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProfileSettings {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    pub role: String,
+    pub is_active: bool,
+}
+
+impl From<aqardesk_app::services::settings::ProfileSettings> for ProfileSettings {
+    fn from(value: aqardesk_app::services::settings::ProfileSettings) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            email: value.email,
+            role: value.role,
+            is_active: value.is_active,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AuditQuery {
+    pub limit: Option<u64>,
+    pub offset: Option<u64>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AuditEntry {
+    pub id: String,
+    pub actor_user_id: Option<String>,
+    pub actor_name: Option<String>,
+    pub action: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub details_json: Option<String>,
+    pub created_at: String,
+}
+
+impl From<aqardesk_app::services::settings::AuditEntry> for AuditEntry {
+    fn from(value: aqardesk_app::services::settings::AuditEntry) -> Self {
+        Self {
+            id: value.id,
+            actor_user_id: value.actor_user_id,
+            actor_name: value.actor_name,
+            action: value.action,
+            entity_type: value.entity_type,
+            entity_id: value.entity_id,
+            details_json: value.details_json,
+            created_at: value.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ContractTemplateInput {
+    pub template_key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub lease_type: String,
+    pub locale: String,
+    pub content_format: String,
+    pub content_body: String,
+    pub placeholders_json: Option<String>,
+    pub change_note: Option<String>,
+}
+
+impl From<ContractTemplateInput> for aqardesk_app::services::settings::ContractTemplateInput {
+    fn from(input: ContractTemplateInput) -> Self {
+        Self {
+            template_key: input.template_key,
+            name: input.name,
+            description: input.description,
+            lease_type: input.lease_type,
+            locale: input.locale,
+            content_format: input.content_format,
+            content_body: input.content_body,
+            placeholders_json: input.placeholders_json,
+            change_note: input.change_note,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ContractTemplateStateInput {
+    pub is_active: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ContractTemplateVersion {
+    pub id: String,
+    pub version_number: i32,
+    pub content_format: String,
+    pub content_body: Option<String>,
+    pub placeholders_json: String,
+    pub content_sha256: String,
+    pub change_note: Option<String>,
+    pub created_at: String,
+}
+
+impl From<aqardesk_app::services::settings::ContractTemplateVersion> for ContractTemplateVersion {
+    fn from(value: aqardesk_app::services::settings::ContractTemplateVersion) -> Self {
+        Self {
+            id: value.id,
+            version_number: value.version_number,
+            content_format: value.content_format,
+            content_body: value.content_body,
+            placeholders_json: value.placeholders_json,
+            content_sha256: value.content_sha256,
+            change_note: value.change_note,
+            created_at: value.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ContractTemplate {
+    pub id: String,
+    pub template_key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub lease_type: String,
+    pub locale: String,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub versions: Vec<ContractTemplateVersion>,
+}
+
+impl From<aqardesk_app::services::settings::ContractTemplate> for ContractTemplate {
+    fn from(value: aqardesk_app::services::settings::ContractTemplate) -> Self {
+        Self {
+            id: value.id,
+            template_key: value.template_key,
+            name: value.name,
+            description: value.description,
+            lease_type: value.lease_type,
+            locale: value.locale,
+            is_active: value.is_active,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            versions: value.versions.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct StatusCount {
     pub status: String,

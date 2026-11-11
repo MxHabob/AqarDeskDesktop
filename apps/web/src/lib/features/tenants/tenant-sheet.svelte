@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@aqardesk/ui';
+	import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@aqardesk/ui';
 	import type { Tenant, TenantInput } from '@aqardesk/sdk';
 	import TenantForm from '#lib/features/tenants/tenant-form.svelte';
 	import * as m from '#lib/paraglide/messages';
@@ -14,7 +14,7 @@
 </script>
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-xl">
-		<SheetHeader class="shrink-0 border-b border-border px-4 py-4"><SheetTitle>{initial ? m.tenants_edit() : m.tenants_add()}</SheetTitle><SheetDescription>{m.dashboard_tenants_description()}</SheetDescription></SheetHeader>
+		<SheetHeader class="shrink-0 px-4 py-4"><SheetTitle>{initial ? m.tenants_edit() : m.tenants_add()}</SheetTitle></SheetHeader>
 		{#if open}<TenantForm {initial} {busy} onSubmit={onsave} onCancel={onclose} />{/if}
 	</SheetContent>
 </Sheet>

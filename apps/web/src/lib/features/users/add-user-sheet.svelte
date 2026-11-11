@@ -4,7 +4,6 @@
 		Button,
 		Sheet,
 		SheetContent,
-		SheetDescription,
 		SheetHeader,
 		SheetTitle
 	} from '@aqardesk/ui';
@@ -30,9 +29,8 @@
 
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-xl">
-		<SheetHeader class="shrink-0 border-b border-border px-4 py-4">
+		<SheetHeader class="shrink-0 px-4 py-4">
 			<SheetTitle>{m.users_add_title()}</SheetTitle>
-			<SheetDescription>{m.users_description()}</SheetDescription>
 		</SheetHeader>
 		{#if open}
 			<UserForm

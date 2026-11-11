@@ -1,13 +1,15 @@
 use aqardesk_app::{
     AppError,
-    services::{properties::PropertyService, tenants::TenantService, units::UnitService},
+    services::{
+        properties::PropertyService, settings::SettingsService, tenants::TenantService,
+        units::UnitService,
+    },
 };
 use aqardesk_infrastructure::{
     connect_database,
-    models::organization,
     repositories::{
-        properties::SeaOrmPropertyRepository, tenants::SeaOrmTenantRepository,
-        units::SeaOrmUnitRepository,
+        properties::SeaOrmPropertyRepository, settings::SeaOrmSettingsRepository,
+        tenants::SeaOrmTenantRepository, units::SeaOrmUnitRepository,
     },
     run_migrations,
     settings::{ConnectionConfig, ConnectionMode},
@@ -19,7 +21,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     routing::{get, patch, post, put},
 };
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -89,11 +91,6 @@ struct LoginResponse {
 #[derive(Debug, Serialize)]
 struct SetupResponse {
     needs_admin: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-struct OrganizationName {
-    name: String,
 }
 
 fn error(status: StatusCode, message: impl Into<String>) -> (StatusCode, Json<serde_json::Value>) {
@@ -197,7 +194,7 @@ async fn get_session(
     tag = "Organization",
     security(("bearer_auth" = [])),
     responses(
-        (status = 200, description = "Current organization name", body = OrganizationName),
+        (status = 200, description = "Current organization settings", body = dto::OrganizationSettings),
         (status = 401, description = "Authentication required", body = dto::ErrorResponse),
         (status = 404, description = "Organization not found", body = dto::ErrorResponse)
     )
@@ -205,16 +202,254 @@ async fn get_session(
 async fn get_current_organization(
     State(state): State<ApiState>,
     headers: HeaderMap,
-) -> Result<Json<OrganizationName>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<dto::OrganizationSettings>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_user(&state, &headers).await?;
-    let organization = organization::Entity::find_by_id(&user.organization_id)
-        .one(&state.database)
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .get_organization(&user.organization_id)
         .await
-        .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message.to_string()))?
-        .ok_or_else(|| error(StatusCode::NOT_FOUND, "Organization not found."))?;
-    Ok(Json(OrganizationName {
-        name: organization.name,
-    }))
+        .map(Into::into)
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    put,
+    operation_id = "updateCurrentOrganization",
+    path = "/api/v1/organizations/current",
+    tag = "Organization",
+    request_body = dto::OrganizationSettingsInput,
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Updated organization settings", body = dto::OrganizationSettings),
+        (status = 400, description = "Invalid organization settings", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse)
+    )
+)]
+async fn update_current_organization(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<dto::OrganizationSettingsInput>,
+) -> Result<Json<dto::OrganizationSettings>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .update_organization(&user.organization_id, &user.id, input.into())
+        .await
+        .map(Into::into)
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    get,
+    operation_id = "getMyProfile",
+    path = "/api/v1/users/me",
+    tag = "Settings",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current user profile", body = dto::ProfileSettings),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse)
+    )
+)]
+async fn get_my_profile(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<dto::ProfileSettings>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_user(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .get_profile(&user.organization_id, &user.id)
+        .await
+        .map(Into::into)
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    put,
+    operation_id = "updateMyProfile",
+    path = "/api/v1/users/me",
+    tag = "Settings",
+    request_body = dto::ProfileSettingsInput,
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Updated user profile", body = dto::ProfileSettings),
+        (status = 400, description = "Invalid profile settings", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse)
+    )
+)]
+async fn update_my_profile(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<dto::ProfileSettingsInput>,
+) -> Result<Json<dto::ProfileSettings>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_user(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .update_profile(&user.organization_id, &user.id, input.into())
+        .await
+        .map(Into::into)
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    get,
+    operation_id = "listAuditEvents",
+    path = "/api/v1/audit-events",
+    tag = "Settings",
+    params(
+        ("limit" = Option<u64>, Query, description = "Maximum entries, 1 to 100"),
+        ("offset" = Option<u64>, Query, description = "Number of entries to skip")
+    ),
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Organization audit events", body = [dto::AuditEntry]),
+        (status = 400, description = "Invalid paging options", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse)
+    )
+)]
+async fn list_audit_events(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(query): Query<dto::AuditQuery>,
+) -> Result<Json<Vec<dto::AuditEntry>>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .list_audit(
+            &user.organization_id,
+            query.limit.unwrap_or(50),
+            query.offset.unwrap_or(0),
+        )
+        .await
+        .map(|entries| entries.into_iter().map(Into::into).collect())
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    get,
+    operation_id = "listContractTemplates",
+    path = "/api/v1/contract-templates",
+    tag = "Settings",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Organization contract templates", body = [dto::ContractTemplate]),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse)
+    )
+)]
+async fn list_contract_templates(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<dto::ContractTemplate>>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .list_templates(&user.organization_id)
+        .await
+        .map(|templates| templates.into_iter().map(Into::into).collect())
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    post,
+    operation_id = "createContractTemplate",
+    path = "/api/v1/contract-templates",
+    tag = "Settings",
+    request_body = dto::ContractTemplateInput,
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 201, description = "Created contract template", body = dto::ContractTemplate),
+        (status = 400, description = "Invalid contract template", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse)
+    )
+)]
+async fn create_contract_template(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<dto::ContractTemplateInput>,
+) -> Result<(StatusCode, Json<dto::ContractTemplate>), (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    let template = service
+        .create_template(&user.organization_id, &user.id, input.into())
+        .await
+        .map_err(business_error)?;
+    Ok((StatusCode::CREATED, Json(template.into())))
+}
+
+#[utoipa::path(
+    put,
+    operation_id = "createContractTemplateVersion",
+    path = "/api/v1/contract-templates/{template_id}",
+    tag = "Settings",
+    request_body = dto::ContractTemplateInput,
+    params(("template_id" = String, Path, description = "Contract template identifier")),
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Updated template with a new immutable version", body = dto::ContractTemplate),
+        (status = 400, description = "Invalid contract template", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse),
+        (status = 404, description = "Template not found", body = dto::ErrorResponse)
+    )
+)]
+async fn update_contract_template(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(template_id): Path<String>,
+    Json(input): Json<dto::ContractTemplateInput>,
+) -> Result<Json<dto::ContractTemplate>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .update_template(&user.organization_id, &user.id, &template_id, input.into())
+        .await
+        .map(Into::into)
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    patch,
+    operation_id = "setContractTemplateState",
+    path = "/api/v1/contract-templates/{template_id}/state",
+    tag = "Settings",
+    request_body = dto::ContractTemplateStateInput,
+    params(("template_id" = String, Path, description = "Contract template identifier")),
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Updated contract template state", body = dto::OperationResult),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse),
+        (status = 404, description = "Template not found", body = dto::ErrorResponse)
+    )
+)]
+async fn set_contract_template_state(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(template_id): Path<String>,
+    Json(input): Json<dto::ContractTemplateStateInput>,
+) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .set_template_active(
+            &user.organization_id,
+            &user.id,
+            &template_id,
+            input.is_active,
+        )
+        .await
+        .map_err(business_error)?;
+    Ok(Json(dto::OperationResult { ok: true }))
 }
 
 async fn logout(
@@ -796,7 +1031,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/auth/logout", post(logout))
         .route(
             "/api/v1/organizations/current",
-            get(get_current_organization),
+            get(get_current_organization).put(update_current_organization),
+        )
+        .route(
+            "/api/v1/users/me",
+            get(get_my_profile).put(update_my_profile),
+        )
+        .route("/api/v1/audit-events", get(list_audit_events))
+        .route(
+            "/api/v1/contract-templates",
+            get(list_contract_templates).post(create_contract_template),
+        )
+        .route(
+            "/api/v1/contract-templates/{template_id}",
+            put(update_contract_template),
+        )
+        .route(
+            "/api/v1/contract-templates/{template_id}/state",
+            patch(set_contract_template_state),
         )
         .route("/api/v1/dashboard/summary", get(dashboard_summary))
         .route("/api/v1/users", get(list_users).post(create_user))

@@ -75,7 +75,9 @@ impl<'db> SeaOrmSettingsRepository<'db> {
             .all(database)
             .await
             .map_err(|error| {
-                AppError::Persistence(format!("Failed to load contract template versions: {error}"))
+                AppError::Persistence(format!(
+                    "Failed to load contract template versions: {error}"
+                ))
             })?;
         Ok(ContractTemplate {
             id: model.id,
@@ -203,23 +205,33 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             .filter(user::Column::IsActive.eq(true))
             .one(&transaction)
             .await
-            .map_err(|error| AppError::Persistence(format!("Failed to find user profile: {error}")))?
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to find user profile: {error}"))
+            })?
             .ok_or_else(|| AppError::NotFound("Active user profile was not found.".to_string()))?;
 
         let password_changed = if let Some(new_password) = input.new_password.as_deref() {
-            let current_password = input.current_password.as_deref().ok_or_else(|| {
-                AppError::Validation("Current password is required.".to_string())
-            })?;
-            let verified = crate::users::verify_password_value(current_password, &model.password_hash)
-                .map_err(|error| AppError::Persistence(format!("Could not verify password: {error}")))?;
+            let current_password = input
+                .current_password
+                .as_deref()
+                .ok_or_else(|| AppError::Validation("Current password is required.".to_string()))?;
+            let verified =
+                crate::users::verify_password_value(current_password, &model.password_hash)
+                    .map_err(|error| {
+                        AppError::Persistence(format!("Could not verify password: {error}"))
+                    })?;
             if !verified {
                 return Err(AppError::Validation(
                     "Current password is incorrect.".to_string(),
                 ));
             }
-            Some(crate::users::hash_password_value(new_password).map_err(|error| {
-                AppError::Persistence(format!("Could not securely hash the new password: {error}"))
-            })?)
+            Some(
+                crate::users::hash_password_value(new_password).map_err(|error| {
+                    AppError::Persistence(format!(
+                        "Could not securely hash the new password: {error}"
+                    ))
+                })?,
+            )
         } else {
             None
         };
@@ -231,9 +243,10 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             active.password_hash = Set(password_hash);
         }
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&transaction).await.map_err(|error| {
-            AppError::Persistence(format!("Failed to update profile: {error}"))
-        })?;
+        let updated = active
+            .update(&transaction)
+            .await
+            .map_err(|error| AppError::Persistence(format!("Failed to update profile: {error}")))?;
         self.insert_audit(
             &transaction,
             organization_id,
@@ -263,7 +276,9 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             .offset(offset)
             .all(self.database)
             .await
-            .map_err(|error| AppError::Persistence(format!("Failed to list audit events: {error}")))?;
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to list audit events: {error}"))
+            })?;
         let actor_ids = events
             .iter()
             .filter_map(|event| event.actor_user_id.clone())
@@ -316,7 +331,10 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             })?;
         let mut templates = Vec::with_capacity(models.len());
         for model in models {
-            templates.push(self.load_template( self.database, organization_id, &model.id).await?);
+            templates.push(
+                self.load_template(self.database, organization_id, &model.id)
+                    .await?,
+            );
         }
         Ok(templates)
     }
@@ -335,11 +353,11 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
         contract_template::ActiveModel {
             id: Set(template_id.clone()),
             organization_id: Set(organization_id.to_string()),
-            template_key: Set(input.template_key),
-            name: Set(input.name),
-            description: Set(input.description),
-            lease_type: Set(input.lease_type),
-            locale: Set(input.locale),
+            template_key: Set(input.template_key.clone()),
+            name: Set(input.name.clone()),
+            description: Set(input.description.clone()),
+            lease_type: Set(input.lease_type.clone()),
+            locale: Set(input.locale.clone()),
             is_active: Set(true),
             created_by: Set(Some(actor_id.to_string())),
             created_at: Set(now),
@@ -349,8 +367,15 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
         .insert(&transaction)
         .await
         .map_err(|error| AppError::Persistence(format!("Failed to create template: {error}")))?;
-        insert_template_version(&transaction, organization_id, actor_id, &template_id, 1, input)
-            .await?;
+        insert_template_version(
+            &transaction,
+            organization_id,
+            actor_id,
+            &template_id,
+            1,
+            input,
+        )
+        .await?;
         self.insert_audit(
             &transaction,
             organization_id,
@@ -361,7 +386,9 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             serde_json::json!({"version": 1}),
         )
         .await?;
-        let template = self.load_template(&transaction, organization_id, &template_id).await?;
+        let template = self
+            .load_template(&transaction, organization_id, &template_id)
+            .await?;
         transaction.commit().await.map_err(|error| {
             AppError::Persistence(format!("Failed to save new template: {error}"))
         })?;
@@ -384,22 +411,28 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             .one(&transaction)
             .await
             .map_err(|error| AppError::Persistence(format!("Failed to find template: {error}")))?
-            .ok_or_else(|| AppError::NotFound("Active contract template was not found.".to_string()))?;
+            .ok_or_else(|| {
+                AppError::NotFound("Active contract template was not found.".to_string())
+            })?;
         let latest_version = contract_template_version::Entity::find()
             .filter(contract_template_version::Column::TemplateId.eq(template_id))
             .filter(contract_template_version::Column::OrganizationId.eq(organization_id))
             .order_by_desc(contract_template_version::Column::VersionNumber)
             .one(&transaction)
             .await
-            .map_err(|error| AppError::Persistence(format!("Failed to find template version: {error}")))?
-            .ok_or_else(|| AppError::NotFound("Contract template version was not found.".to_string()))?;
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to find template version: {error}"))
+            })?
+            .ok_or_else(|| {
+                AppError::NotFound("Contract template version was not found.".to_string())
+            })?;
         let version_number = latest_version.version_number + 1;
         let mut active = model.into_active_model();
-        active.template_key = Set(input.template_key);
-        active.name = Set(input.name);
-        active.description = Set(input.description);
-        active.lease_type = Set(input.lease_type);
-        active.locale = Set(input.locale);
+        active.template_key = Set(input.template_key.clone());
+        active.name = Set(input.name.clone());
+        active.description = Set(input.description.clone());
+        active.lease_type = Set(input.lease_type.clone());
+        active.locale = Set(input.locale.clone());
         active.updated_at = Set(Utc::now());
         active.update(&transaction).await.map_err(|error| {
             AppError::Persistence(format!("Failed to update template metadata: {error}"))
@@ -423,7 +456,9 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             serde_json::json!({"version": version_number}),
         )
         .await?;
-        let template = self.load_template(&transaction, organization_id, template_id).await?;
+        let template = self
+            .load_template(&transaction, organization_id, template_id)
+            .await?;
         transaction.commit().await.map_err(|error| {
             AppError::Persistence(format!("Failed to save template version: {error}"))
         })?;

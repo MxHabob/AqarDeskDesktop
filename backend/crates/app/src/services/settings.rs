@@ -98,8 +98,11 @@ pub trait SettingsRepository {
         actor_id: &str,
         input: OrganizationSettingsInput,
     ) -> Result<OrganizationSettings, AppError>;
-    async fn get_profile(&self, organization_id: &str, user_id: &str)
-    -> Result<ProfileSettings, AppError>;
+    async fn get_profile(
+        &self,
+        organization_id: &str,
+        user_id: &str,
+    ) -> Result<ProfileSettings, AppError>;
     async fn update_profile(
         &self,
         organization_id: &str,
@@ -181,12 +184,13 @@ impl<R: SettingsRepository> SettingsService<R> {
         }
         if input.timezone.is_empty()
             || input.timezone.len() > 64
-            || !input
-                .timezone
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'+'))
+            || !input.timezone.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'+')
+            })
         {
-            return Err(AppError::Validation("A valid time zone is required.".to_string()));
+            return Err(AppError::Validation(
+                "A valid time zone is required.".to_string(),
+            ));
         }
         self.repository
             .update_organization(organization_id, actor_id, input)
@@ -311,19 +315,17 @@ fn validate_template(mut input: ContractTemplateInput) -> Result<ContractTemplat
     input.description = clean_optional(input.description);
     input.locale = input.locale.trim().to_lowercase();
     input.content_body = input.content_body.trim().to_string();
-    input.placeholders_json = clean_optional(input.placeholders_json)
-        .or_else(|| Some("{}".to_string()));
+    input.placeholders_json =
+        clean_optional(input.placeholders_json).or_else(|| Some("{}".to_string()));
     input.change_note = clean_optional(input.change_note);
     if input.template_key.is_empty()
         || input.template_key.len() > 80
-        || !input
-            .template_key
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-'))
+        || !input.template_key.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
+        })
     {
         return Err(AppError::Validation(
-            "Template key must use lowercase letters, digits, hyphens, or underscores."
-                .to_string(),
+            "Template key must use lowercase letters, digits, hyphens, or underscores.".to_string(),
         ));
     }
     if input.name.is_empty() || input.content_body.is_empty() {
@@ -348,8 +350,9 @@ fn validate_template(mut input: ContractTemplateInput) -> Result<ContractTemplat
         ));
     }
     let placeholders = input.placeholders_json.as_deref().unwrap_or("{}");
-    serde_json::from_str::<serde_json::Value>(placeholders)
-        .map_err(|_| AppError::Validation("Template placeholders must be valid JSON.".to_string()))?;
+    serde_json::from_str::<serde_json::Value>(placeholders).map_err(|_| {
+        AppError::Validation("Template placeholders must be valid JSON.".to_string())
+    })?;
     Ok(input)
 }
 

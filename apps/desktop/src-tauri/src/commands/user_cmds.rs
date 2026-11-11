@@ -150,13 +150,12 @@ pub async fn organization_get_name(
         return Ok(organization.name);
     }
 
-    let organization = aqardesk_infrastructure::models::organization::Entity::find_by_id(
-        &user.organization_id,
-    )
-    .one(&database.get().await?)
-    .await
-    .map_err(|error| format!("Could not load the organization name: {error}"))?
-    .ok_or_else(|| "The organization for this account could not be found.".to_string())?;
+    let organization =
+        aqardesk_infrastructure::models::organization::Entity::find_by_id(&user.organization_id)
+            .one(&database.get().await?)
+            .await
+            .map_err(|error| format!("Could not load the organization name: {error}"))?
+            .ok_or_else(|| "The organization for this account could not be found.".to_string())?;
     Ok(organization.name)
 }
 
@@ -416,7 +415,7 @@ pub(super) async fn require_active_user(
     Ok(user)
 }
 
-async fn require_admin(
+pub(super) async fn require_admin(
     connection: &ConnectionState,
     database: &DatabaseState,
     state: &AuthState,

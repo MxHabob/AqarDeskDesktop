@@ -1,6 +1,7 @@
 pub mod business_cmds;
 pub mod connection_cmds;
 pub mod dashboard_cmds;
+pub mod settings_cmds;
 pub mod update_cmds;
 pub mod user_cmds;
 
@@ -19,6 +20,15 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         user_cmds::users_list,
         user_cmds::users_create,
         user_cmds::users_set_active,
+        settings_cmds::organization_get_settings,
+        settings_cmds::organization_update_settings,
+        settings_cmds::profile_get_settings,
+        settings_cmds::profile_update_settings,
+        settings_cmds::audit_list,
+        settings_cmds::contract_templates_list,
+        settings_cmds::contract_templates_create,
+        settings_cmds::contract_templates_update,
+        settings_cmds::contract_templates_set_active,
         business_cmds::properties_list,
         business_cmds::properties_create,
         business_cmds::properties_update,
