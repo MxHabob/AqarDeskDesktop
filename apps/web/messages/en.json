@@ -335,4 +335,8 @@
 	"common_open": "Open",
 	"status_connected": "Connected",
 	"status_not_connected": "Not connected",
-	"status_working": "Working
+	"status_working": "Working",
+	"notification_user_added": "User added.",
+	"notification_admin_created": "Workspace and administrator account created.",
+	"notification_update_ready": "The update was downloaded and verified. You can install it now."
+}

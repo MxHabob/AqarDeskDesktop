@@ -22,6 +22,9 @@
 	let currencies = $state<CurrencySettings[]>([]);
 	let loading = $state(true);
 	let busy = $state(false);
+	const enabledCurrencies = $derived(
+		currencies.filter((currency) => currency.is_active && currency.is_enabled_for_organization)
+	);
 
 	onMount(() => {
 		void load();
@@ -116,7 +119,16 @@
 		<h2 class="text-lg font-semibold">{m.nav_payments()}</h2>
 		<p class="text-sm text-muted-foreground">{m.dashboard_payments_description()}</p>
 	</div>
-	<PaymentSheet {tenants} {currencies} {busy} onSubmit={record} />
+	<PaymentSheet
+		{tenants}
+		currencies={enabledCurrencies}
+		{busy}
+		disabled={app.currentUser?.role === 'readonly'}
+		onSubmit={record}
+	/>
+	{#if !loading && tenants.length === 0}
+		<p class="w-full text-xs text-muted-foreground">{m.payments_need_tenant()}</p>
+	{/if}
 </header>
 
 <Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">

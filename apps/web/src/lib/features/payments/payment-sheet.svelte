@@ -9,14 +9,15 @@
 		tenants: Tenant[];
 		currencies: CurrencySettings[];
 		busy: boolean;
+		disabled?: boolean;
 		onSubmit: (input: PaymentInput) => Promise<boolean>;
 	};
 
-	let { tenants, currencies, busy, onSubmit }: Props = $props();
+	let { tenants, currencies, busy, disabled = false, onSubmit }: Props = $props();
 	let open = $state(false);
 </script>
 
-<Button class="shrink-0 rounded-md" disabled={tenants.length === 0 || currencies.length === 0} onclick={() => (open = true)}>
+<Button class="shrink-0 rounded-md" disabled={disabled || tenants.length === 0 || currencies.length === 0} onclick={() => (open = true)}>
 	<Plus size={16} />
 	{m.payments_record()}
 </Button>
