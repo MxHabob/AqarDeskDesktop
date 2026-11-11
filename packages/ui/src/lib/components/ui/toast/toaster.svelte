@@ -1,13 +1,25 @@
 <script lang="ts">
 	import { Check, CircleAlert, Info, X } from '@lucide/svelte';
 	import { fade, fly } from 'svelte/transition';
-	import { toastManager } from './toast.svelte.js';
+	import { toastManager, type ToastPosition } from './toast.svelte.js';
 
+	let { position = 'top-center' }: { position?: ToastPosition } = $props();
 	const visibleToasts = $derived(toastManager.items);
+	const positionClass = $derived(
+		{
+			'top-left': 'left-3 top-3 sm:left-4 sm:top-4',
+			'top-center': 'left-1/2 top-3 -translate-x-1/2 sm:top-4',
+			'top-right': 'right-3 top-3 sm:right-4 sm:top-4',
+			'bottom-left': 'left-3 bottom-3 sm:left-4 sm:bottom-4',
+			'bottom-center': 'left-1/2 bottom-3 -translate-x-1/2 sm:bottom-4',
+			'bottom-right': 'right-3 bottom-3 sm:right-4 sm:bottom-4'
+		}[position]
+	);
+	const animationOffset = $derived(position.startsWith('top-') ? -8 : 8);
 </script>
 
 <div
-	class="pointer-events-none fixed left-1/2 top-3 z-[var(--layer-toast)] flex w-[min(24rem,calc(100vw-1.5rem))] -translate-x-1/2 flex-col gap-2 sm:top-4"
+	class={`pointer-events-none fixed z-[var(--layer-toast)] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-2 ${positionClass}`}
 	role="region"
 	aria-label="Notifications"
 >
@@ -18,7 +30,7 @@
 				data-variant={item.variant}
 				role="status"
 				aria-live={item.variant === 'error' ? 'assertive' : 'polite'}
-				in:fly={{ y: -8, duration: 140 }}
+				in:fly={{ y: animationOffset, duration: 140 }}
 				out:fade={{ duration: 140 }}
 			>
 				<span

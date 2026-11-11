@@ -31,6 +31,7 @@ pub struct ContractTemplate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ContractTemplateInput {
     pub template_key: String,
     pub name: String,
@@ -41,6 +42,22 @@ pub struct ContractTemplateInput {
     pub content_body: String,
     pub placeholders_json: Option<String>,
     pub change_note: Option<String>,
+}
+
+impl Default for ContractTemplateInput {
+    fn default() -> Self {
+        Self {
+            template_key: String::new(),
+            name: String::new(),
+            description: None,
+            lease_type: "residential".to_string(),
+            locale: "ar".to_string(),
+            content_format: "markdown".to_string(),
+            content_body: String::new(),
+            placeholders_json: Some("{}".to_string()),
+            change_note: None,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -141,17 +158,27 @@ fn validate(mut input: ContractTemplateInput) -> Result<ContractTemplateInput, A
     input.template_key = input.template_key.trim().to_ascii_lowercase();
     input.name = input.name.trim().to_string();
     input.description = clean_optional(input.description);
+    if input.lease_type.trim().is_empty() {
+        input.lease_type = "residential".to_string();
+    }
     input.lease_type = input.lease_type.trim().to_ascii_lowercase();
+    if input.locale.trim().is_empty() {
+        input.locale = "ar".to_string();
+    }
     input.locale = input.locale.trim().to_ascii_lowercase();
+    if input.content_format.trim().is_empty() {
+        input.content_format = "markdown".to_string();
+    }
+    input.content_format = input.content_format.trim().to_ascii_lowercase();
     input.content_body = input.content_body.trim().to_string();
     input.placeholders_json =
         clean_optional(input.placeholders_json).or_else(|| Some("{}".to_string()));
     input.change_note = clean_optional(input.change_note);
-    if input.template_key.is_empty()
-        || input.template_key.len() > 64
-        || !input.template_key.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
-        })
+    if !input.template_key.is_empty()
+        && (input.template_key.len() > 64
+            || !input.template_key.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
+            }))
     {
         return Err(validation(
             "Template key must be 1 to 64 lowercase letters, digits, hyphens, or underscores.",

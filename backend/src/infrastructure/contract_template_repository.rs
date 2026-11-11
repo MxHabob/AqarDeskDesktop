@@ -3,6 +3,7 @@ use crate::{
         ApplicationError, ContractTemplate, ContractTemplateInput, ContractTemplateRepository,
         ContractTemplateVersion,
     },
+    contract_template_defaults::DEFAULT_CONTRACT_TEMPLATES,
     infrastructure::audit,
 };
 use chrono::Utc;
@@ -95,55 +96,16 @@ pub(super) async fn seed_onboarding_templates(
     actor_id: &str,
     now: chrono::DateTime<Utc>,
 ) -> Result<(), ApplicationError> {
-    const TEMPLATES: [(&str, &str, &str, &str); 6] = [
-        (
-            "residential-lease-ar",
-            "قالب إيجار سكني (فارغ)",
-            "residential",
-            "ar",
-        ),
-        (
-            "commercial-lease-ar",
-            "قالب إيجار تجاري (فارغ)",
-            "commercial",
-            "ar",
-        ),
-        (
-            "short-term-lease-ar",
-            "قالب إيجار قصير الأجل (فارغ)",
-            "short_term",
-            "ar",
-        ),
-        (
-            "residential-lease-en",
-            "Residential lease (blank)",
-            "residential",
-            "en",
-        ),
-        (
-            "commercial-lease-en",
-            "Commercial lease (blank)",
-            "commercial",
-            "en",
-        ),
-        (
-            "short-term-lease-en",
-            "Short-term lease (blank)",
-            "short_term",
-            "en",
-        ),
-    ];
-
-    for (template_key, name, lease_type, locale) in TEMPLATES {
+    for template in DEFAULT_CONTRACT_TEMPLATES {
         let template_id = Uuid::new_v4().to_string();
         ActiveModel {
             id: Set(template_id.clone()),
             organization_id: Set(organization_id.to_string()),
-            template_key: Set(template_key.to_string()),
-            name: Set(name.to_string()),
+            template_key: Set(template.key.to_string()),
+            name: Set(template.name.to_string()),
             description: Set(None),
-            lease_type: Set(lease_type.to_string()),
-            locale: Set(locale.to_string()),
+            lease_type: Set(template.lease_type.to_string()),
+            locale: Set(template.locale.to_string()),
             is_active: Set(false),
             created_by: Set(Some(actor_id.to_string())),
             updated_by: Set(Some(actor_id.to_string())),
@@ -154,8 +116,7 @@ pub(super) async fn seed_onboarding_templates(
         .await
         .map_err(persistence_error)?;
 
-        let content_body = String::new();
-        let content_sha256 = Sha256::digest(content_body.as_bytes())
+        let content_sha256 = Sha256::digest(template.content.as_bytes())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
@@ -165,10 +126,12 @@ pub(super) async fn seed_onboarding_templates(
             template_id: Set(template_id.clone()),
             version_number: Set(1),
             content_format: Set("markdown".to_string()),
-            content_body: Set(Some(content_body)),
+            content_body: Set(Some(template.content.to_string())),
             placeholders_json: Set("{}".to_string()),
             content_sha256: Set(content_sha256),
-            change_note: Set(Some("Blank editable onboarding template".to_string())),
+            change_note: Set(Some(
+                "Starter template with data fields; review terms before use.".to_string(),
+            )),
             created_by: Set(Some(actor_id.to_string())),
             created_at: Set(now),
         }
@@ -183,7 +146,7 @@ pub(super) async fn seed_onboarding_templates(
             "created",
             "contract_template",
             &template_id,
-            serde_json::json!({"template_key": template_key, "onboarding_default": true}),
+            serde_json::json!({"template_key": template.key, "onboarding_default": true}),
         )
         .await?;
     }
@@ -241,15 +204,21 @@ impl ContractTemplateRepository for SeaOrmContractTemplateRepository {
     ) -> Result<ContractTemplate, ApplicationError> {
         let transaction = self.database.begin().await.map_err(persistence_error)?;
         let now = Utc::now();
+        let template_key = if input.template_key.is_empty() {
+            format!("template-{}", Uuid::new_v4().simple())
+        } else {
+            input.template_key.clone()
+        };
+        let is_active = !input.content_body.trim().is_empty();
         let template = ActiveModel {
             id: Set(Uuid::new_v4().to_string()),
             organization_id: Set(organization_id.to_string()),
-            template_key: Set(input.template_key.clone()),
+            template_key: Set(template_key),
             name: Set(input.name.clone()),
             description: Set(input.description.clone()),
             lease_type: Set(input.lease_type.clone()),
             locale: Set(input.locale.clone()),
-            is_active: Set(true),
+            is_active: Set(is_active),
             created_by: Set(Some(actor_id.to_string())),
             updated_by: Set(Some(actor_id.to_string())),
             created_at: Set(now),
@@ -302,8 +271,13 @@ impl ContractTemplateRepository for SeaOrmContractTemplateRepository {
             .await
             .map_err(persistence_error)?
             .map_or(0, |item| item.version_number);
+        let template_key = if input.template_key.is_empty() {
+            existing.template_key.clone()
+        } else {
+            input.template_key.clone()
+        };
         let mut active = existing.into_active_model();
-        active.template_key = Set(input.template_key.clone());
+        active.template_key = Set(template_key);
         active.name = Set(input.name.clone());
         active.description = Set(input.description.clone());
         active.lease_type = Set(input.lease_type.clone());

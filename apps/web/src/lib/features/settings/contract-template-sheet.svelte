@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { FilePlus2, Pencil } from '@lucide/svelte';
 	import { Button, Sheet, SheetContent, SheetHeader, SheetTitle } from '@aqardesk/ui';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
@@ -14,6 +15,24 @@
 	};
 
 	let { initial, busy, onSubmit, open = $bindable(false), showTrigger = true }: Props = $props();
+	let name = $state('');
+	let editingName = $state(false);
+	let nameInput = $state<HTMLInputElement>();
+
+	$effect(() => {
+		if (open) {
+			name = initial?.name ?? '';
+			editingName = false;
+		}
+	});
+
+	async function editName() {
+		if (editingName) return;
+		editingName = true;
+		await tick();
+		nameInput?.focus();
+		nameInput?.select();
+	}
 
 	function submit(input: ContractTemplateInput) {
 		return onSubmit(input);
@@ -40,15 +59,35 @@
 <Sheet bind:open>
 	<SheetContent
 		side="end"
-		class="max-w-none"
-		contentClass="!data-[side=end]:w-[min(78rem,calc(100vw-1rem))]"
+		class="!p-0 max-w-none"
+		contentClass="!data-[side=end]:end-0 !data-[side=end]:right-0 !data-[side=end]:h-dvh !data-[side=end]:w-screen"
 	>
-		<SheetHeader class="shrink-0 px-4 py-4">
-			<SheetTitle>{initial ? m.settings_template_edit() : m.settings_template_add()}</SheetTitle>
+		<SheetHeader class="shrink-0 px-4 py-4 pe-12">
+			<SheetTitle ondblclick={editName} class="min-h-7 cursor-text">
+				{#if editingName}
+					<input
+						bind:this={nameInput}
+						bind:value={name}
+						aria-label={m.settings_template_name()}
+						onblur={() => (editingName = false)}
+						onkeydown={(event) => {
+							if (event.key === 'Enter') {
+								event.preventDefault();
+								editingName = false;
+							}
+						}}
+						class="w-full border-0 bg-transparent p-0 text-base font-semibold leading-none outline-none focus-visible:ring-0"
+					/>
+				{:else}
+					<span>{name || m.settings_template_new()}</span>
+				{/if}
+			</SheetTitle>
+			<p class="text-xs text-muted-foreground">{m.settings_template_rename_hint()}</p>
 		</SheetHeader>
 		{#if open}
 			<ContractTemplateForm
 				{initial}
+				bind:name
 				{busy}
 				onSubmit={submit}
 				onCancel={() => (open = false)}

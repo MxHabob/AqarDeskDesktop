@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createForm } from '@tanstack/svelte-form';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { z } from 'zod';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
 	import {
@@ -19,68 +19,236 @@
 	import * as m from '#lib/paraglide/messages';
 
 	type Values = {
-		template_key: string;
-		name: string;
 		description: string;
 		lease_type: string;
 		locale: string;
-		content_format: string;
 		content_body: string;
-		placeholders_json: string;
 		change_note: string;
 	};
 
 	type Props = {
 		initial?: ContractTemplate;
+		name?: string;
 		busy: boolean;
 		onSubmit: (input: ContractTemplateInput) => Promise<boolean>;
 		onCancel: () => void;
 	};
 
-	let { initial, busy, onSubmit, onCancel }: Props = $props();
+	let { initial, name = $bindable(''), busy, onSubmit, onCancel }: Props = $props();
 	const defaultValues: Values = untrack(() => ({
-		template_key: initial?.template_key ?? '',
-		name: initial?.name ?? '',
 		description: initial?.description ?? '',
 		lease_type: initial?.lease_type ?? 'residential',
 		locale: initial?.locale ?? 'ar',
-		content_format: initial?.versions[0]?.content_format ?? 'markdown',
 		content_body: initial?.versions[0]?.content_body ?? '',
-		placeholders_json: initial?.versions[0]?.placeholders_json ?? '{}',
 		change_note: ''
 	}));
 	let preview = $state<Values>({ ...defaultValues });
+	let contentEditor = $state<HTMLTextAreaElement>();
+	let contentArea = $state<HTMLDivElement>();
+	let documentMode = $state<'edit' | 'preview'>(
+		untrack(() => (initial?.versions[0]?.content_body?.trim() ? 'preview' : 'edit'))
+	);
+	let titleError = $state('');
+	let variableMenuOpen = $state(false);
+	let variableQuery = $state('');
+	let variableTriggerStart = 0;
+	let activeVariableIndex = $state(0);
+	let variableMenuPosition = $state({ top: 0, left: 0 });
 	const previewDirection = $derived(preview.locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr');
-
-	type PreviewBlock =
-		| { kind: 'heading'; level: number; text: string }
-		| { kind: 'paragraph' | 'list-item'; text: string };
+	const templateVariables = [
+		{ group: 'tenant', fields: [
+			{ key: 'tenant.full_name', label: m.contracts_variable_tenant_name() },
+			{ key: 'tenant.email', label: m.contracts_variable_tenant_email() },
+			{ key: 'tenant.phone', label: m.contracts_variable_tenant_phone() },
+			{ key: 'tenant.address', label: m.contracts_variable_tenant_address() }
+		] },
+		{ group: 'property', fields: [
+			{ key: 'property.name', label: m.contracts_variable_property_name() },
+			{ key: 'property.code', label: m.contracts_variable_property_code() },
+			{ key: 'property.address', label: m.contracts_variable_property_address() },
+			{ key: 'property.city', label: m.contracts_variable_property_city() }
+		] },
+		{ group: 'unit', fields: [
+			{ key: 'unit.number', label: m.contracts_variable_unit_number() },
+			{ key: 'unit.type', label: m.contracts_variable_unit_type() },
+			{ key: 'unit.floor', label: m.contracts_variable_unit_floor() },
+			{ key: 'unit.area', label: m.contracts_variable_unit_area() },
+			{ key: 'unit.bedrooms', label: m.contracts_variable_unit_bedrooms() },
+			{ key: 'unit.bathrooms', label: m.contracts_variable_unit_bathrooms() },
+			{ key: 'unit.rent', label: m.contracts_variable_unit_rent() },
+			{ key: 'unit.currency', label: m.contracts_variable_unit_currency() }
+		] },
+		{ group: 'contract', fields: [
+			{ key: 'contract.number', label: m.contracts_variable_contract_number() },
+			{ key: 'contract.date', label: m.contracts_variable_contract_date() },
+			{ key: 'contract.start_date', label: m.contracts_variable_contract_start() },
+			{ key: 'contract.end_date', label: m.contracts_variable_contract_end() },
+			{ key: 'contract.deposit', label: m.contracts_variable_contract_deposit() }
+		] },
+		{ group: 'organization', fields: [
+			{ key: 'organization.name', label: m.contracts_variable_organization_name() }
+		] }
+	];
+	const allTemplateVariables = $derived(templateVariables.flatMap((group) => group.fields));
+	const filteredTemplateVariables = $derived(
+		(() => {
+			const query = variableQuery.normalize('NFKC').toLocaleLowerCase().trim();
+			return allTemplateVariables.filter((item) =>
+				item.label.normalize('NFKC').toLocaleLowerCase().startsWith(query) ||
+				item.key.normalize('NFKC').toLocaleLowerCase().startsWith(query)
+			);
+		})()
+	);
 
 	function updatePreview<K extends keyof Values>(key: K, value: Values[K]) {
 		preview[key] = value;
 	}
 
-	function parsePreviewBody(body: string): PreviewBlock[] {
-		return body
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.map((line) => {
-				const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-				if (heading) {
-					return {
-						kind: 'heading',
-						level: heading[1].length,
-						text: heading[2]
-					};
-				}
-				const listItem = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
-				if (listItem) return { kind: 'list-item', text: listItem[1] };
-				return { kind: 'paragraph', text: line };
-			});
+	function escapeHtml(value: string) {
+		return value
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
 	}
 
-	function printTemplate() {
+	function renderInlineMarkdown(value: string) {
+		return escapeHtml(value)
+			.replace(/\{\{([a-zA-Z0-9_.-]+)\}\}/g, '<code class="rounded bg-primary/10 px-1 py-0.5 font-mono text-primary" dir="ltr">{{$1}}</code>')
+			.replace(/`([^`]+)`/g, '<code class="rounded bg-muted px-1 py-0.5 font-mono">$1</code>')
+			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+			.replace(/\*(.+?)\*/g, '<em>$1</em>');
+	}
+
+	function renderMarkdown(content: string) {
+		return content
+			.split(/\r?\n/)
+			.map((rawLine) => {
+				const line = rawLine.trim();
+				if (!line) return '';
+				const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+				if (heading) {
+					const level = heading[1].length;
+					const size = level === 1 ? 'text-2xl' : level === 2 ? 'text-lg' : 'text-base';
+					return `<h${level} class="${size} pt-3 font-semibold leading-relaxed">${renderInlineMarkdown(heading[2])}</h${level}>`;
+				}
+				const listItem = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
+				if (listItem) {
+					return `<p class="ps-5 before:-ms-4 before:me-2 before:text-primary before:content-['•']">${renderInlineMarkdown(listItem[1])}</p>`;
+				}
+				return `<p class="whitespace-pre-wrap">${renderInlineMarkdown(line)}</p>`;
+			})
+			.filter(Boolean)
+			.join('');
+	}
+
+	$effect(() => {
+		if (name.trim()) titleError = '';
+	});
+
+	function updateVariableMenuPosition(editor: HTMLTextAreaElement, caret: number) {
+		const wrapper = contentArea;
+		if (!wrapper) return;
+		const rect = editor.getBoundingClientRect();
+		const computed = getComputedStyle(editor);
+		const mirror = document.createElement('div');
+		const marker = document.createElement('span');
+		mirror.style.position = 'fixed';
+		mirror.style.visibility = 'hidden';
+		mirror.style.whiteSpace = 'pre-wrap';
+		mirror.style.overflowWrap = 'break-word';
+		mirror.style.top = `${rect.top}px`;
+		mirror.style.left = `${rect.left}px`;
+		mirror.style.width = `${rect.width}px`;
+		for (const property of [
+			'boxSizing', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
+			'lineHeight', 'padding', 'border', 'textIndent', 'wordSpacing', 'tabSize'
+		] as const) {
+			mirror.style[property] = computed[property];
+		}
+		mirror.textContent = editor.value.slice(0, caret);
+		marker.textContent = '\u200b';
+		mirror.append(marker);
+		document.body.append(mirror);
+		const markerRect = marker.getBoundingClientRect();
+		const wrapperRect = wrapper.getBoundingClientRect();
+		const menuWidth = Math.min(360, wrapper.clientWidth - 16);
+		const menuHeight = Math.min(280, Math.max(130, filteredTemplateVariables.length * 38));
+		const left = Math.max(8, Math.min(
+			markerRect.left - wrapperRect.left - editor.scrollLeft,
+			wrapper.clientWidth - menuWidth - 8
+		));
+		const below = markerRect.bottom - wrapperRect.top - editor.scrollTop + 6;
+		const top = below + menuHeight <= wrapper.clientHeight
+			? below
+			: Math.max(8, markerRect.top - wrapperRect.top - editor.scrollTop - menuHeight - 6);
+		variableMenuPosition = { top, left };
+		mirror.remove();
+	}
+
+	function syncVariableMenu(editor: HTMLTextAreaElement) {
+		const caret = editor.selectionStart;
+		const preceding = editor.value.slice(0, caret);
+		const slash = preceding.lastIndexOf('/');
+		const at = preceding.lastIndexOf('@');
+		const trigger = Math.max(slash, at);
+		const charBeforeTrigger = trigger > 0 ? preceding[trigger - 1] : '';
+		const query = trigger >= 0 ? preceding.slice(trigger + 1) : '';
+		if (
+			trigger < 0 ||
+			(charBeforeTrigger && !/\s|[(\[{,:;]/.test(charBeforeTrigger)) ||
+			/[\s{}]/.test(query)
+		) {
+			variableMenuOpen = false;
+			return;
+		}
+		variableTriggerStart = trigger;
+		variableQuery = query;
+		activeVariableIndex = 0;
+		variableMenuOpen = filteredTemplateVariables.length > 0;
+		if (variableMenuOpen) updateVariableMenuPosition(editor, caret);
+	}
+
+	async function insertVariable(variable: string, handleChange: (value: string) => void) {
+		const editor = contentEditor;
+		if (!editor || !variable) return;
+		const token = `{{${variable}}}`;
+		const start = variableMenuOpen ? variableTriggerStart : editor.selectionStart;
+		const end = editor.selectionEnd;
+		const caret = editor.selectionStart;
+		const value = `${editor.value.slice(0, start)}${token}${editor.value.slice(caret, end)}${editor.value.slice(end)}`;
+		handleChange(value);
+		updatePreview('content_body', value);
+		variableMenuOpen = false;
+		await tick();
+		editor.focus();
+		const nextCaret = start + token.length;
+		editor.setSelectionRange(nextCaret, nextCaret);
+	}
+
+	function handleContentKeydown(event: KeyboardEvent, handleChange: (value: string) => void) {
+		if (!variableMenuOpen) return;
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			activeVariableIndex = (activeVariableIndex + 1) % filteredTemplateVariables.length;
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			activeVariableIndex = (activeVariableIndex - 1 + filteredTemplateVariables.length) % filteredTemplateVariables.length;
+		} else if (event.key === 'Enter' || event.key === 'Tab') {
+			event.preventDefault();
+			const selected = filteredTemplateVariables[activeVariableIndex];
+			if (selected) void insertVariable(selected.key, handleChange);
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			variableMenuOpen = false;
+		}
+	}
+
+	async function printTemplate() {
+		const previousMode = documentMode;
+		documentMode = 'preview';
+		await tick();
 		const printStyles = document.createElement('style');
 		printStyles.textContent = `
 			@media print {
@@ -88,6 +256,9 @@
 				body * { visibility: hidden !important; overflow: visible !important; }
 				#contract-template-preview,
 				#contract-template-preview * { visibility: visible !important; }
+				#contract-template-preview .contract-template-toolbar { display: none !important; }
+				#contract-template-preview .template-document-preview { display: block !important; }
+				#contract-template-preview .template-edit-surface { display: none !important; }
 				#contract-template-preview {
 					position: absolute !important;
 					inset: 0 !important;
@@ -102,34 +273,26 @@
 					background: #fff !important;
 					color: #172033 !important;
 				}
+				#template-content {
+					min-height: 0 !important;
+					height: auto !important;
+					resize: none !important;
+					color: #172033 !important;
+				}
 			}`;
 		document.head.append(printStyles);
-		window.addEventListener('afterprint', () => printStyles.remove(), { once: true });
+		window.addEventListener('afterprint', () => {
+			printStyles.remove();
+			documentMode = previousMode;
+		}, { once: true });
 		window.print();
 	}
 
 	const schema = z.object({
-		template_key: z
-			.string()
-			.trim()
-			.toLowerCase()
-			.min(1, m.settings_template_key_invalid())
-			.max(80)
-			.regex(/^[a-z0-9_-]+$/, m.settings_template_key_invalid()),
-		name: z.string().trim().min(1, m.settings_template_content_required()),
 		description: z.string(),
 		lease_type: z.enum(['residential', 'commercial', 'short_term', 'other']),
 		locale: z.string().trim().min(1).max(35),
-		content_format: z.enum(['text', 'markdown', 'html']),
 		content_body: z.string(),
-		placeholders_json: z.string().refine((value) => {
-			try {
-				JSON.parse(value);
-				return true;
-			} catch {
-				return false;
-			}
-		}, m.settings_template_json_invalid()),
 		change_note: z.string()
 	});
 
@@ -137,11 +300,18 @@
 		defaultValues,
 		validators: { onSubmit: schema },
 		onSubmit: async ({ value }) => {
+			if (!name.trim()) {
+				titleError = m.settings_template_content_required();
+				return;
+			}
 			const ok = await onSubmit({
 				...value,
+				template_key: '',
+				name: name.trim(),
+				content_format: initial?.versions[0]?.content_format ?? '',
+				placeholders_json: initial?.versions[0]?.placeholders_json ?? null,
 				description: value.description.trim() || null,
-				change_note: value.change_note.trim() || null,
-				placeholders_json: value.placeholders_json.trim() || '{}'
+				change_note: value.change_note.trim() || null
 			});
 			if (ok) onCancel();
 		}
@@ -160,59 +330,106 @@
 
 <form id="contract-template-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
 	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
-		<div class="grid min-h-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)]">
-			<div class="grid content-start gap-3">
-		<form.Field name="template_key">
+		<div class="grid content-start gap-4">
+		<form.Field name="content_body">
 			{#snippet children(field)}
-				<FormField label={m.settings_template_key()} id="template-key" error={fieldError(field.state.meta.errors)}>
-					<Input
-						id="template-key"
-						value={field.state.value}
-						oninput={(event) => {
-							const value = event.currentTarget.value;
-							updatePreview('template_key', value);
-							field.handleChange(value);
-						}}
-						onblur={field.handleBlur}
-						dir="ltr"
-						autocomplete="off"
-						disabled={Boolean(initial)}
-					/>
-				</FormField>
+				<div class="grid gap-3">
+					<article
+						id="contract-template-preview"
+						class="w-full rounded-lg border border-border/70 bg-background shadow-sm"
+						dir={previewDirection}
+					>
+						<div class="contract-template-toolbar flex items-center justify-end gap-2 border-b border-border/70 px-4 py-2">
+							<Button
+								type="button"
+								size="sm"
+								variant={documentMode === 'edit' ? 'secondary' : 'ghost'}
+								onclick={() => (documentMode = 'edit')}
+							>
+								{m.settings_template_edit_document()}
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={documentMode === 'preview' ? 'secondary' : 'ghost'}
+								onclick={() => {
+									variableMenuOpen = false;
+									documentMode = 'preview';
+								}}
+							>
+								{m.settings_template_render_preview()}
+							</Button>
+						</div>
+						<div bind:this={contentArea} class="relative">
+							{#if documentMode === 'edit'}
+								<div class="template-edit-surface">
+									<textarea
+										bind:this={contentEditor}
+										id="template-content"
+										aria-label={m.settings_template_content()}
+										aria-autocomplete="list"
+										value={field.state.value}
+										oninput={(event) => {
+											const value = event.currentTarget.value;
+											updatePreview('content_body', value);
+											field.handleChange(value);
+											syncVariableMenu(event.currentTarget);
+										}}
+										onkeydown={(event) => handleContentKeydown(event, field.handleChange)}
+										onclick={(event) => {
+											if (variableMenuOpen) syncVariableMenu(event.currentTarget);
+										}}
+										onblur={field.handleBlur}
+										placeholder={m.settings_template_preview_empty()}
+										dir="auto"
+										class="min-h-[calc(100dvh-18rem)] w-full resize-y border-0 bg-transparent px-6 py-7 text-sm leading-8 text-foreground outline-none focus-visible:ring-0 sm:px-10 sm:py-9"
+									></textarea>
+									{#if variableMenuOpen}
+										<div
+											role="listbox"
+											aria-label={m.settings_template_insert_field()}
+											class="absolute z-30 max-h-64 overflow-y-auto scrollbar-none rounded-lg border border-border bg-popover p-1 shadow-lg"
+											style={`top:${variableMenuPosition.top}px;left:${variableMenuPosition.left}px;width:min(22rem,calc(100% - 1rem))`}
+										>
+											{#each filteredTemplateVariables as item, index (item.key)}
+												<button
+													type="button"
+													role="option"
+													aria-selected={index === activeVariableIndex}
+													onpointerdown={(event) => event.preventDefault()}
+													onclick={() => void insertVariable(item.key, field.handleChange)}
+													class={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-start text-sm ${index === activeVariableIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'}`}
+												>
+													<span>{item.label}</span>
+													<code class="shrink-0 text-xs text-muted-foreground" dir="ltr">{`{{${item.key}}}`}</code>
+												</button>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{:else}
+								<div
+									class="template-document-preview min-h-[calc(100dvh-18rem)] space-y-3 px-8 py-8 text-sm leading-8 sm:px-16 sm:py-12"
+									dir={previewDirection}
+								>
+									{@html renderMarkdown(preview.content_body)}
+								</div>
+							{/if}
+						</div>
+					</article>
+					{#if field.state.meta.errors.length}
+						<p class="text-sm text-destructive">{fieldError(field.state.meta.errors)}</p>
+					{/if}
+					{#if titleError}
+						<p class="text-sm text-destructive" role="alert">{titleError}</p>
+					{/if}
+				</div>
 			{/snippet}
 		</form.Field>
-		<form.Field name="name">
-			{#snippet children(field)}
-				<FormField label={m.settings_template_name()} id="template-name" error={fieldError(field.state.meta.errors)}>
-					<Input
-						id="template-name"
-						value={field.state.value}
-						oninput={(event) => {
-							const value = event.currentTarget.value;
-							updatePreview('name', value);
-							field.handleChange(value);
-						}}
-						onblur={field.handleBlur}
-					/>
-				</FormField>
-			{/snippet}
-		</form.Field>
-		<form.Field name="description">
-			{#snippet children(field)}
-				<FormField label={m.settings_template_description()} id="template-description">
-					<Input
-						id="template-description"
-						value={field.state.value}
-						oninput={(event) => {
-							const value = event.currentTarget.value;
-							updatePreview('description', value);
-							field.handleChange(value);
-						}}
-					/>
-				</FormField>
-			{/snippet}
-		</form.Field>
-		<div class="grid gap-3 sm:grid-cols-2">
+		</div>
+	</div>
+	<SheetFooter class="sticky bottom-0 z-20 !mt-0 !flex !shrink-0 !flex-col !justify-normal gap-3 border-t border-border bg-popover px-4 py-3 shadow-[0_-8px_20px_-16px_rgba(0,0,0,0.5)]">
+		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 			<form.Field name="lease_type">
 				{#snippet children(field)}
 					<FormField label={m.settings_template_lease_type()} id="template-lease-type">
@@ -248,156 +465,42 @@
 					</FormField>
 				{/snippet}
 			</form.Field>
-		</div>
-		<div class="grid gap-3 sm:grid-cols-2">
-			<form.Field name="content_format">
+			<form.Field name="description">
 				{#snippet children(field)}
-					<FormField label={m.settings_template_format()} id="template-format">
-						<Select type="single" value={field.state.value} onValueChange={(value) => {
-							updatePreview('content_format', value);
-							field.handleChange(value);
-						}}>
-							<SelectTrigger id="template-format" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
-							<SelectContent>
-								<SelectItem value="markdown">Markdown</SelectItem>
-								<SelectItem value="html">HTML</SelectItem>
-								<SelectItem value="text">{m.settings_template_text()}</SelectItem>
-							</SelectContent>
-						</Select>
-					</FormField>
-				{/snippet}
-			</form.Field>
-			<form.Field name="placeholders_json">
-				{#snippet children(field)}
-					<FormField label="JSON" id="template-placeholders" error={fieldError(field.state.meta.errors)}>
+					<FormField label={m.settings_template_description()} id="template-description">
 						<Input
-							id="template-placeholders"
+							id="template-description"
 							value={field.state.value}
 							oninput={(event) => {
 								const value = event.currentTarget.value;
-								updatePreview('placeholders_json', value);
+								updatePreview('description', value);
 								field.handleChange(value);
 							}}
-							dir="ltr"
-							autocomplete="off"
+						/>
+					</FormField>
+				{/snippet}
+			</form.Field>
+			<form.Field name="change_note">
+				{#snippet children(field)}
+					<FormField label={m.settings_template_change_note()} id="template-change-note">
+						<Input
+							id="template-change-note"
+							value={field.state.value}
+							oninput={(event) => field.handleChange(event.currentTarget.value)}
 						/>
 					</FormField>
 				{/snippet}
 			</form.Field>
 		</div>
-		<form.Field name="content_body">
-			{#snippet children(field)}
-				<FormField label={m.settings_template_content()} id="template-content" error={fieldError(field.state.meta.errors)}>
-					<textarea
-						id="template-content"
-						value={field.state.value}
-						oninput={(event) => {
-							const value = event.currentTarget.value;
-							updatePreview('content_body', value);
-							field.handleChange(value);
-						}}
-						onblur={field.handleBlur}
-						rows="10"
-						dir="auto"
-						class="min-h-48 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-					></textarea>
-				</FormField>
-			{/snippet}
-		</form.Field>
-			</div>
-
-			<aside class="min-h-0 rounded-xl border border-border/70 bg-muted/30 p-4 sm:p-5" aria-label={m.settings_template_preview()}>
-				<div class="mb-4 flex items-center justify-between gap-3">
-					<div class="grid gap-1">
-						<h2 class="text-sm font-semibold">{m.settings_template_preview()}</h2>
-						<p class="text-xs text-muted-foreground">{m.settings_template_preview_disclaimer()}</p>
-					</div>
-					<Button type="button" variant="outline" size="sm" onclick={printTemplate}>
-						<Printer size={15} class="me-2" />
-						{m.settings_template_print()}
-					</Button>
-				</div>
-				<article
-					id="contract-template-preview"
-					class="mx-auto min-h-[28rem] max-w-[38rem] rounded-lg border border-border/70 bg-background px-6 py-7 shadow-sm sm:px-9 sm:py-10"
-					dir={previewDirection}
-				>
-					<header class="mb-6 border-b-2 border-primary/60 pb-4">
-						<p class="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">AqarDesk</p>
-						<h3 class="mt-3 text-xl font-semibold leading-relaxed">
-							{preview.name.trim() || m.settings_template_preview()}
-						</h3>
-						<p class="mt-1 text-xs text-muted-foreground" dir="ltr">
-							{preview.template_key || 'template-key'} · {preview.locale.toUpperCase() || 'AR'}
-						</p>
-					</header>
-					<div class="grid gap-3 text-sm leading-8">
-						{#if preview.content_body.trim()}
-							{#if preview.content_format !== 'markdown'}
-								<pre class="whitespace-pre-wrap break-words font-mono text-xs leading-6">{preview.content_body}</pre>
-							{:else}
-								{#each parsePreviewBody(preview.content_body) as block, index (`${block.kind}-${index}`)}
-									{#if block.kind === 'heading'}
-										<h4 class="pt-2 font-semibold">
-											{#each block.text.split(/({{[a-zA-Z0-9_.-]+}})/g) as part, partIndex (`${part}-${partIndex}`)}
-												{#if part.startsWith('{{') && part.endsWith('}}')}
-													<code class="rounded bg-primary/10 px-1 text-primary">{part}</code>
-												{:else}
-													{part}
-												{/if}
-											{/each}
-										</h4>
-									{:else if block.kind === 'list-item'}
-										<p class="before:me-2 before:text-primary before:content-['•']">
-											{#each block.text.split(/({{[a-zA-Z0-9_.-]+}})/g) as part, partIndex (`${part}-${partIndex}`)}
-												{#if part.startsWith('{{') && part.endsWith('}}')}
-													<code class="rounded bg-primary/10 px-1 text-primary">{part}</code>
-												{:else}
-													{part}
-												{/if}
-											{/each}
-										</p>
-									{:else}
-										<p class="whitespace-pre-wrap">
-											{#each block.text.split(/({{[a-zA-Z0-9_.-]+}})/g) as part, partIndex (`${part}-${partIndex}`)}
-												{#if part.startsWith('{{') && part.endsWith('}}')}
-													<code class="rounded bg-primary/10 px-1 text-primary">{part}</code>
-												{:else}
-													{part}
-												{/if}
-											{/each}
-										</p>
-									{/if}
-								{/each}
-							{/if}
-						{:else}
-							<p class="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-								{m.settings_template_preview_empty()}
-							</p>
-						{/if}
-					</div>
-					<footer class="mt-10 border-t border-border pt-3 text-[10px] leading-5 text-muted-foreground">
-						{m.settings_template_preview_disclaimer()}
-					</footer>
-				</article>
-			</aside>
+		<div class="flex flex-wrap justify-end gap-2">
+			<Button type="button" variant="outline" disabled={busy} onclick={printTemplate}>
+				<Printer size={15} class="me-2" />
+				{m.settings_template_print()}
+			</Button>
+			<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
+			<Button type="submit" disabled={busy}>
+				{busy ? m.common_processing() : m.settings_save_changes()}
+			</Button>
 		</div>
-		<form.Field name="change_note">
-			{#snippet children(field)}
-				<FormField label={m.settings_template_change_note()} id="template-change-note">
-					<Input
-						id="template-change-note"
-						value={field.state.value}
-						oninput={(event) => field.handleChange(event.currentTarget.value)}
-					/>
-				</FormField>
-			{/snippet}
-		</form.Field>
-	</div>
+	</SheetFooter>
 </form>
-<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
-	<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
-	<Button type="submit" form="contract-template-form" disabled={busy}>
-		{busy ? m.common_processing() : m.settings_save_changes()}
-	</Button>
-</SheetFooter>

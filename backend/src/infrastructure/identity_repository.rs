@@ -536,20 +536,73 @@ mod tests {
             .try_get_by::<i64, _>("count")
             .expect("read template count");
         assert_eq!(seeded_template_count, 6);
-        let empty_template_count = database
+        let populated_template_count = database
             .query_one(sea_orm::Statement::from_string(
                 sea_orm::DbBackend::Sqlite,
                 format!(
-                    "SELECT COUNT(*) AS count FROM contract_template_versions v JOIN contract_templates t ON t.id = v.template_id WHERE t.organization_id = '{}' AND t.is_active = FALSE AND v.content_body = ''",
+                    "SELECT COUNT(*) AS count FROM contract_template_versions v JOIN contract_templates t ON t.id = v.template_id WHERE t.organization_id = '{}' AND t.is_active = FALSE AND LENGTH(TRIM(v.content_body)) > 0",
                     organization.id
                 ),
             ))
             .await
-            .expect("count empty onboarding templates")
-            .expect("empty template count exists")
+            .expect("count populated onboarding templates")
+            .expect("populated template count exists")
             .try_get_by::<i64, _>("count")
-            .expect("read empty template count");
-        assert_eq!(empty_template_count, 6);
+            .expect("read populated template count");
+        assert_eq!(populated_template_count, 6);
+        let starter_contents = database
+            .query_all(sea_orm::Statement::from_string(
+                sea_orm::DbBackend::Sqlite,
+                format!(
+                    "SELECT v.content_body FROM contract_template_versions v JOIN contract_templates t ON t.id = v.template_id WHERE t.organization_id = '{}' ORDER BY t.template_key",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("read onboarding starter content");
+        let starter_contents = starter_contents
+            .iter()
+            .map(|row| {
+                row.try_get_by::<String, _>("content_body")
+                    .expect("read starter body")
+            })
+            .collect::<Vec<_>>();
+        let all_starter_content = starter_contents.join("\n");
+        assert!(
+            starter_contents
+                .iter()
+                .all(|content| content.contains("{{")),
+            "every starter template should include data fields"
+        );
+        for variable in [
+            "{{tenant.full_name}}",
+            "{{tenant.email}}",
+            "{{tenant.phone}}",
+            "{{tenant.address}}",
+            "{{property.name}}",
+            "{{property.code}}",
+            "{{property.address}}",
+            "{{property.city}}",
+            "{{unit.number}}",
+            "{{unit.type}}",
+            "{{unit.floor}}",
+            "{{unit.area}}",
+            "{{unit.bedrooms}}",
+            "{{unit.bathrooms}}",
+            "{{unit.rent}}",
+            "{{unit.currency}}",
+            "{{contract.number}}",
+            "{{contract.date}}",
+            "{{contract.start_date}}",
+            "{{contract.end_date}}",
+            "{{contract.deposit}}",
+            "{{organization.name}}",
+        ] {
+            assert!(
+                all_starter_content.contains(variable),
+                "starter templates should include the {variable} field"
+            );
+        }
         assert!(!service.setup_status().await.expect("setup status"));
         assert!(matches!(
             service

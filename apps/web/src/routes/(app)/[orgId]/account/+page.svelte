@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { z } from 'zod';
-	import { Input, Label, toast } from '@aqardesk/ui';
+	import { RotateCcw } from '@lucide/svelte';
+	import {
+		Button,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue,
+		toast
+	} from '@aqardesk/ui';
 	import type { ProfileSettings, ProfileSettingsInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import SettingsBottomBar from '#lib/shared/components/settings-bottom-bar.svelte';
+	import SettingsFieldRow from '#lib/shared/components/settings-field-row.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	const app = getAppContext();
@@ -116,6 +127,25 @@
 		};
 	}
 
+	function resetAppearance() {
+		if (app.resetAppearance()) toast.success(m.account_appearance_reset_success());
+	}
+
+	function previewToastPosition(value: string | undefined) {
+		if (
+			value === 'top-left' ||
+			value === 'top-center' ||
+			value === 'top-right' ||
+			value === 'bottom-left' ||
+			value === 'bottom-center' ||
+			value === 'bottom-right'
+		) {
+			if (app.changeToastPosition(value)) {
+				toast.success(m.account_toast_preview(), { duration: 2500 });
+			}
+		}
+	}
+
 	const roleLabel = $derived(
 		saved?.role === 'admin'
 			? m.users_role_admin()
@@ -125,56 +155,139 @@
 	);
 </script>
 
-<header class="grid gap-1">
-	<h2 class="text-lg font-semibold">{m.nav_account()}</h2>
-	<p class="text-sm text-muted-foreground">{m.settings_my_profile_description()}</p>
-</header>
-
 {#if loading}
 	<div class="py-8 text-sm text-muted-foreground" role="status">{m.common_processing()}</div>
 {:else if saved}
-	<form
-		class="grid min-w-0 divide-y divide-border/70 pb-20"
-		onsubmit={(event) => {
-			event.preventDefault();
-			void save();
-		}}
-	>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="profile-name">{m.users_name()}</Label>
-			<Input id="profile-name" bind:value={draft.name} autocomplete="name" />
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="profile-email">{m.auth_email()}</Label>
-			<Input id="profile-email" bind:value={draft.email} type="email" dir="ltr" autocomplete="email" />
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<p class="text-sm font-medium">{m.users_role()}</p>
-			<p class="text-sm">{roleLabel}</p>
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-start sm:gap-6">
-			<Label for="profile-current-password">{m.settings_current_password()}</Label>
-			<Input
-				id="profile-current-password"
-				bind:value={draft.current_password}
-				type="password"
-				dir="ltr"
-				autocomplete="current-password"
-			/>
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-start sm:gap-6">
-			<Label for="profile-new-password">{m.settings_new_password()}</Label>
-			<div class="grid gap-1">
-				<Input
-					id="profile-new-password"
-					bind:value={draft.new_password}
-					type="password"
-					dir="ltr"
-					autocomplete="new-password"
-				/>
-				<p class="text-xs text-muted-foreground">{m.settings_password_change_hint()}</p>
+	<div class="grid gap-5 pb-24">
+		<form
+			class="grid min-w-0"
+			onsubmit={(event) => {
+				event.preventDefault();
+				void save();
+			}}
+		>
+			<section class="overflow-hidden rounded-lg border border-border/70 bg-card">
+				<div class="divide-y divide-border/70">
+					<SettingsFieldRow label={m.users_name()} id="profile-name">
+						<Input id="profile-name" bind:value={draft.name} autocomplete="name" class="w-full" />
+					</SettingsFieldRow>
+					<SettingsFieldRow label={m.auth_email()} id="profile-email">
+						<Input
+							id="profile-email"
+							bind:value={draft.email}
+							type="email"
+							dir="ltr"
+							autocomplete="email"
+							class="w-full"
+						/>
+					</SettingsFieldRow>
+					<SettingsFieldRow label={m.users_role()}>
+						<p class="text-sm">{roleLabel}</p>
+					</SettingsFieldRow>
+					<SettingsFieldRow label={m.settings_current_password()} id="profile-current-password">
+						<Input
+							id="profile-current-password"
+							bind:value={draft.current_password}
+							type="password"
+							dir="ltr"
+							autocomplete="current-password"
+							class="w-full"
+						/>
+					</SettingsFieldRow>
+					<SettingsFieldRow
+						label={m.settings_new_password()}
+						id="profile-new-password"
+						description={m.settings_password_change_hint()}
+					>
+						<Input
+							id="profile-new-password"
+							bind:value={draft.new_password}
+							type="password"
+							dir="ltr"
+							autocomplete="new-password"
+							class="w-full"
+						/>
+					</SettingsFieldRow>
+				</div>
+			</section>
+		</form>
+
+		<section class="overflow-hidden rounded-lg border border-border/70 bg-card">
+			<div class="flex items-center justify-between gap-3 border-b border-border/70 bg-muted/40 px-4 py-3">
+				<h2 class="text-xs font-medium text-muted-foreground">{m.account_appearance_title()}</h2>
+				<Button variant="outline" size="sm" onclick={resetAppearance}>
+					<RotateCcw size={14} />
+					{m.account_appearance_reset()}
+				</Button>
 			</div>
-		</div>
-	</form>
+			<div class="divide-y divide-border/70">
+				<SettingsFieldRow
+					label={m.account_theme()}
+					description={m.account_theme_description()}
+					id="account-theme"
+				>
+					<Select
+						type="single"
+						value={app.theme}
+						onValueChange={(value) => {
+							if (value === 'light' || value === 'dark') app.changeTheme(value);
+						}}
+					>
+						<SelectTrigger id="account-theme" class="h-9 w-full rounded-md text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="light">{m.account_theme_light()}</SelectItem>
+							<SelectItem value="dark">{m.account_theme_dark()}</SelectItem>
+						</SelectContent>
+					</Select>
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.account_contrast()}
+					description={m.account_contrast_description()}
+					id="account-contrast"
+				>
+					<Select
+						type="single"
+						value={app.contrast}
+						onValueChange={(value) => {
+							if (value === 'normal' || value === 'high') app.changeContrast(value);
+						}}
+					>
+						<SelectTrigger id="account-contrast" class="h-9 w-full rounded-md text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="normal">{m.account_contrast_normal()}</SelectItem>
+							<SelectItem value="high">{m.account_contrast_high()}</SelectItem>
+						</SelectContent>
+					</Select>
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.account_toast_position()}
+					description={m.account_toast_position_description()}
+					id="account-toast-position"
+				>
+					<Select
+						type="single"
+						value={app.toastPosition}
+						onValueChange={previewToastPosition}
+					>
+						<SelectTrigger id="account-toast-position" class="h-9 w-full rounded-md text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="top-left">{m.account_toast_top_left()}</SelectItem>
+							<SelectItem value="top-center">{m.account_toast_top_center()}</SelectItem>
+							<SelectItem value="top-right">{m.account_toast_top_right()}</SelectItem>
+							<SelectItem value="bottom-left">{m.account_toast_bottom_left()}</SelectItem>
+							<SelectItem value="bottom-center">{m.account_toast_bottom_center()}</SelectItem>
+							<SelectItem value="bottom-right">{m.account_toast_bottom_right()}</SelectItem>
+						</SelectContent>
+					</Select>
+				</SettingsFieldRow>
+			</div>
+		</section>
+	</div>
 {/if}
 <SettingsBottomBar visible={dirty} isSaving={saving} onsave={save} onreset={reset} />

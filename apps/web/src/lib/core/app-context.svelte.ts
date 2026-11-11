@@ -7,11 +7,12 @@ import { userQueryKeys } from '#lib/features/users/queries';
 import * as m from '#lib/paraglide/messages';
 import { getLocale } from '#lib/paraglide/runtime';
 import { getContext, setContext } from 'svelte';
-import { toast } from '@aqardesk/ui';
+import { toast, type ToastPosition } from '@aqardesk/ui';
 
 export const APP_CONTEXT = Symbol('aqardesk-app');
 
 export type AppTheme = 'light' | 'dark';
+export type AppContrast = 'normal' | 'high';
 
 export function createAppContext() {
 	let mode = $state<ConnectionMode>('local');
@@ -44,6 +45,8 @@ export function createAppContext() {
 	let isInstallingUpdate = $state(false);
 	let isUpdateReady = $state(false);
 	let theme = $state<AppTheme>('dark');
+	let contrast = $state<AppContrast>('normal');
+	let toastPosition = $state<ToastPosition>('top-center');
 	let initialization: Promise<void> | undefined;
 	let updateInitialization: Promise<void> | undefined;
 
@@ -366,6 +369,10 @@ export function createAppContext() {
 	function initializeTheme() {
 		try {
 			applyTheme(localStorage.getItem('aqardesk:theme') === 'light' ? 'light' : 'dark');
+			const storedContrast = localStorage.getItem('aqardesk:contrast');
+			applyContrast(storedContrast === 'high' ? 'high' : 'normal');
+			const storedToastPosition = localStorage.getItem('aqardesk:toast-position');
+			if (isToastPosition(storedToastPosition)) toastPosition = storedToastPosition;
 		} catch (cause) {
 			setError(cause);
 		}
@@ -378,6 +385,57 @@ export function createAppContext() {
 		} catch (cause) {
 			setError(cause);
 		}
+	}
+
+	function applyContrast(nextContrast: AppContrast) {
+		contrast = nextContrast;
+		document.documentElement.dataset.contrast = nextContrast;
+	}
+
+	function changeContrast(nextContrast: AppContrast) {
+		try {
+			localStorage.setItem('aqardesk:contrast', nextContrast);
+			applyContrast(nextContrast);
+		} catch (cause) {
+			setError(cause);
+		}
+	}
+
+	function changeToastPosition(nextPosition: ToastPosition): boolean {
+		try {
+			localStorage.setItem('aqardesk:toast-position', nextPosition);
+			toastPosition = nextPosition;
+			return true;
+		} catch (cause) {
+			setError(cause);
+			return false;
+		}
+	}
+
+	function resetAppearance(): boolean {
+		try {
+			localStorage.setItem('aqardesk:theme', 'dark');
+			localStorage.setItem('aqardesk:contrast', 'normal');
+			localStorage.setItem('aqardesk:toast-position', 'top-center');
+			applyTheme('dark');
+			applyContrast('normal');
+			toastPosition = 'top-center';
+			return true;
+		} catch (cause) {
+			setError(cause);
+			return false;
+		}
+	}
+
+	function isToastPosition(value: string | null): value is ToastPosition {
+		return (
+			value === 'top-left' ||
+			value === 'top-center' ||
+			value === 'top-right' ||
+			value === 'bottom-left' ||
+			value === 'bottom-center' ||
+			value === 'bottom-right'
+		);
 	}
 
 	function setError(cause: unknown) {
@@ -428,6 +486,8 @@ export function createAppContext() {
 		get booting() { return booting; },
 		get locale() { return locale; },
 		get theme() { return theme; },
+		get contrast() { return contrast; },
+		get toastPosition() { return toastPosition; },
 		get organizationName() { return organizationName; },
 		set organizationName(value: string) { organizationName = value; },
 		get organizationTimezone() { return organizationTimezone; },
@@ -465,6 +525,9 @@ export function createAppContext() {
 		changeLanguage,
 		initializeTheme,
 		changeTheme,
+		changeContrast,
+		changeToastPosition,
+		resetAppearance,
 		updateCurrentUserProfile,
 		setError,
 		clearMessages

@@ -102,5 +102,5 @@
 		<SearchModal bind:open={searchOpen} currentUser={app.currentUser} onSelect={selectSearchResult} />
 	{/if}
 </QueryClientProvider>
-<Toaster />
+<Toaster position={app.toastPosition} />
 <ConfirmDialog />

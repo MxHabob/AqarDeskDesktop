@@ -13,7 +13,7 @@ export { Input } from './components/ui/input';
 export { Label } from './components/ui/label';
 export { default as Toaster } from './components/ui/toast/toaster.svelte';
 export { toast } from './components/ui/toast/toast.svelte.js';
-export type { ToastOptions, ToastVariant } from './components/ui/toast/toast.svelte.js';
+export type { ToastOptions, ToastPosition, ToastVariant } from './components/ui/toast/toast.svelte.js';
 export {
 	Select,
 	SelectContent,

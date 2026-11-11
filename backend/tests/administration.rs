@@ -220,6 +220,7 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
         .create(actor, blank_input)
         .await
         .expect("create blank editable template");
+    assert!(!blank_template.is_active);
     assert!(
         templates
             .set_active(actor, &blank_template.id, true)
@@ -238,22 +239,32 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
         .await
         .expect("activate completed template");
 
+    let mut create_input = template_input("Primary lease", None);
+    create_input.template_key.clear();
+    create_input.lease_type.clear();
+    create_input.locale.clear();
+    create_input.content_format.clear();
+    create_input.placeholders_json = None;
     let created = templates
-        .create(actor, template_input("Primary lease", None))
+        .create(actor, create_input)
         .await
         .expect("create contract template");
+    assert!(created.template_key.starts_with("template-"));
+    assert_eq!(created.lease_type, "residential");
+    assert_eq!(created.locale, "ar");
     assert_eq!(created.versions.len(), 1);
+    assert_eq!(created.versions[0].content_format, "markdown");
+    assert_eq!(created.versions[0].placeholders_json, "{}");
     assert_eq!(created.versions[0].version_number, 1);
     assert_eq!(created.versions[0].content_sha256.len(), 64);
 
+    let mut renamed_input = template_input("Primary lease v2", Some("Updated wording"));
+    renamed_input.template_key.clear();
     let updated_template = templates
-        .update(
-            actor,
-            &created.id,
-            template_input("Primary lease v2", Some("Updated wording")),
-        )
+        .update(actor, &created.id, renamed_input)
         .await
         .expect("create template version");
+    assert_eq!(updated_template.template_key, created.template_key);
     assert_eq!(updated_template.versions.len(), 2);
     assert_eq!(updated_template.versions[0].version_number, 2);
     assert_eq!(

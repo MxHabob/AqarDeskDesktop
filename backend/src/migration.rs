@@ -4,6 +4,7 @@ use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager, prelude::*
 mod m20261111_000001_platform_core;
 mod m20261112_000001_contract_templates;
 mod m20261112_000002_onboarding_defaults;
+mod m20261112_000003_contract_template_starters;
 
 pub struct PlatformMigrator;
 
@@ -14,6 +15,7 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261111_000001_platform_core::Migration),
             Box::new(m20261112_000001_contract_templates::Migration),
             Box::new(m20261112_000002_onboarding_defaults::Migration),
+            Box::new(m20261112_000003_contract_template_starters::Migration),
         ]
     }
 }
