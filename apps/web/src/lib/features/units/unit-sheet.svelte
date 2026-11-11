@@ -17,7 +17,7 @@
 
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-xl">
-		<SheetHeader class="border-b border-border px-5 py-5">
+		<SheetHeader class="shrink-0 border-b border-border px-4 py-4">
 			<SheetTitle>{initial ? m.units_edit() : m.units_add()}</SheetTitle>
 			<SheetDescription>{m.dashboard_properties_description()}</SheetDescription>
 		</SheetHeader>

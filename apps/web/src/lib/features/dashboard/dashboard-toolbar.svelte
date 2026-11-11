@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { ListFilter, Settings2 } from '@lucide/svelte';
-	import { Button } from '@aqardesk/ui';
+	import {
+		Button,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue
+	} from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
 
 	let {
@@ -29,21 +36,21 @@
 	>
 		<Settings2 size={13} />
 	</Button>
-	<label class="relative">
-		<span class="sr-only">{m.dashboard_period()}</span>
-		<select
-			class="h-7 rounded-sm border border-border/70 bg-transparent pe-2 ps-7 text-xs text-foreground"
-			value={months}
-			onchange={(event) => onMonthsChange(Number(event.currentTarget.value))}
-		>
-			<option value={3}>{m.dashboard_period_3_months()}</option>
-			<option value={6}>{m.dashboard_period_6_months()}</option>
-			<option value={12}>{m.dashboard_period_12_months()}</option>
-		</select>
-		<span class="pointer-events-none absolute start-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true">
-			<ListFilter size={12} />
-		</span>
-	</label>
+	<Select
+		type="single"
+		value={String(months)}
+		onValueChange={(value) => onMonthsChange(Number(value))}
+	>
+		<SelectTrigger class="h-7 w-28 gap-1.5 rounded-sm border-border/70 px-2">
+			<ListFilter size={12} class="shrink-0 text-muted-foreground" />
+			<SelectValue aria-label={m.dashboard_period()} />
+		</SelectTrigger>
+		<SelectContent>
+			<SelectItem value="3">{m.dashboard_period_3_months()}</SelectItem>
+			<SelectItem value="6">{m.dashboard_period_6_months()}</SelectItem>
+			<SelectItem value="12">{m.dashboard_period_12_months()}</SelectItem>
+		</SelectContent>
+	</Select>
 	<div class="flex h-7 border border-border/70">
 		<Button
 			variant="ghost"

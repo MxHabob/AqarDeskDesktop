@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { Card } from '@aqardesk/ui';
+	import {
+		Card,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue
+	} from '@aqardesk/ui';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import type { DashboardSummary } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
@@ -10,9 +17,7 @@
 	const currencies = $derived(
 		[...new Set(summary.monthly_payments.map((payment) => payment.currency_code))].sort()
 	);
-	const activeCurrency = $derived(
-		currencies.includes(selectedCurrency) ? selectedCurrency : (currencies[0] ?? '')
-	);
+	const activeCurrency = $derived(currencies.includes(selectedCurrency) ? selectedCurrency : (currencies[0] ?? ''));
 	const currencyDigits = $derived(
 		summary.monthly_payments.find((payment) => payment.currency_code === activeCurrency)
 			?.currency_decimal_digits ?? 2
@@ -48,15 +53,20 @@
 	<div class="mb-2 flex items-center justify-between gap-3">
 		<h3 class="text-xs font-medium text-muted-foreground">{m.dashboard_payment_trend()}</h3>
 		{#if currencies.length > 0}
-			<select
-				bind:value={selectedCurrency}
-				class="h-7 max-w-24 rounded-sm border border-border/70 bg-background px-2 text-xs text-foreground"
-				aria-label={m.dashboard_payment_trend()}
+			<Select
+				type="single"
+				value={activeCurrency}
+				onValueChange={(value) => (selectedCurrency = value)}
 			>
-				{#each currencies as currency (currency)}
-					<option value={currency}>{currency}</option>
-				{/each}
-			</select>
+				<SelectTrigger class="h-7 w-24 rounded-sm border-border/70 px-2">
+					<SelectValue aria-label={m.dashboard_payment_trend()} />
+				</SelectTrigger>
+				<SelectContent>
+					{#each currencies as currency (currency)}
+						<SelectItem value={currency}>{currency}</SelectItem>
+					{/each}
+				</SelectContent>
+			</Select>
 		{/if}
 	</div>
 

@@ -14,7 +14,7 @@
 </script>
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-xl">
-		<SheetHeader class="border-b border-border px-5 py-5"><SheetTitle>{initial ? m.tenants_edit() : m.tenants_add()}</SheetTitle><SheetDescription>{m.dashboard_tenants_description()}</SheetDescription></SheetHeader>
+		<SheetHeader class="shrink-0 border-b border-border px-4 py-4"><SheetTitle>{initial ? m.tenants_edit() : m.tenants_add()}</SheetTitle><SheetDescription>{m.dashboard_tenants_description()}</SheetDescription></SheetHeader>
 		{#if open}<TenantForm {initial} {busy} onSubmit={onsave} onCancel={onclose} />{/if}
 	</SheetContent>
 </Sheet>

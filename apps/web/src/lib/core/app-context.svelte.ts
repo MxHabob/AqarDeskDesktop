@@ -376,12 +376,26 @@ export function createAppContext() {
 
 export type AppContext = ReturnType<typeof createAppContext>;
 
+declare global {
+	interface Window {
+		__aqardeskAppContext?: AppContext;
+	}
+}
+
 export function setAppContext(context: AppContext) {
 	setContext(APP_CONTEXT, context);
+	if (typeof window !== 'undefined') {
+		window.__aqardeskAppContext = context;
+	}
 }
 
 export function getAppContext() {
 	const context = getContext<AppContext | undefined>(APP_CONTEXT);
-	if (!context) throw new Error('AqarDesk app context is missing');
-	return context;
+	if (context) return context;
+
+	if (typeof window !== 'undefined' && window.__aqardeskAppContext) {
+		return window.__aqardeskAppContext;
+	}
+
+	throw new Error('AqarDesk app context is missing');
 }

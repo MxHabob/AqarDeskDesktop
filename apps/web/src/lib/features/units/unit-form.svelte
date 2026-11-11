@@ -3,7 +3,16 @@
 	import { z } from 'zod';
 	import { untrack } from 'svelte';
 	import type { Property, PropertyUnit, PropertyUnitInput, UnitType } from '@aqardesk/sdk';
-	import { Button, Input, SheetFooter } from '@aqardesk/ui';
+	import {
+		Button,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue,
+		SheetFooter
+	} from '@aqardesk/ui';
 	import FormField from '#lib/shared/components/form-field.svelte';
 	import { getFieldError } from '#lib/shared/form-errors';
 	import { currencyDecimalDigits, formatMinorAmount, parseMajorAmount } from '#lib/shared/currency';
@@ -86,6 +95,9 @@
 	function setType(value: string, change: (value: UnitType) => void) {
 		if (['apartment', 'office', 'retail', 'warehouse', 'parking', 'other'].includes(value)) change(value as UnitType);
 	}
+	function setStatus(value: string, change: (value: Values['status']) => void) {
+		if (value === 'available' || value === 'maintenance' || value === 'inactive') change(value);
+	}
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -93,13 +105,19 @@
 	}
 </script>
 
-<form class="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 scrollbar-none" onsubmit={submit}>
+<form id="unit-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
+	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 	<form.Field name="property_id">
 		{#snippet children(field)}
 			<FormField label={m.units_property()} id="unit-property" error={getFieldError(field.state.meta.errors)}>
-				<select id="unit-property" value={field.state.value} onchange={(event) => field.handleChange(event.currentTarget.value)} class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm">
-					{#each properties as property (property.id)}<option value={property.id}>{property.name} ({property.code})</option>{/each}
-				</select>
+				<Select type="single" value={field.state.value} onValueChange={field.handleChange}>
+					<SelectTrigger id="unit-property" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						{#each properties as property (property.id)}
+							<SelectItem value={property.id}>{property.name} ({property.code})</SelectItem>
+						{/each}
+					</SelectContent>
+				</Select>
 			</FormField>
 		{/snippet}
 	</form.Field>
@@ -114,9 +132,17 @@
 		<form.Field name="unit_type">
 			{#snippet children(field)}
 				<FormField label={m.units_type()} id="unit-type">
-					<select id="unit-type" value={field.state.value} onchange={(event) => setType(event.currentTarget.value, field.handleChange)} class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm">
-						<option value="apartment">{m.units_type_apartment()}</option><option value="office">{m.units_type_office()}</option><option value="retail">{m.units_type_retail()}</option><option value="warehouse">{m.units_type_warehouse()}</option><option value="parking">{m.units_type_parking()}</option><option value="other">{m.common_other()}</option>
-					</select>
+					<Select type="single" value={field.state.value} onValueChange={(value) => setType(value, field.handleChange)}>
+						<SelectTrigger id="unit-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+						<SelectContent>
+							<SelectItem value="apartment">{m.units_type_apartment()}</SelectItem>
+							<SelectItem value="office">{m.units_type_office()}</SelectItem>
+							<SelectItem value="retail">{m.units_type_retail()}</SelectItem>
+							<SelectItem value="warehouse">{m.units_type_warehouse()}</SelectItem>
+							<SelectItem value="parking">{m.units_type_parking()}</SelectItem>
+							<SelectItem value="other">{m.common_other()}</SelectItem>
+						</SelectContent>
+					</Select>
 				</FormField>
 			{/snippet}
 		</form.Field>
@@ -124,9 +150,14 @@
 	<form.Field name="status">
 		{#snippet children(field)}
 			<FormField label={m.units_status()} id="unit-status">
-				<select id="unit-status" value={field.state.value} onchange={(event) => field.handleChange(event.currentTarget.value as Values['status'])} class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm">
-					<option value="available">{m.units_status_available()}</option><option value="maintenance">{m.units_status_maintenance()}</option><option value="inactive">{m.common_disabled()}</option>
-				</select>
+				<Select type="single" value={field.state.value} onValueChange={(value) => setStatus(value, field.handleChange)}>
+					<SelectTrigger id="unit-status" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						<SelectItem value="available">{m.units_status_available()}</SelectItem>
+						<SelectItem value="maintenance">{m.units_status_maintenance()}</SelectItem>
+						<SelectItem value="inactive">{m.common_disabled()}</SelectItem>
+					</SelectContent>
+				</Select>
 			</FormField>
 		{/snippet}
 	</form.Field>
@@ -174,8 +205,9 @@
 			{/snippet}
 		</form.Field>
 	</div>
-	<SheetFooter class="border-t border-border pt-4">
-		<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
-		<Button type="submit" disabled={busy || properties.length === 0}>{busy ? m.common_processing() : initial ? m.common_save() : m.units_add()}</Button>
-	</SheetFooter>
+	</div>
 </form>
+<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+	<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
+	<Button type="submit" form="unit-form" disabled={busy || properties.length === 0}>{busy ? m.common_processing() : initial ? m.common_save() : m.units_add()}</Button>
+</SheetFooter>

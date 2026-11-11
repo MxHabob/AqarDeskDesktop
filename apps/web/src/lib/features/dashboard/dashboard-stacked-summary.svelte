@@ -7,6 +7,7 @@
 
 	let { summary }: { summary: DashboardSummary } = $props();
 	let dismissed = $state(false);
+	let speechRequestId = 0;
 
 	const formatter = $derived(new Intl.NumberFormat(getLocale()));
 	const summaryText = $derived(
@@ -18,12 +19,48 @@
 		})
 	);
 
-	function listenToSummary() {
+	function loadVoices(synthesis: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> {
+		const voices = synthesis.getVoices();
+		if (voices.length > 0) return Promise.resolve(voices);
+
+		return new Promise((resolve) => {
+			const finish = () => {
+				window.clearTimeout(timeoutId);
+				synthesis.removeEventListener('voiceschanged', onVoicesChanged);
+				resolve(synthesis.getVoices());
+			};
+			const onVoicesChanged = () => finish();
+			const timeoutId = window.setTimeout(finish, 800);
+			synthesis.addEventListener('voiceschanged', onVoicesChanged, { once: true });
+		});
+	}
+
+	async function listenToSummary() {
 		if (!('speechSynthesis' in window)) return;
-		window.speechSynthesis.cancel();
+		const requestId = ++speechRequestId;
+		const synthesis = window.speechSynthesis;
+		synthesis.cancel();
+
+		const locale = getLocale() === 'ar' ? 'ar-SA' : 'en-US';
+		const language = locale.split('-')[0];
+		const voices = await loadVoices(synthesis);
+		if (requestId !== speechRequestId || dismissed) return;
+
 		const utterance = new SpeechSynthesisUtterance(summaryText);
-		utterance.lang = getLocale() === 'ar' ? 'ar-SA' : 'en-US';
-		window.speechSynthesis.speak(utterance);
+		const matchingVoices = voices.filter((voice) =>
+			voice.lang.toLowerCase().startsWith(`${language.toLowerCase()}-`) ||
+			voice.lang.toLowerCase() === language.toLowerCase()
+		);
+		utterance.voice =
+			matchingVoices.find((voice) => voice.lang.toLowerCase() === locale.toLowerCase()) ??
+			matchingVoices.find((voice) => voice.default) ??
+			matchingVoices[0] ??
+			null;
+		utterance.lang = utterance.voice?.lang ?? locale;
+		utterance.rate = 0.9;
+		utterance.pitch = 1;
+		utterance.volume = 1;
+		synthesis.speak(utterance);
 	}
 </script>
 

@@ -1,6 +1,15 @@
 <script lang="ts">
 	import { Database, Globe2, Server, ShieldCheck } from '@lucide/svelte';
-	import { Button, Card, Input } from '@aqardesk/ui';
+	import {
+		Button,
+		Card,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue
+	} from '@aqardesk/ui';
 	import type { ConnectionMode } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 	import FormField from '#lib/shared/components/form-field.svelte';
@@ -184,16 +193,20 @@
 					/>
 				</FormField>
 				<FormField label={m.connection_ssl_mode()} id="ssl-mode">
-					<select
-						id="ssl-mode"
+					<Select
+						type="single"
 						value={sslMode}
-						onchange={(event) => onSslModeChange(event.currentTarget.value)}
-						class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+						onValueChange={onSslModeChange}
 					>
-						<option value="prefer">prefer</option>
-						<option value="require">require</option>
-						<option value="disable">disable</option>
-					</select>
+						<SelectTrigger id="ssl-mode" class="h-9 w-full rounded-md text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="prefer">prefer</SelectItem>
+							<SelectItem value="require">require</SelectItem>
+							<SelectItem value="disable">disable</SelectItem>
+						</SelectContent>
+					</Select>
 				</FormField>
 			</div>
 			<p class="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">

@@ -3,7 +3,16 @@
 	import { z } from 'zod';
 	import { untrack } from 'svelte';
 	import type { Property, PropertyInput, PropertyType } from '@aqardesk/sdk';
-	import { Button, Input, SheetFooter } from '@aqardesk/ui';
+	import {
+		Button,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue,
+		SheetFooter
+	} from '@aqardesk/ui';
 	import FormField from '#lib/shared/components/form-field.svelte';
 	import { getFieldError } from '#lib/shared/form-errors';
 	import * as m from '#lib/paraglide/messages';
@@ -79,6 +88,10 @@
 		}
 	}
 
+	function propertyStatus(value: string, change: (value: 'active' | 'inactive') => void) {
+		if (value === 'active' || value === 'inactive') change(value);
+	}
+
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -86,7 +99,8 @@
 	}
 </script>
 
-<form class="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 scrollbar-none" onsubmit={submit}>
+<form id="property-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
+	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 	<form.Field name="name">
 		{#snippet children(field)}
 			<FormField label={m.properties_name()} id="property-name" error={getFieldError(field.state.meta.errors)}>
@@ -105,9 +119,16 @@
 		<form.Field name="property_type">
 			{#snippet children(field)}
 				<FormField label={m.properties_type()} id="property-type">
-					<select id="property-type" value={field.state.value} onchange={(event) => propertyType(event.currentTarget.value, field.handleChange)} class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm">
-						<option value="residential">{m.properties_type_residential()}</option><option value="commercial">{m.properties_type_commercial()}</option><option value="mixed_use">{m.properties_type_mixed()}</option><option value="land">{m.properties_type_land()}</option><option value="other">{m.common_other()}</option>
-					</select>
+					<Select type="single" value={field.state.value} onValueChange={(value) => propertyType(value, field.handleChange)}>
+						<SelectTrigger id="property-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+						<SelectContent>
+							<SelectItem value="residential">{m.properties_type_residential()}</SelectItem>
+							<SelectItem value="commercial">{m.properties_type_commercial()}</SelectItem>
+							<SelectItem value="mixed_use">{m.properties_type_mixed()}</SelectItem>
+							<SelectItem value="land">{m.properties_type_land()}</SelectItem>
+							<SelectItem value="other">{m.common_other()}</SelectItem>
+						</SelectContent>
+					</Select>
 				</FormField>
 			{/snippet}
 		</form.Field>
@@ -115,9 +136,19 @@
 	<form.Field name="status">
 		{#snippet children(field)}
 			<FormField label={m.properties_status()} id="property-status">
-				<select id="property-status" value={field.state.value} onchange={(event) => field.handleChange(event.currentTarget.value as 'active' | 'inactive')} class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm">
-					<option value="active">{m.common_enabled()}</option><option value="inactive">{m.common_disabled()}</option>
-				</select>
+				<Select
+					type="single"
+					value={field.state.value}
+					onValueChange={(value) => propertyStatus(value, field.handleChange)}
+				>
+					<SelectTrigger id="property-status" class="h-9 w-full rounded-md text-sm">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="active">{m.common_enabled()}</SelectItem>
+						<SelectItem value="inactive">{m.common_disabled()}</SelectItem>
+					</SelectContent>
+				</Select>
 			</FormField>
 		{/snippet}
 	</form.Field>
@@ -172,8 +203,9 @@
 			</FormField>
 		{/snippet}
 	</form.Field>
-	<SheetFooter class="border-t border-border pt-4">
-		<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
-		<Button type="submit" disabled={busy}>{busy ? m.common_processing() : initial ? m.common_save() : m.properties_add()}</Button>
-	</SheetFooter>
+	</div>
 </form>
+<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+	<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
+	<Button type="submit" form="property-form" disabled={busy}>{busy ? m.common_processing() : initial ? m.common_save() : m.properties_add()}</Button>
+</SheetFooter>

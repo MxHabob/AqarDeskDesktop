@@ -30,7 +30,7 @@
 
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-xl">
-		<SheetHeader class="border-b border-border px-5 py-5">
+		<SheetHeader class="shrink-0 border-b border-border px-4 py-4">
 			<SheetTitle>{m.users_add_title()}</SheetTitle>
 			<SheetDescription>{m.users_description()}</SheetDescription>
 		</SheetHeader>

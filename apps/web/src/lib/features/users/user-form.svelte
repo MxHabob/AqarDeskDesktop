@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { createForm } from '@tanstack/svelte-form';
 	import { z } from 'zod';
-	import { Button, Input, SheetFooter } from '@aqardesk/ui';
+	import {
+		Button,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue,
+		SheetFooter
+	} from '@aqardesk/ui';
 	import FormField from '#lib/shared/components/form-field.svelte';
 	import * as m from '#lib/paraglide/messages';
 
@@ -64,7 +73,8 @@
 	}
 </script>
 
-<form class="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 scrollbar-none" onsubmit={submit}>
+<form id="user-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
+	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 	<form.Field name="name">
 		{#snippet children(field)}
 			<FormField label={m.users_name()} id="new-user-name" error={fieldError(field.state.meta.errors)}>
@@ -122,26 +132,29 @@
 	<form.Field name="role">
 		{#snippet children(field)}
 			<FormField label={m.users_role()} id="new-user-role">
-				<select
-					id="new-user-role"
+				<Select
+					type="single"
 					value={field.state.value}
-					onchange={(event) =>
-						setRole(event.currentTarget.value, (value) => field.handleChange(value))}
-					onblur={field.handleBlur}
-					class="h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+					onValueChange={(value) => setRole(value, (role) => field.handleChange(role))}
 				>
-					<option value="staff">{m.users_role_staff()}</option>
-					<option value="admin">{m.users_role_admin()}</option>
-				</select>
+					<SelectTrigger id="new-user-role" class="h-9 w-full rounded-md text-sm">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="staff">{m.users_role_staff()}</SelectItem>
+						<SelectItem value="admin">{m.users_role_admin()}</SelectItem>
+					</SelectContent>
+				</Select>
 			</FormField>
 		{/snippet}
 	</form.Field>
-	<SheetFooter class="border-t border-border pt-4">
-		<Button type="button" variant="outline" class="rounded-md" disabled={busy} onclick={onCancel}>
-			{m.common_cancel()}
-		</Button>
-		<Button type="submit" class="rounded-md" disabled={busy}>
-			{busy ? m.common_processing() : m.users_add()}
-		</Button>
-	</SheetFooter>
+	</div>
 </form>
+<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+	<Button type="button" variant="outline" class="rounded-md" disabled={busy} onclick={onCancel}>
+		{m.common_cancel()}
+	</Button>
+	<Button type="submit" form="user-form" class="rounded-md" disabled={busy}>
+		{busy ? m.common_processing() : m.users_add()}
+	</Button>
+</SheetFooter>
