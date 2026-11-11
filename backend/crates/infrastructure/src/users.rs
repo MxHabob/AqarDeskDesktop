@@ -142,6 +142,17 @@ pub async fn authenticate(
     Ok(summary(model))
 }
 
+pub async fn get_active_user(
+    database: &DatabaseConnection,
+    user_id: &str,
+) -> Result<Option<UserSummary>, String> {
+    user::Entity::find_by_id(user_id)
+        .one(database)
+        .await
+        .map(|model| model.filter(|user| user.is_active).map(summary))
+        .map_err(|error| format!("Failed to restore the saved user session: {error}"))
+}
+
 pub async fn list_users(database: &DatabaseConnection) -> Result<Vec<UserSummary>, String> {
     user::Entity::find()
         .order_by_asc(user::Column::CreatedAt)

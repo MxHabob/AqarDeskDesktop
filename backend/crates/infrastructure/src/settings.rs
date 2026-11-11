@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use url::Url;
 
 const SECRET_SERVICE: &str = "com.aqardesk.desktop.database";
+const AUTH_SESSION_SERVICE: &str = "com.aqardesk.desktop.session";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -13,7 +14,7 @@ pub enum ConnectionMode {
     Api,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConnectionConfig {
     pub mode: ConnectionMode,
     #[serde(default)]
@@ -24,12 +25,12 @@ pub struct ConnectionConfig {
     pub api: Option<ApiConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocalConfig {
     pub database_path: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DirectConfig {
     pub host: String,
     pub port: u16,
@@ -39,7 +40,7 @@ pub struct DirectConfig {
     pub credential_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiConfig {
     pub server_url: String,
 }
@@ -140,5 +141,31 @@ pub fn remove_postgres_password(credential_id: &str) -> Result<(), String> {
         Err(error) => Err(format!(
             "Could not remove PostgreSQL password securely: {error}"
         )),
+    }
+}
+
+pub fn store_auth_session(session: &str) -> Result<(), String> {
+    Entry::new(AUTH_SESSION_SERVICE, "active")
+        .map_err(|error| format!("Could not access the OS credential store: {error}"))?
+        .set_password(session)
+        .map_err(|error| format!("Could not save the session securely: {error}"))
+}
+
+pub fn load_auth_session() -> Result<Option<String>, String> {
+    let entry = Entry::new(AUTH_SESSION_SERVICE, "active")
+        .map_err(|error| format!("Could not access the OS credential store: {error}"))?;
+    match entry.get_password() {
+        Ok(session) => Ok(Some(session)),
+        Err(KeyringError::NoEntry) => Ok(None),
+        Err(error) => Err(format!("Could not read the saved session: {error}")),
+    }
+}
+
+pub fn remove_auth_session() -> Result<(), String> {
+    let entry = Entry::new(AUTH_SESSION_SERVICE, "active")
+        .map_err(|error| format!("Could not access the OS credential store: {error}"))?;
+    match entry.delete_credential() {
+        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+        Err(error) => Err(format!("Could not remove the saved session: {error}")),
     }
 }

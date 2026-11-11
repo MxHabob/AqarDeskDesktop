@@ -14,6 +14,7 @@
     "dev:web": "turbo run dev --filter=web",
     "build:web": "turbo run build --filter=web",
     "check:web": "turbo run check --filter=web",
+    "rename:web-components": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/rename-web-components.ps1 -Apply",
     "desktop:dev": "bun run --cwd apps/desktop tauri:dev",
     "desktop:build": "bun run --cwd apps/desktop tauri:build",
     "dev:api": "cargo run --manifest-path backend/api/Cargo.toml",

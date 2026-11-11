@@ -28,6 +28,7 @@ impl DatabaseState {
 #[derive(Debug, Clone, Serialize)]
 pub struct LoggedInUser {
     pub id: String,
+    pub organization_id: String,
     pub name: String,
     pub email: String,
     pub role: String,

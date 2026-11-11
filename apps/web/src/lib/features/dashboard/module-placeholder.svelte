@@ -4,7 +4,7 @@
 	import * as m from '#lib/paraglide/messages';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from '#lib/shell/navigation';
-	import EmptyState from '#lib/shared/components/EmptyState.svelte';
+	import EmptyState from '#lib/shared/components/empty-state.svelte';
 
 	type Props = {
 		title: string;

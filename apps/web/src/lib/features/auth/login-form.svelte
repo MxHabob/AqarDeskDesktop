@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Input } from '@aqardesk/ui';
-	import FormField from '#lib/shared/components/FormField.svelte';
+	import FormField from '#lib/shared/components/form-field.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	type Props = {

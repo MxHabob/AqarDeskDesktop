@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { Building2, FileText, LayoutDashboard, LogOut, Settings2, UsersRound, WalletCards } from '@lucide/svelte';
+	import {
+		Building2,
+		LayoutDashboard,
+		LogOut,
+		WalletCards,
+		Settings2,
+	} from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
 	import type { User } from '#lib/features/auth/types';
@@ -14,58 +20,59 @@
 
 	let { active, currentUser, onSelect, onLogout }: Props = $props();
 
-	const links: { key: ViewKey; label: string; icon: typeof Building2 }[] = [
-		{ key: 'overview', label: m.nav_overview(), icon: LayoutDashboard },
-		{ key: 'properties', label: m.nav_properties(), icon: Building2 },
-		{ key: 'units', label: m.nav_units(), icon: Building2 },
-		{ key: 'tenants', label: m.nav_tenants(), icon: UsersRound },
-		{ key: 'contracts', label: m.nav_contracts(), icon: FileText },
-		{ key: 'payments', label: m.nav_payments(), icon: WalletCards },
-		{ key: 'users', label: m.nav_users(), icon: UsersRound },
-		{ key: 'settings', label: m.nav_settings(), icon: Settings2 }
-	];
+	const links = [
+		{ key: 'overview', label: m.nav_overview(), icon: LayoutDashboard, active: ['overview'] },
+		{ key: 'properties', label: m.nav_properties(), icon: Building2, active: ['properties', 'units', 'tenants'] },
+		{ key: 'contracts', label: m.nav_contracts(), icon: WalletCards, active: ['contracts', 'payments'] },
+		{ key: 'settings', label: m.nav_settings(), icon: Settings2, active: ['users', 'settings'] }
+	] satisfies { key: ViewKey; label: string; icon: typeof Building2; active: string[] }[];
 </script>
 
-<aside class="hidden h-full w-64 shrink-0 flex-col border-e border-border bg-card p-4 md:flex">
-	<a class="mb-8 flex items-center gap-3 px-2 py-1 text-foreground no-underline" href={`/${currentUser.organization_id}`} aria-label={m.app_name()}>
-		<span class="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground shadow-card"><Building2 size={20} /></span>
-		<span class="grid gap-0.5">
-			<strong class="text-sm font-semibold">{m.app_name()}</strong>
-			<small class="text-xs text-muted-foreground">{m.app_tagline()}</small>
-		</span>
+<aside class="flex h-full w-14 shrink-0 flex-col items-center border-e border-border/70 bg-card py-3">
+	<a
+		class="mb-5 grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-card"
+		href={`/${currentUser.organization_id}`}
+		aria-label={m.app_name()}
+		title={m.app_name()}
+	>
+		<Building2 size={19} />
 	</a>
 
-	<p class="mb-2 px-3 text-xs font-semibold tracking-wide text-muted-foreground">{m.nav_workspace()}</p>
-	<nav class="grid gap-1" aria-label={m.nav_workspace()}>
+	<nav class="flex w-full flex-1 flex-col items-center gap-1.5" aria-label={m.nav_workspace()}>
 		{#each links as item (item.key)}
-			{#if item.key !== 'users' || currentUser.role === 'admin'}
-				{@const Icon = item.icon}
-				<Button
-					variant="ghost"
-					class={active === item.key
-						? 'h-10 justify-start rounded-md bg-accent px-3 text-accent-foreground hover:bg-accent/80'
-						: 'h-10 justify-start rounded-md px-3 text-muted-foreground hover:bg-muted hover:text-foreground'}
-					aria-current={active === item.key ? 'page' : undefined}
-					onclick={() => onSelect(item.key)}
-				>
-					<Icon size={17} />{item.label}
-				</Button>
-			{/if}
+			{@const Icon = item.icon}
+			<Button
+				variant="ghost"
+				size="icon"
+				class={item.active.includes(active)
+					? 'relative size-10 rounded-xl bg-accent text-accent-foreground after:absolute after:inset-y-2 after:start-0 after:w-0.5 after:rounded-full after:bg-primary'
+					: 'size-10 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground'}
+				aria-label={item.label}
+				aria-current={item.active.includes(active) ? 'page' : undefined}
+				title={item.label}
+				onclick={() => onSelect(item.key)}
+			>
+				<Icon size={18} />
+			</Button>
 		{/each}
 	</nav>
 
-	<div class="mt-auto grid gap-3 border-t border-border pt-4">
-		<div class="flex min-w-0 items-center gap-3 px-1">
-			<span class="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
-				{currentUser.name.slice(0, 1).toLocaleUpperCase()}
-			</span>
-			<span class="grid min-w-0">
-				<strong class="truncate text-sm font-medium text-foreground">{currentUser.name}</strong>
-				<small class="truncate text-xs text-muted-foreground">{currentUser.email}</small>
-			</span>
-		</div>
-		<Button variant="ghost" class="h-9 justify-start rounded-md px-3 text-muted-foreground" onclick={onLogout}>
-			<LogOut size={16} />{m.common_sign_out()}
+	<div class="mt-3 flex w-full flex-col items-center gap-2 border-t border-border/70 pt-3">
+		<span
+			class="grid size-9 place-items-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground"
+			title={currentUser.name}
+		>
+			{currentUser.name.slice(0, 1).toLocaleUpperCase()}
+		</span>
+		<Button
+			variant="ghost"
+			size="icon"
+			class="size-9 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+			aria-label={m.common_sign_out()}
+			title={m.common_sign_out()}
+			onclick={onLogout}
+		>
+			<LogOut size={17} />
 		</Button>
 	</div>
 </aside>

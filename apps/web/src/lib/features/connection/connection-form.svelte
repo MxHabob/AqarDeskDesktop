@@ -3,7 +3,7 @@
 	import { Button, Card, Input } from '@aqardesk/ui';
 	import type { ConnectionMode } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
-	import FormField from '#lib/shared/components/FormField.svelte';
+	import FormField from '#lib/shared/components/form-field.svelte';
 
 	type Props = {
 		mode: ConnectionMode;

@@ -1,14 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { Building2, Database, Globe2 } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import LoginForm from '#lib/features/auth/LoginForm.svelte';
-	import LoginVideoBackground from '#lib/features/auth/LoginVideoBackground.svelte';
+	import LoginForm from '#lib/features/auth/login-form.svelte';
+	import LoginVideoBackground from '#lib/features/auth/login-video-background.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
+	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
+	let desktopShell = $state(false);
+
+	onMount(() => {
+		desktopShell = '__TAURI_INTERNALS__' in window;
+	});
 
 	async function authenticate(event: SubmitEvent) {
 		if (app.needsAdmin) await app.createInitialAdmin(event);
@@ -22,8 +28,9 @@
 	}
 </script>
 
-<main class="relative flex min-h-dvh bg-background font-sans text-foreground scrollbar-none">
-	<header class="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 xl:px-8">
+<main class="relative flex h-full min-h-0 overflow-y-auto bg-background font-sans text-foreground scrollbar-none">
+	{#if !desktopShell}
+	<header class="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 xl:px-8">
 		<a href="/" class="flex items-center gap-2 text-sm font-semibold text-foreground no-underline">
 			<Building2 size={20} />{m.app_name()}
 		</a>
@@ -36,11 +43,12 @@
 			<Globe2 size={15} />{app.locale === 'ar' ? m.language_english() : m.language_arabic()}
 		</Button>
 	</header>
+	{/if}
 
 	<LoginVideoBackground />
 
-	<section class="flex min-h-dvh w-full flex-col items-center justify-center p-8 pb-2 lg:w-1/2 lg:p-12 lg:pb-2">
-		<div class="flex min-h-[calc(100svh-4rem)] w-full max-w-md flex-col lg:min-h-[calc(100svh-6rem)]">
+	<section class="flex min-h-0 w-full flex-col items-center justify-center p-8 pb-2 lg:w-1/2 lg:p-12 lg:pb-2">
+		<div class="flex min-h-0 w-full max-w-md flex-1 flex-col">
 			<div class="flex flex-1 flex-col justify-center space-y-8">
 				<div class="space-y-2 text-center">
 					<h1 class="mb-4 font-serif text-lg lg:text-xl">

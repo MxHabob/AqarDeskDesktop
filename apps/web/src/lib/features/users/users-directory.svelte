@@ -3,8 +3,8 @@
 	import { Button, Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
 	import type { User } from '#lib/features/auth/types';
 	import * as m from '#lib/paraglide/messages';
-	import EmptyState from '#lib/shared/components/EmptyState.svelte';
-	import StatusBadge from '#lib/shared/components/StatusBadge.svelte';
+	import EmptyState from '#lib/shared/components/empty-state.svelte';
+	import StatusBadge from '#lib/shared/components/status-badge.svelte';
 
 	type Props = {
 		users: User[];

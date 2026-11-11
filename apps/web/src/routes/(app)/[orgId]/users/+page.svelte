@@ -2,11 +2,10 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { userQueries, userQueryKeys } from '#lib/features/users/queries';
-	import AddUserSheet from '#lib/features/users/AddUserSheet.svelte';
-	import UsersDirectory from '#lib/features/users/UsersDirectory.svelte';
+	import AddUserSheet from '#lib/features/users/add-user-sheet.svelte';
+	import UsersDirectory from '#lib/features/users/users-directory.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
-	import PageHeader from '#lib/shared/components/PageHeader.svelte';
+	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 	import type { User } from '#lib/features/auth/types';
 
 	const app = getAppContext();
@@ -23,7 +22,6 @@
 </script>
 
 <div class="flex items-start justify-between gap-4">
-	<PageHeader title={m.users_title()} description={m.users_description()} eyebrow={m.nav_workspace()} />
 	<AddUserSheet
 		busy={app.busy}
 		name={app.newUserName}

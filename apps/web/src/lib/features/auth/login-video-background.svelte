@@ -2,7 +2,7 @@
 	import * as m from '#lib/paraglide/messages';
 </script>
 
-<aside class="relative m-2 hidden min-h-[calc(100svh-1rem)] flex-1 overflow-hidden rounded-xl lg:flex">
+<aside class="relative m-2 hidden h-full min-h-0 flex-1 overflow-hidden rounded-xl lg:flex">
 	<div
 		class="absolute inset-0 bg-[url('/assets/bg-login-indigo.jpg')] bg-cover bg-center"
 		aria-hidden="true"

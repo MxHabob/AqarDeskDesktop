@@ -129,6 +129,34 @@ async fn login(
     Ok(Json(create_session(&state, user).await))
 }
 
+async fn get_session(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<UserSummary>, (StatusCode, Json<serde_json::Value>)> {
+    let token = session_token(&headers)?;
+    let user = state
+        .sessions
+        .read()
+        .await
+        .get(token)
+        .cloned()
+        .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))?;
+    let user = users::get_active_user(&state.database, &user.id)
+        .await
+        .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message))?
+        .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))?;
+    Ok(Json(user))
+}
+
+async fn logout(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let token = session_token(&headers)?;
+    state.sessions.write().await.remove(token);
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 async fn list_users(
     State(state): State<ApiState>,
     headers: HeaderMap,
@@ -191,11 +219,7 @@ async fn require_admin(
     state: &ApiState,
     headers: &HeaderMap,
 ) -> Result<UserSummary, (StatusCode, Json<serde_json::Value>)> {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Sign in is required."))?;
+    let token = session_token(headers)?;
     let user = state
         .sessions
         .read()
@@ -203,13 +227,25 @@ async fn require_admin(
         .get(token)
         .cloned()
         .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))?;
-    if !user.is_active || user.role != "admin" {
+    let user = users::get_active_user(&state.database, &user.id)
+        .await
+        .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message))?
+        .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))?;
+    if user.role != "admin" {
         return Err(error(
             StatusCode::FORBIDDEN,
             "Administrator access is required.",
         ));
     }
     Ok(user)
+}
+
+fn session_token(headers: &HeaderMap) -> Result<&str, (StatusCode, Json<serde_json::Value>)> {
+    headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Sign in is required."))
 }
 
 fn read_connection_config(path: &PathBuf) -> Result<ConnectionConfig, String> {
@@ -277,6 +313,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/auth/setup", get(setup_status))
         .route("/api/v1/auth/bootstrap", post(bootstrap_admin))
         .route("/api/v1/auth/login", post(login))
+        .route("/api/v1/auth/session", get(get_session))
+        .route("/api/v1/auth/logout", post(logout))
         .route("/api/v1/users", get(list_users).post(create_user))
         .route("/api/v1/users/{user_id}", patch(update_user))
         .with_state(state);
@@ -284,4 +322,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("AqarDesk API listening on http://{bind}");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+    use sea_orm::Database;
+
+    #[tokio::test]
+    async fn session_endpoint_revalidates_and_logout_revokes_session() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory database");
+        aqardesk_infrastructure::run_migrations(&database)
+            .await
+            .expect("apply migrations");
+        let user = users::create_initial_admin(
+            &database,
+            "AqarDesk",
+            "Admin",
+            "admin@example.com",
+            "a-secure-password",
+        )
+        .await
+        .expect("create initial administrator");
+        let state = ApiState {
+            database,
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+        };
+        let token = create_session(&state, user.clone()).await.token;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {token}")).expect("valid auth header"),
+        );
+
+        let restored = get_session(State(state.clone()), headers.clone())
+            .await
+            .expect("restore active session")
+            .0;
+        assert_eq!(restored.id, user.id);
+        assert_eq!(restored.organization_id, user.organization_id);
+
+        users::set_user_active(&state.database, &user.id, false)
+            .await
+            .expect("deactivate administrator");
+        assert!(
+            get_session(State(state.clone()), headers.clone())
+                .await
+                .is_err()
+        );
+
+        let _response = logout(State(state.clone()), headers.clone())
+            .await
+            .expect("revoke session");
+        assert!(get_session(State(state), headers).await.is_err());
+    }
 }

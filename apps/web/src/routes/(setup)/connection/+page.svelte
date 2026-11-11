@@ -1,13 +1,19 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { Building2, Globe2, ShieldCheck } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import ConnectionForm from '#lib/features/connection/ConnectionForm.svelte';
+	import ConnectionForm from '#lib/features/connection/connection-form.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
+	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
+	let desktopShell = $state(false);
+
+	onMount(() => {
+		desktopShell = '__TAURI_INTERNALS__' in window;
+	});
 
 	async function saveAndContinue(event: SubmitEvent) {
 		if (await app.saveAndConnect(event)) {
@@ -17,8 +23,8 @@
 
 </script>
 
-<main class="grid min-h-dvh overflow-y-auto bg-background font-sans text-foreground scrollbar-none lg:grid-cols-[minmax(18rem,0.8fr)_minmax(30rem,1.2fr)]">
-	<aside class="hidden flex-col justify-between bg-foreground p-10 text-background lg:flex">
+<main class="grid h-full min-h-0 overflow-y-auto bg-background font-sans text-foreground scrollbar-none lg:grid-cols-[minmax(18rem,0.8fr)_minmax(30rem,1.2fr)]">
+	<aside class="hidden min-h-0 flex-col justify-between bg-foreground p-10 text-background lg:flex">
 		<a href="/" class="flex items-center gap-3 text-background no-underline">
 			<span class="grid size-10 place-items-center rounded-lg bg-background/10 text-primary">
 				<Building2 size={21} />
@@ -56,20 +62,20 @@
 		</p>
 	</aside>
 
-	<section class="flex min-h-dvh flex-col p-5 sm:p-8 lg:px-14">
+	<section class="flex min-h-0 flex-col p-5 sm:p-8 lg:px-14">
 		<div class="flex items-center justify-between">
 			<a href="/" class="flex items-center gap-2 text-sm font-semibold text-foreground no-underline lg:hidden">
 				<Building2 size={20} />{m.app_name()}
 			</a>
 			<span class="hidden lg:block"></span>
-			<Button
+			{#if !desktopShell}<Button
 				variant="outline"
 				class="rounded-md"
 				onclick={() => void app.changeLanguage(app.locale === 'ar' ? 'en' : 'ar')}
 			>
 				<Globe2 size={16} />
 				{app.locale === 'ar' ? m.language_english() : m.language_arabic()}
-			</Button>
+			</Button>{/if}
 		</div>
 
 		<div class="mx-auto my-auto grid w-full max-w-2xl gap-5 py-8">

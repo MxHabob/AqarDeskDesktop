@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import DashboardGreeting from '#lib/features/dashboard/DashboardGreeting.svelte';
-	import DashboardQuickActions from '#lib/features/dashboard/DashboardQuickActions.svelte';
-	import DashboardStatus from '#lib/features/dashboard/DashboardStatus.svelte';
+	import DashboardGreeting from '#lib/features/dashboard/dashboard-greeting.svelte';
+	import DashboardQuickActions from '#lib/features/dashboard/dashboard-quick-actions.svelte';
+	import DashboardStatus from '#lib/features/dashboard/dashboard-status.svelte';
 	import { getViewPath, type ViewKey } from '#lib/shell/navigation';
 	import type { PageProps } from './$types';
 
@@ -22,9 +22,9 @@
 </script>
 
 {#if app.currentUser}
-	<section class="grid gap-6">
+	<section class="mx-auto grid w-full max-w-5xl gap-6">
 		<DashboardGreeting currentUser={app.currentUser} />
-		<DashboardQuickActions onSelect={selectView} />
 		<DashboardStatus mode={app.mode} onEditConnection={editConnection} />
+		<DashboardQuickActions onSelect={selectView} />
 	</section>
 {/if}

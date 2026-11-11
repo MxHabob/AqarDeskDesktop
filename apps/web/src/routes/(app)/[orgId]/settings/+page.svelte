@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import ConnectionSettingsCard from '#lib/features/settings/ConnectionSettingsCard.svelte';
-	import LanguageSettingsCard from '#lib/features/settings/LanguageSettingsCard.svelte';
-	import UpdateSettingsCard from '#lib/features/settings/UpdateSettingsCard.svelte';
+	import ConnectionSettingsCard from '#lib/features/settings/connection-settings-card.svelte';
+	import LanguageSettingsCard from '#lib/features/settings/language-settings-card.svelte';
+	import UpdateSettingsCard from '#lib/features/settings/update-settings-card.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/MessageBanner.svelte';
-	import PageHeader from '#lib/shared/components/PageHeader.svelte';
+	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
 
@@ -16,7 +15,6 @@
 	}
 </script>
 
-<PageHeader title={m.settings_title()} description={m.settings_description()} eyebrow={m.nav_workspace()} />
 {#if app.error}<MessageBanner message={app.error} />{/if}
 {#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
 

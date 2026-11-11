@@ -57,6 +57,7 @@ pub async fn connection_set_config(
         ssl_mode,
         existing.as_ref(),
     )?;
+    let connection_changed = existing.as_ref() != Some(&config);
     save_config(&state.app_data_dir, &config)?;
     if let Some(old_credential_id) = existing
         .as_ref()
@@ -78,8 +79,11 @@ pub async fn connection_set_config(
         .map_err(|error| format!("Connection settings lock failed: {error}"))? =
         Some(config.clone());
     *database.connection.write().await = None;
-    *auth.current_user.write().await = None;
-    *auth.api_token.write().await = None;
+    if connection_changed {
+        *auth.current_user.write().await = None;
+        *auth.api_token.write().await = None;
+        aqardesk_infrastructure::settings::remove_auth_session()?;
+    }
     Ok(config)
 }
 
@@ -113,7 +117,6 @@ pub async fn connection_check_api(server_url: String) -> Result<ConnectionStatus
 pub async fn connection_connect(
     state: State<'_, ConnectionState>,
     database: State<'_, DatabaseState>,
-    auth: State<'_, AuthState>,
 ) -> Result<ConnectionStatus, String> {
     let config = state
         .config
@@ -127,8 +130,6 @@ pub async fn connection_connect(
             let url = config.api_url()?.trim_end_matches('/').to_string();
             let result = connection_check_api(url).await?;
             *database.connection.write().await = None;
-            *auth.current_user.write().await = None;
-            *auth.api_token.write().await = None;
             Ok(result)
         }
         ConnectionMode::Local | ConnectionMode::Direct => {
@@ -142,8 +143,6 @@ pub async fn connection_connect(
                 .await
                 .map_err(|error| format!("Could not prepare database schema: {error}"))?;
             *database.connection.write().await = Some(connection);
-            *auth.current_user.write().await = None;
-            *auth.api_token.write().await = None;
             Ok(ConnectionStatus {
                 connected: true,
                 mode: match config.mode {

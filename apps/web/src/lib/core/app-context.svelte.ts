@@ -113,8 +113,8 @@ export function createAppContext() {
 
 	async function connectConfigured() {
 		await desktopApi.connect();
-		connected = true;
 		const status = await desktopApi.getSetupStatus();
+		connected = true;
 		needsAdmin = status.needs_admin;
 		currentUser = status.current_user;
 	}

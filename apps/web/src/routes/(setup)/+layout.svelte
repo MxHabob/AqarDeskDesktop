@@ -1,25 +1,31 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { LoaderCircle } from '@lucide/svelte';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import { onMount } from 'svelte';
+	import { deLocalizeUrl } from '#lib/paraglide/runtime';
+	import * as m from '#lib/paraglide/messages';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
 	const app = getAppContext();
-
-	onMount(() => {
-		void app.initialize();
-	});
+	const pathname = $derived(deLocalizeUrl(page.url).pathname);
 
 	$effect(() => {
 		if (app.booting) return;
-		if (page.url.pathname === '/login' && !app.configured) {
+		if (pathname === '/login' && (!app.configured || !app.connected)) {
 			void goto('/connection', { replaceState: true });
-		} else if (page.url.pathname === '/login' && app.currentUser) {
+		} else if (pathname === '/login' && app.currentUser) {
 			void goto(`/${app.currentUser.organization_id}`, { replaceState: true });
 		}
 	});
 </script>
 
-{@render children()}
+{#if app.booting}
+	<main class="grid h-dvh place-content-center justify-items-center gap-3 bg-background text-muted-foreground">
+		<LoaderCircle size={22} class="animate-spin text-primary" />
+		<p class="text-sm">{m.common_loading()}</p>
+	</main>
+{:else}
+	{@render children()}
+{/if}
