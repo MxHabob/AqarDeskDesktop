@@ -2,16 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
-	import { ArrowUpRight, Ban, ReceiptText } from '@lucide/svelte';
-	import { Button, Card, CardDescription, CardHeader, CardTitle, toast } from '@aqardesk/ui';
+	import { ReceiptText } from '@lucide/svelte';
+	import { Card, CardDescription, CardHeader, CardTitle, toast } from '@aqardesk/ui';
 	import type { CurrencySettings, Payment, PaymentInput, Tenant } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import PaymentSheet from '#lib/features/payments/payment-sheet.svelte';
-	import EmptyState from '#lib/shared/components/empty-state.svelte';
 	import * as m from '#lib/paraglide/messages';
+	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 
 	let { data }: PageProps = $props();
 	const app = getAppContext();
@@ -25,6 +25,8 @@
 	const enabledCurrencies = $derived(
 		currencies.filter((currency) => currency.is_active && currency.is_enabled_for_organization)
 	);
+	const isReadonly = $derived(app.currentUser?.role === 'readonly');
+	const rtl = $derived(locale === 'ar');
 
 	onMount(() => {
 		void load();
@@ -112,6 +114,68 @@
 			default: return m.payments_method_other();
 		}
 	}
+
+	const gridRows = $derived(
+		payments.map((payment) => ({
+			...payment,
+			received_at_display: formatDate(payment.received_at),
+			amount_display: formatMoney(payment),
+			method_display: methodLabel(payment.payment_method)
+		}))
+	);
+
+	const columns: OrbisColumnDef[] = $derived([
+		{ id: 'received_at_display', header: m.payments_received_at(), sortable: false, width: 180 },
+		{ id: 'tenant_name', header: m.payments_tenant(), width: 180 },
+		{
+			id: 'amount_display',
+			header: m.payments_amount(),
+			sortable: false,
+			align: 'end',
+			cellClass: 'dir-ltr',
+			width: 150
+		},
+		{ id: 'method_display', header: m.payments_method(), sortable: false },
+		{
+			id: 'status',
+			header: m.payments_status(),
+			type: 'status',
+			options: [
+				{ value: 'posted', label: m.payments_status_posted() },
+				{ value: 'void', label: m.payments_status_void() }
+			]
+		},
+		{
+			id: 'actions',
+			header: m.users_action(),
+			type: 'action',
+			meta: {
+				items: [
+					{
+						id: 'open',
+						icon: 'ArrowUpRight',
+						label: m.payments_open_receipt(),
+						variant: 'outline'
+					},
+					{
+						id: 'void',
+						icon: 'Ban',
+						label: m.payments_void(),
+						variant: 'destructive',
+						visible: (row: Record<string, unknown>) => row.status === 'posted',
+						disabled: () => busy || isReadonly
+					}
+				]
+			}
+		}
+	]);
+
+	function handleGridAction(event: GridActionEvent) {
+		const payment = payments.find((item) => item.id === String(event.row.id ?? ''));
+		if (!payment) return;
+		if (event.actionId === 'open') void goto(`/${organizationId}/payments/${payment.id}`);
+		if (event.actionId === 'void') void voidPayment(payment);
+	}
 </script>
 
 <header class="flex flex-wrap items-start justify-between gap-3">
@@ -141,64 +205,15 @@
 			<ReceiptText size={18} />
 		</span>
 	</CardHeader>
-	{#if loading}
-		<p class="py-12 text-center text-sm text-muted-foreground">{m.common_loading()}</p>
-	{:else if payments.length === 0}
-		<EmptyState title={m.payments_empty_title()} description={m.payments_empty_description()} />
-	{:else}
-		<div class="overflow-x-auto scrollbar-none">
-			<table class="w-full min-w-[54rem] border-collapse text-start text-sm">
-				<thead class="border-b border-border text-xs font-medium text-muted-foreground">
-					<tr>
-						<th class="px-2 py-3 text-start">{m.payments_received_at()}</th>
-						<th class="px-2 py-3 text-start">{m.payments_tenant()}</th>
-						<th class="px-2 py-3 text-start">{m.payments_amount()}</th>
-						<th class="px-2 py-3 text-start">{m.payments_method()}</th>
-						<th class="px-2 py-3 text-start">{m.payments_status()}</th>
-						<th class="px-2 py-3 text-start">{m.users_action()}</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each payments as payment (payment.id)}
-						<tr class="border-b border-border/60 last:border-0">
-							<td class="px-2 py-3">{formatDate(payment.received_at)}</td>
-							<td class="px-2 py-3 font-medium">{payment.tenant_name}</td>
-							<td class="px-2 py-3 font-medium" dir="ltr">{formatMoney(payment)}</td>
-							<td class="px-2 py-3 text-muted-foreground">{methodLabel(payment.payment_method)}</td>
-							<td class="px-2 py-3">
-								<span class={payment.status === 'posted' ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}>
-									{payment.status === 'posted' ? m.payments_status_posted() : m.payments_status_void()}
-								</span>
-							</td>
-							<td class="px-2 py-3">
-								<div class="flex gap-2">
-									<Button
-										variant="outline"
-										size="icon"
-										class="size-8"
-										aria-label={m.payments_open_receipt()}
-										onclick={() => void goto(`/${organizationId}/payments/${payment.id}`)}
-									>
-										<ArrowUpRight size={15} />
-									</Button>
-									{#if payment.status === 'posted'}
-										<Button
-											variant="outline"
-											size="icon"
-											class="size-8 text-destructive"
-											disabled={busy || app.currentUser?.role === 'readonly'}
-											aria-label={m.payments_void()}
-											onclick={() => void voidPayment(payment)}
-										>
-											<Ban size={15} />
-										</Button>
-									{/if}
-								</div>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
+	<OrbisGrid
+		{columns}
+		source={gridRows}
+		{loading}
+		{rtl}
+		readonly
+		height="420px"
+		emptyTitle={m.payments_empty_title()}
+		emptyDescription={m.payments_empty_description()}
+		onaction={handleGridAction}
+	/>
 </Card>

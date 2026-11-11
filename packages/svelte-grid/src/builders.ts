@@ -1,7 +1,7 @@
 import type { OrbisColumnDef } from "./types";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Canonical Grid Column Builders (Native to @orbis/svelte-grid)
+// Canonical grid column builders for @aqardesk/svelte-grid.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

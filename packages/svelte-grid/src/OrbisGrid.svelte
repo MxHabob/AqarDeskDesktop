@@ -1460,6 +1460,7 @@ function getBadgeVariant(
       "active",
       "present",
       "paid",
+      "posted",
       "approved",
       "open",
       "success",
@@ -1477,6 +1478,7 @@ function getBadgeVariant(
     [
       "inactive",
       "absent",
+      "void",
       "overdue",
       "failed",
       "closed",
@@ -2116,6 +2118,10 @@ export function scrollToColumnProp(prop: string) {
                                 <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                               {:else if action.icon === "Lock" || action.icon === "LockClosed" || action.id === "reset_password"}
                                 <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                              {:else if action.icon === "ArrowUpRight" || action.id === "open"}
+                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+                              {:else if action.icon === "Ban" || action.id === "void"}
+                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
                               {:else if action.icon === "Check" || action.icon === "CheckCircle" || action.id === "set_active"}
                                 <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
                               {:else if action.icon === "Building" || action.icon === "BuildingOffice" || action.id === "set_on_leave"}
@@ -2637,6 +2643,11 @@ export function scrollToColumnProp(prop: string) {
     width: 1rem;
     height: 1rem;
     accent-color: var(--primary);
+  }
+
+  .dir-ltr {
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   /* Actions Group */
