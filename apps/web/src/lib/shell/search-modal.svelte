@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { Dialog, DialogContent, Input } from '@aqardesk/ui';
-	import { Search, X } from '@lucide/svelte';
-	import { Button } from '@aqardesk/ui';
+	import { Dialog, DialogContent, DialogTitle, Input } from '@aqardesk/ui';
+	import { Search } from '@lucide/svelte';
 	import * as m from '#lib/paraglide/messages';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from './navigation';
@@ -62,6 +61,18 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (
+			!event.isComposing &&
+			!event.altKey &&
+			!event.shiftKey &&
+			(event.ctrlKey || event.metaKey) &&
+			event.key.toLowerCase() === 'k'
+		) {
+			event.preventDefault();
+			open = !open;
+			return;
+		}
+
 		if (!open) return;
 		if (filteredItems.length === 0) return;
 		if (event.key === 'ArrowDown') {
@@ -80,34 +91,38 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <Dialog bind:open>
-	<DialogContent class="max-w-xl gap-0 overflow-hidden p-0" showCloseButton={false}>
-		<div class="flex h-14 items-center gap-3 border-b border-border/70 px-4">
-			<Search size={17} class="shrink-0 text-muted-foreground" />
-			<Input
-				bind:ref={inputElement}
-				bind:value={query}
-				class="h-full border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-				placeholder={m.search_placeholder()}
-				aria-label={m.search_placeholder()}
-				autocomplete="off"
-				oninput={() => (selectedIndex = 0)}
+	<DialogContent
+		class="m-0 flex h-[min(535px,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-[740px] flex-col gap-0 overflow-hidden border-none bg-transparent p-0 shadow-none ring-0 select-text"
+		showCloseButton={false}
+	>
+		<DialogTitle class="sr-only">{m.common_search()}</DialogTitle>
+		<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background">
+			<div class="flex h-[55px] shrink-0 items-center gap-3 border-b border-border px-4">
+				<Search size={17} class="shrink-0 text-muted-foreground" />
+				<Input
+					bind:ref={inputElement}
+					bind:value={query}
+					class="h-full border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+					placeholder={m.search_placeholder()}
+					aria-label={m.search_placeholder()}
+					role="combobox"
+					aria-controls="global-search-results"
+					aria-expanded={open}
+					aria-autocomplete="list"
+					aria-activedescendant={filteredItems[selectedIndex]
+						? `search-result-${filteredItems[selectedIndex].key}`
+						: undefined}
+					autocomplete="off"
+					oninput={() => (selectedIndex = 0)}
+				/>
+			</div>
+			<SearchModalResults
+				items={filteredItems}
+				{selectedIndex}
+				onSelect={selectItem}
+				onHover={(index) => (selectedIndex = index)}
 			/>
-			<Button
-				variant="ghost"
-				size="icon"
-				class="size-8 shrink-0 rounded-lg text-muted-foreground"
-				aria-label={m.common_cancel()}
-				onclick={() => (open = false)}
-			>
-				<X size={15} />
-			</Button>
+			<SearchModalFooter />
 		</div>
-		<SearchModalResults
-			items={filteredItems}
-			{selectedIndex}
-			onSelect={selectItem}
-			onHover={(index) => (selectedIndex = index)}
-		/>
-		<SearchModalFooter />
 	</DialogContent>
 </Dialog>

@@ -64,11 +64,11 @@
 						},
 						...(currentUser.role === 'admin'
 							? [
-									{ key: 'databases', label: m.nav_database_management() },
 									{ key: 'users', label: m.settings_user_management() },
-									{ key: 'audit', label: m.settings_audit() },
 									{ key: 'currencies', label: m.settings_currencies() },
-									{ key: 'contract-templates', label: m.settings_contract_templates() }
+									{ key: 'contract-templates', label: m.settings_contract_templates() },
+									{ key: 'databases', label: m.nav_database_management() },
+									{ key: 'audit', label: m.settings_audit() }
 								]
 							: [])
 					]
