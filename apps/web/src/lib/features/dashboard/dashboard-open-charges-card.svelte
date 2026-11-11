@@ -16,7 +16,7 @@
 	}
 </script>
 
-<Card class="flex h-[166px] min-w-0 flex-col p-3">
+<Card class="flex h-[182px] min-w-0 flex-col p-3">
 	<div class="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
 		<FileClock size={14} />
 		<h3>{m.dashboard_open_charge_balances()}</h3>

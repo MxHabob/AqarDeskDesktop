@@ -267,11 +267,13 @@ export function createAppContext() {
 		}
 	}
 
-	async function changeLanguage(nextLocale: AppLocale) {
+	async function changeLanguage(nextLocale: AppLocale): Promise<boolean> {
 		try {
 			await changeAppLocale(nextLocale);
+			return true;
 		} catch (cause) {
 			setError(cause);
+			return false;
 		}
 	}
 

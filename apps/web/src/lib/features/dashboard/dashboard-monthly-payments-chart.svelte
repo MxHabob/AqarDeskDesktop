@@ -44,7 +44,7 @@
 	}
 </script>
 
-<Card class="flex h-[166px] min-w-0 flex-col p-3">
+<Card class="flex h-[182px] min-w-0 flex-col p-3">
 	<div class="mb-2 flex items-center justify-between gap-3">
 		<h3 class="text-xs font-medium text-muted-foreground">{m.dashboard_payment_trend()}</h3>
 		{#if currencies.length > 0}

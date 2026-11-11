@@ -18,7 +18,7 @@
 	const formattedValue = $derived(new Intl.NumberFormat(getLocale()).format(value));
 </script>
 
-<Card class="flex h-[166px] min-w-0 flex-col justify-between gap-5 p-3">
+<Card class="flex h-[182px] min-w-0 flex-col justify-between gap-5 p-3">
 	<div class="flex items-center gap-2 text-xs text-muted-foreground">
 		<Icon size={14} />
 		<span>{label}</span>

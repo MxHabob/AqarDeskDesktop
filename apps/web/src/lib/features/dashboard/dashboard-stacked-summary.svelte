@@ -28,42 +28,40 @@
 </script>
 
 {#if !dismissed}
-	<div class="relative isolate mx-auto mb-2 w-full max-w-[52rem] px-2 pb-2 pt-2">
+	<div class="relative isolate h-[182px] min-w-0">
 		<div
-			class="pointer-events-none absolute inset-x-3 bottom-3 top-1 border border-border bg-card"
+			class="pointer-events-none absolute -inset-x-2 top-[-8px] bottom-2 -rotate-1 border border-border bg-card"
 			aria-hidden="true"
 		></div>
 		<div
-			class="pointer-events-none absolute inset-x-1.5 bottom-1.5 top-2 border border-border bg-card"
+			class="pointer-events-none absolute -inset-x-1.5 top-[-4px] bottom-1 rotate-[0.4deg] border border-border bg-card"
 			aria-hidden="true"
 		></div>
 
-		<Card
-			class="relative aspect-[1.596] min-h-[32.5rem] w-full justify-between gap-6 p-6 sm:p-10"
-		>
-			<div class="grid gap-8 sm:gap-10">
-				<div class="flex items-center justify-between gap-4">
-					<h2 class="text-xl font-medium text-muted-foreground sm:text-2xl">
+		<Card class="relative z-10 h-full min-w-0 justify-between gap-2 p-3 bg-card">
+			<div class="grid gap-2">
+				<div class="flex items-center justify-between gap-2">
+					<h2 class="truncate text-xs font-medium text-muted-foreground">
 						{m.dashboard_statistics_title()}
 					</h2>
-					<span class="shrink-0 text-sm text-muted-foreground sm:text-base">
+					<span class="shrink-0 text-[10px] text-muted-foreground">
 						{m.dashboard_summary_just_now()}
 					</span>
 				</div>
 
-				<p class="text-[clamp(1.5rem,3vw,2.1rem)] leading-[1.4] tracking-tight text-foreground">
+				<p class="line-clamp-3 text-sm leading-5 tracking-tight text-foreground">
 					{summaryText}
 				</p>
 			</div>
 
-			<footer class="flex items-center justify-between gap-4 text-base text-muted-foreground sm:text-xl">
+			<footer class="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
 				<button
 					type="button"
-					class="inline-flex min-w-0 items-center gap-3 text-start transition-colors hover:text-foreground"
+					class="inline-flex min-w-0 items-center gap-1.5 text-start transition-colors hover:text-foreground"
 					onclick={listenToSummary}
 				>
-					<Volume2 size={20} class="shrink-0" />
-					<span>{m.dashboard_summary_listen()}</span>
+					<Volume2 size={14} class="shrink-0" />
+					<span class="truncate">{m.dashboard_summary_listen()}</span>
 				</button>
 				<button
 					type="button"
