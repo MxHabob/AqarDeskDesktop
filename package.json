@@ -1,0 +1,27 @@
+{
+  "name": "aqardesk-desktop",
+  "private": true,
+  "packageManager": "bun@1.4.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --continue",
+    "build": "turbo run build --continue",
+    "check": "turbo run check",
+    "lint": "turbo run lint",
+    "dev:web": "turbo run dev --filter=web",
+    "build:web": "turbo run build --filter=web",
+    "check:web": "turbo run check --filter=web",
+    "desktop:dev": "bun run --cwd apps/desktop tauri:dev",
+    "desktop:build": "bun run --cwd apps/desktop tauri:build",
+    "dev:api": "cargo run --manifest-path backend/api/Cargo.toml",
+    "check:backend": "cargo check --workspace --manifest-path Cargo.toml",
+    "test:backend": "cargo test --workspace --manifest-path Cargo.toml",
+    "lint:all": "turbo run check --filter=web && cargo check --workspace --manifest-path Cargo.toml"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.10"
+  }
+}

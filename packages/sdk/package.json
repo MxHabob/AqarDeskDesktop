@@ -1,0 +1,11 @@
+{
+  "name": "@aqardesk/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "@aqardesk/api-contracts": "workspace:*"
+  }
+}

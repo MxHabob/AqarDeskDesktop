@@ -1,0 +1,12 @@
+{
+  "extends": "$app/tsconfig",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@aqardesk/ui": ["../../packages/ui/src/lib/index.ts"],
+      "@aqardesk/ui/*": ["../../packages/ui/src/lib/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

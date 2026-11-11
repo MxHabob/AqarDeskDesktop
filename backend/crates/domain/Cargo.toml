@@ -1,0 +1,8 @@
+[package]
+name = "aqardesk-domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+uuid = { workspace = true }

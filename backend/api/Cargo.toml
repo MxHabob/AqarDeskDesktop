@@ -1,0 +1,14 @@
+[package]
+name = "aqardesk-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+aqardesk-domain = { workspace = true }
+aqardesk-app = { workspace = true }
+aqardesk-infrastructure = { workspace = true }

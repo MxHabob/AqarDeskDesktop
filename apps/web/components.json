@@ -1,0 +1,20 @@
+{
+	"$schema": "https://shadcn-svelte.com/schema.json",
+	"tailwind": {
+		"css": "../../packages/ui/src/styles/app.css",
+		"baseColor": "neutral"
+	},
+	"aliases": {
+		"components": "@aqardesk/ui/components",
+		"utils": "@aqardesk/ui/utils",
+		"ui": "@aqardesk/ui/components/ui",
+		"hooks": "@aqardesk/ui/hooks",
+		"lib": "@aqardesk/ui"
+	},
+	"typescript": true,
+	"registry": "https://shadcn-svelte.com/registry",
+	"style": "lyra",
+	"iconLibrary": "lucide",
+	"menuColor": "default-translucent",
+	"menuAccent": "subtle"
+}

@@ -1,0 +1,10 @@
+[package]
+name = "aqardesk-worker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+aqardesk-domain = { workspace = true }
+aqardesk-app = { workspace = true }
