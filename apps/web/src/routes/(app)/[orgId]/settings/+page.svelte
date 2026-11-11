@@ -158,7 +158,7 @@
 					description={m.settings_organization_id_description()}
 					copyValue={saved.id}
 				>
-					<Input id="organization-id" value={saved.id} readonly dir="ltr" class="w-full font-mono text-xs sm:max-w-xl" />
+					<Input id="organization-id" value={saved.id} readonly dir="ltr" class="w-full font-mono text-xs" />
 				</SettingsFieldRow>
 				<SettingsFieldRow
 					label={m.settings_organization_name()}
@@ -170,7 +170,7 @@
 						bind:value={draft.name}
 						autocomplete="organization"
 						disabled={!canEditOrganization}
-						class="w-full sm:max-w-xl"
+						class="w-full"
 					/>
 				</SettingsFieldRow>
 				<SettingsFieldRow
@@ -184,7 +184,7 @@
 						oninput={(event) => (draft.legal_name = event.currentTarget.value)}
 						autocomplete="organization-title"
 						disabled={!canEditOrganization}
-						class="w-full sm:max-w-xl"
+						class="w-full"
 					/>
 				</SettingsFieldRow>
 				<SettingsFieldRow
@@ -192,7 +192,7 @@
 					id="organization-currency"
 					description={m.settings_currency_hint()}
 				>
-					<div class="w-full sm:max-w-xl">
+					<div class="w-full">
 						<CurrencySelector
 							id="organization-currency"
 							{currencies}
@@ -214,7 +214,7 @@
 						autocomplete="off"
 						placeholder="Asia/Riyadh"
 						disabled={!canEditOrganization}
-						class="w-full sm:max-w-xl"
+						class="w-full"
 					/>
 				</SettingsFieldRow>
 				<LanguageSettingsCard

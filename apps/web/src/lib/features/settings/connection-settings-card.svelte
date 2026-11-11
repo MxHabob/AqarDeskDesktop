@@ -16,7 +16,7 @@
 	label={m.settings_connection_title()}
 	description={connected ? m.status_connected() : m.status_not_connected()}
 >
-	<div class="flex w-full items-center gap-3 sm:max-w-xl">
+	<div class="flex w-full items-center gap-3">
 		<div class="flex min-w-0 items-center gap-2 text-sm">
 			{#if mode === 'local'}
 				<Database size={16} />

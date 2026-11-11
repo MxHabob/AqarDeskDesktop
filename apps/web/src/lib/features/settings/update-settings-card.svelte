@@ -34,7 +34,7 @@
 </script>
 
 <SettingsFieldRow label={m.settings_update_title()} description={m.settings_update_description()}>
-	<div class="grid w-full gap-3 sm:max-w-xl">
+	<div class="grid w-full gap-3">
 		<div class="flex flex-wrap items-center justify-between gap-2 text-sm">
 			<span class="text-muted-foreground">{m.settings_current_version()}</span>
 			<strong>{result?.current_version ?? '—'}</strong>

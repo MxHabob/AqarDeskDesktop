@@ -9,7 +9,7 @@
 </script>
 
 <SettingsFieldRow label={m.common_language()} description={m.settings_language_description()}>
-	<div class="grid w-full gap-2 sm:max-w-xl sm:grid-cols-2">
+	<div class="grid w-full gap-2 sm:grid-cols-2">
 		<Button
 			variant="outline"
 			class={locale === 'ar'
