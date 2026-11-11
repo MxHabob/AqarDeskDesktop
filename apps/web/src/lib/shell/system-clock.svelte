@@ -4,8 +4,8 @@
 	import { Clock } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
 	import { formatDate } from '#lib/core/i18n';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import { getAppContext } from '#lib/core/app-context.svelte';
-	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
 
 	const app = getAppContext();
@@ -14,7 +14,8 @@
 	const timeZone = $derived(app.organizationTimezone);
 	const timeLabel = $derived(formatDate(now, 'time', undefined, timeZone));
 	const dateLabel = $derived(formatDate(now, 'date', { dateStyle: 'full' }, timeZone));
-	const popoverSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
+	const direction = $derived(getHtmlDirection());
+	const popoverSide = $derived(getInlineEndSide(direction));
 
 	onMount(() => {
 		const updateTime = () => {
@@ -47,6 +48,7 @@
 		side={popoverSide}
 		align="end"
 		sideOffset={10}
+		dir={direction}
 		class="z-[var(--layer-popover)] w-[min(280px,calc(100vw-4rem))] rounded-xl bg-transparent p-4 text-start text-popover-foreground shadow-floating backdrop-blur-md"
 	>
 		<div class="grid justify-items-center gap-2">

@@ -8,7 +8,7 @@
 	import DropdownMenuSeparator from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu-separator.svelte';
 	import DropdownMenuTrigger from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu-trigger.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import type { User } from '#lib/features/auth/types';
 
 	let {
@@ -19,7 +19,8 @@
 		onLogout: () => void;
 	} = $props();
 
-	const menuSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
+	const direction = $derived(getHtmlDirection());
+	const menuSide = $derived(getInlineEndSide(direction));
 	const initials = $derived(currentUser.name.trim().charAt(0).toLocaleUpperCase());
 	const roleLabel = $derived(
 		currentUser.role === 'admin'
@@ -32,7 +33,7 @@
 	);
 </script>
 
-<DropdownMenu>
+<DropdownMenu dir={direction}>
 	<DropdownMenuTrigger>
 		{#snippet child({ props })}
 			<Button
@@ -47,7 +48,13 @@
 			</Button>
 		{/snippet}
 	</DropdownMenuTrigger>
-	<DropdownMenuContent align="end" side={menuSide} sideOffset={12} class="w-64 p-1">
+	<DropdownMenuContent
+		align="end"
+		side={menuSide}
+		sideOffset={12}
+		dir={direction}
+		class="w-64 p-1 text-start"
+	>
 		<div class="flex min-w-0 items-center gap-3 border-b border-border/50 px-3 py-2.5">
 			<span class="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
 				{initials}

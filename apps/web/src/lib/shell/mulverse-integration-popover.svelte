@@ -4,12 +4,13 @@
 	import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@aqardesk/ui';
 	import { openExternalUrl } from '#lib/core/external-url';
 	import * as m from '#lib/paraglide/messages';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import { toast } from '@aqardesk/ui';
 
 	let { orgId: _orgId }: { orgId: string } = $props();
 	let open = $state(false);
-	const tooltipSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
+	const direction = $derived(getHtmlDirection());
+	const tooltipSide = $derived(getInlineEndSide(direction));
 
 	async function visitMulverse() {
 		try {
@@ -46,6 +47,7 @@
 		side={tooltipSide}
 		align="end"
 		sideOffset={12}
+		dir={direction}
 		class="z-[var(--layer-popover)] flex max-h-[min(40rem,calc(100vh-4rem))] w-[min(320px,calc(100vw-1rem))] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-popover p-0 text-start text-popover-foreground shadow-floating"
 	>
 		<div class="border-b border-border px-4 py-3">

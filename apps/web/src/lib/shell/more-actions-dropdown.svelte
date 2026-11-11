@@ -31,7 +31,7 @@
 	} from '@aqardesk/ui/components/ui/dropdown-menu';
 	import * as m from '#lib/paraglide/messages';
 	import { openExternalUrl } from '#lib/core/external-url';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import { AboutDialog, BackupCliDialog, SupportDialog } from '#lib/features/system';
 
 	let {
@@ -45,7 +45,8 @@
 	let isBackupCliOpen = $state(false);
 	let isAboutOpen = $state(false);
 	let isSupportOpen = $state(false);
-	const tooltipSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
+	const direction = $derived(getHtmlDirection());
+	const tooltipSide = $derived(getInlineEndSide(direction));
 	const menuItemClass = 'flex cursor-pointer items-center gap-2.5 px-2.5 py-2 text-xs';
 	const subTriggerClass =
 		'flex cursor-pointer items-center justify-between px-2.5 py-2 text-xs';
@@ -61,7 +62,7 @@
 	}
 </script>
 
-<DropdownMenu>
+<DropdownMenu dir={direction}>
 	<DropdownMenuTrigger>
 		{#snippet child({ props }: { props: Record<string, unknown> })}
 			<Tooltip>
@@ -87,7 +88,8 @@
 			align="end"
 			side={tooltipSide}
 			sideOffset={12}
-			class="z-50 w-64 select-none overflow-visible p-1"
+			dir={direction}
+			class="z-50 w-64 select-none overflow-visible p-1 text-start"
 		>
 			<DropdownMenuSub>
 				<DropdownMenuSubTrigger class={subTriggerClass}>
@@ -96,7 +98,7 @@
 						{m.sidebar_resources()}
 					</span>
 				</DropdownMenuSubTrigger>
-				<DropdownMenuSubContent align="end" sideOffset={4} class="w-48 text-start">
+				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
 					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl('https://www.mulverse.com/')}>
 						<Globe2 size={13} class={iconClass} />
 						{m.sidebar_welcome()}
@@ -130,7 +132,7 @@
 						{m.sidebar_community()}
 					</span>
 				</DropdownMenuSubTrigger>
-				<DropdownMenuSubContent align="end" sideOffset={4} class="w-48 text-start">
+				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
 					<DropdownMenuItem
 						class={menuItemClass}
 						onclick={() => void openUrl('https://discord.gg/e64gRQZhP')}
@@ -170,7 +172,7 @@
 						{m.sidebar_legal()}
 					</span>
 				</DropdownMenuSubTrigger>
-				<DropdownMenuSubContent align="end" sideOffset={4} class="w-48 text-start">
+				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
 					<DropdownMenuItem
 						class={menuItemClass}
 						onclick={() => void openUrl('https://www.mulverse.com/p/orbis/terms')}
@@ -202,7 +204,7 @@
 						{m.sidebar_system_tools()}
 					</span>
 				</DropdownMenuSubTrigger>
-				<DropdownMenuSubContent align="end" sideOffset={4} class="w-48 text-start">
+				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
 					<DropdownMenuItem class={menuItemClass} onclick={() => (isSupportOpen = true)}>
 						<Headphones size={13} class={iconClass} />
 						{m.sidebar_open_support()}

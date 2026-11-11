@@ -7,7 +7,7 @@
 	} from '@lucide/svelte';
 	import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from '#lib/shell/navigation';
 	import OrgSidebarSwitcher from '#lib/shell/org-sidebar-switcher.svelte';
@@ -25,7 +25,7 @@
 	};
 
 	let { active, currentUser, organizationName, onSelect, onLogout }: Props = $props();
-	const tooltipSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
+	const tooltipSide = $derived(getInlineEndSide(getHtmlDirection()));
 
 	const links = [
 		{ key: 'overview', label: m.nav_overview(), icon: LayoutDashboard, active: ['overview'] },

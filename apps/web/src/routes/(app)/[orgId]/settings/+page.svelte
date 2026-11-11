@@ -2,7 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { z } from 'zod';
-	import { Button, Input, toast } from '@aqardesk/ui';
+	import {
+		Button,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		SelectValue,
+		toast
+	} from '@aqardesk/ui';
 	import type { CurrencySettings, OrganizationSettings, OrganizationSettingsInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
@@ -15,6 +24,7 @@
 	import * as m from '#lib/paraglide/messages';
 
 	const app = getAppContext();
+	const timeZones = ['UTC', ...Intl.supportedValuesOf('timeZone')];
 	const canEditOrganization = $derived(app.currentUser?.role === 'admin');
 	let saved = $state<OrganizationSettings | null>(null);
 	let currencies = $state<CurrencySettings[]>([]);
@@ -138,6 +148,12 @@
 		app.clearMessages();
 		void goto('/connection');
 	}
+
+	const timezoneOptions = $derived(
+		timeZones.includes(draft.timezone) || !draft.timezone
+			? timeZones
+			: [...timeZones, draft.timezone].toSorted((left, right) => left.localeCompare(right))
+	);
 </script>
 
 {#if loading}
@@ -207,15 +223,23 @@
 					id="organization-timezone"
 					description={m.settings_timezone_description()}
 				>
-					<Input
-						id="organization-timezone"
-						bind:value={draft.timezone}
-						dir="ltr"
-						autocomplete="off"
-						placeholder="Asia/Riyadh"
+					<Select
+						type="single"
+						value={draft.timezone}
 						disabled={!canEditOrganization}
-						class="w-full"
-					/>
+						onValueChange={(timezone) => {
+							if (timezone) draft.timezone = timezone;
+						}}
+					>
+						<SelectTrigger id="organization-timezone" class="h-9 w-full rounded-md text-sm" dir="ltr">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent class="max-h-72">
+							{#each timezoneOptions as timezone (timezone)}
+								<SelectItem value={timezone}>{timezone}</SelectItem>
+							{/each}
+						</SelectContent>
+					</Select>
 				</SettingsFieldRow>
 				<LanguageSettingsCard
 					locale={draftLocale}

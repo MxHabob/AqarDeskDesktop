@@ -9,12 +9,15 @@
 	import DropdownMenuSeparator from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu-separator.svelte';
 	import DropdownMenuTrigger from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu-trigger.svelte';
 	import * as m from '#lib/paraglide/messages';
+	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 
 	let { organizationId, organizationName }: { organizationId: string; organizationName: string } = $props();
 	const organizationLabel = $derived(organizationName.trim() || m.app_name());
+	const direction = $derived(getHtmlDirection());
+	const menuSide = $derived(getInlineEndSide(direction));
 </script>
 
-<DropdownMenu>
+<DropdownMenu dir={direction}>
 	<DropdownMenuTrigger>
 		{#snippet child({ props })}
 			<Button
@@ -29,7 +32,13 @@
 			</Button>
 		{/snippet}
 	</DropdownMenuTrigger>
-	<DropdownMenuContent align="start" sideOffset={12} class="w-56 p-1">
+	<DropdownMenuContent
+		align="start"
+		side={menuSide}
+		sideOffset={12}
+		dir={direction}
+		class="w-56 p-1 text-start"
+	>
 		<div class="flex items-center gap-3 border-b border-border/50 px-3 py-2.5">
 			<span class="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
 				<AqarDeskLogo size={24} class="text-primary" />
