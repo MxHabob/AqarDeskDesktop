@@ -14,3 +14,4 @@ aqardesk-app = { workspace = true }
 aqardesk-infrastructure = { workspace = true }
 sea-orm = { workspace = true }
 uuid = { workspace = true }
+utoipa = { workspace = true }

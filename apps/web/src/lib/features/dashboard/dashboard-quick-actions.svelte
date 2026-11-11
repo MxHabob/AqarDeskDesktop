@@ -1,89 +1,63 @@
 <script lang="ts">
-	import { ArrowUpRight, Building2, FileText, UsersRound, WalletCards } from '@lucide/svelte';
-	import { Button, Card } from '@aqardesk/ui';
+	import {
+		Building2,
+		FileText,
+		Settings2,
+		WalletCards,
+		Boxes,
+		ContactRound
+	} from '@lucide/svelte';
+	import { Button } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
 	import type { ViewKey } from '#lib/shell/navigation';
 
 	let { onSelect }: { onSelect: (view: ViewKey) => void } = $props();
+
+	const actions = $derived([
+		{
+			key: 'properties',
+			label: m.nav_properties(),
+			icon: Building2
+		},
+		{
+			key: 'units',
+			label: m.nav_units(),
+			icon: Boxes
+		},
+		{
+			key: 'tenants',
+			label: m.nav_tenants(),
+			icon: ContactRound
+		},
+		{
+			key: 'contracts',
+			label: m.nav_contracts(),
+			icon: FileText
+		},
+		{
+			key: 'payments',
+			label: m.nav_payments(),
+			icon: WalletCards
+		},
+		{
+			key: 'settings',
+			label: m.nav_settings(),
+			icon: Settings2
+		}
+	] satisfies { key: ViewKey; label: string; icon: typeof Building2 }[]);
 </script>
 
-<section class="grid gap-4">
-	<div>
-		<h2 class="text-sm font-semibold text-foreground">{m.dashboard_quick_actions()}</h2>
-		<p class="mt-1 text-xs text-muted-foreground">{m.app_tagline()}</p>
-	</div>
-	<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-		<Card class="group rounded-xl bg-card p-4 shadow-card ring-border/50 transition-colors hover:border-primary/40">
-			<Button
-				variant="ghost"
-				class="h-full min-h-20 w-full justify-start gap-3 whitespace-normal rounded-lg p-0 text-start"
-				onclick={() => onSelect('properties')}
-			>
-				<span class="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-					<Building2 size={21} />
-				</span>
-				<span class="grid min-w-0 flex-1 gap-1">
-					<strong class="text-sm">{m.dashboard_properties_title()}</strong>
-					<small class="text-xs font-normal leading-relaxed text-muted-foreground">
-						{m.dashboard_properties_description()}
-					</small>
-				</span>
-				<ArrowUpRight size={17} class="shrink-0 text-muted-foreground" />
-			</Button>
-		</Card>
-		<Card class="group rounded-xl bg-card p-4 shadow-card ring-border/50 transition-colors hover:border-primary/40">
-			<Button
-				variant="ghost"
-				class="h-full min-h-20 w-full justify-start gap-3 whitespace-normal rounded-lg p-0 text-start"
-				onclick={() => onSelect('tenants')}
-			>
-				<span class="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-					<UsersRound size={21} />
-				</span>
-				<span class="grid min-w-0 flex-1 gap-1">
-					<strong class="text-sm">{m.dashboard_tenants_title()}</strong>
-					<small class="text-xs font-normal leading-relaxed text-muted-foreground">
-						{m.dashboard_tenants_description()}
-					</small>
-				</span>
-				<ArrowUpRight size={17} class="shrink-0 text-muted-foreground" />
-			</Button>
-		</Card>
-		<Card class="group rounded-xl bg-card p-4 shadow-card ring-border/50 transition-colors hover:border-primary/40">
-			<Button
-				variant="ghost"
-				class="h-full min-h-20 w-full justify-start gap-3 whitespace-normal rounded-lg p-0 text-start"
-				onclick={() => onSelect('contracts')}
-			>
-				<span class="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-					<FileText size={21} />
-				</span>
-				<span class="grid min-w-0 flex-1 gap-1">
-					<strong class="text-sm">{m.dashboard_contracts_title()}</strong>
-					<small class="text-xs font-normal leading-relaxed text-muted-foreground">
-						{m.dashboard_contracts_description()}
-					</small>
-				</span>
-				<ArrowUpRight size={17} class="shrink-0 text-muted-foreground" />
-			</Button>
-		</Card>
-		<Card class="group rounded-xl bg-card p-4 shadow-card ring-border/50 transition-colors hover:border-primary/40">
-			<Button
-				variant="ghost"
-				class="h-full min-h-20 w-full justify-start gap-3 whitespace-normal rounded-lg p-0 text-start"
-				onclick={() => onSelect('payments')}
-			>
-				<span class="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-					<WalletCards size={21} />
-				</span>
-				<span class="grid min-w-0 flex-1 gap-1">
-					<strong class="text-sm">{m.dashboard_payments_title()}</strong>
-					<small class="text-xs font-normal leading-relaxed text-muted-foreground">
-						{m.dashboard_payments_description()}
-					</small>
-				</span>
-				<ArrowUpRight size={17} class="shrink-0 text-muted-foreground" />
-			</Button>
-		</Card>
-	</div>
+<section class="flex flex-wrap justify-center gap-2" aria-label={m.dashboard_quick_actions()}>
+	{#each actions as action (action.key)}
+		{@const Icon = action.icon}
+		<Button
+			variant="outline"
+			class="h-8 gap-2 rounded-sm border-border/70 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+			aria-label={action.label}
+			onclick={() => onSelect(action.key)}
+		>
+			<Icon size={13} />
+			{action.label}
+		</Button>
+	{/each}
 </section>

@@ -1,4 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
+import type {
+	Property,
+	PropertyInput,
+	PropertyUnit,
+	PropertyUnitInput,
+	Tenant,
+	TenantInput
+} from '@aqardesk/sdk';
 import type { User } from '#lib/features/auth/types';
 
 export type ConnectionMode = 'local' | 'direct' | 'api';
@@ -25,6 +33,34 @@ export type UpdateResult = {
 
 export type UpdateProgress = { downloaded_bytes: number; total_bytes: number | null };
 
+export type DashboardSummary = {
+	active_properties_count: number;
+	units_count: number;
+	available_units_count: number;
+	tenants_count: number;
+	active_leases_count: number;
+	open_charges_count: number;
+	posted_payments_count: number;
+	contract_documents_count: number;
+	expiring_leases_count: number;
+	payment_months: string[];
+	monthly_payments: {
+		month: string;
+		currency_code: string;
+		currency_decimal_digits: number;
+		amount_minor: number;
+		payment_count: number;
+	}[];
+	unit_status_counts: { status: string; count: number }[];
+	lease_status_counts: { status: string; count: number }[];
+	open_charges_by_currency: {
+		currency_code: string;
+		currency_decimal_digits: number;
+		amount_minor: number;
+		charge_count: number;
+	}[];
+};
+
 export const desktopApi = {
 	getConnection: () => invoke<ConnectionConfig | null>('connection_get_config'),
 	setConnection: (input: {
@@ -50,11 +86,27 @@ export const desktopApi = {
 	}) => invoke<User>('auth_bootstrap_admin', input),
 	signIn: (email: string, password: string) => invoke<User>('auth_login', { email, password }),
 	signOut: () => invoke<void>('auth_logout'),
+	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	listUsers: () => invoke<User[]>('users_list'),
 	createUser: (input: { name: string; email: string; password: string; role: string }) =>
 		invoke<void>('users_create', input),
 	setUserActive: (userId: string, isActive: boolean) =>
 		invoke<void>('users_set_active', { userId, isActive }),
+	listProperties: () => invoke<Property[]>('properties_list'),
+	createProperty: (input: PropertyInput) => invoke<Property>('properties_create', { input }),
+	updateProperty: (propertyId: string, input: PropertyInput) =>
+		invoke<Property>('properties_update', { propertyId, input }),
+	archiveProperty: (propertyId: string) => invoke<void>('properties_archive', { propertyId }),
+	listUnits: () => invoke<PropertyUnit[]>('units_list'),
+	createUnit: (input: PropertyUnitInput) => invoke<PropertyUnit>('units_create', { input }),
+	updateUnit: (unitId: string, input: PropertyUnitInput) =>
+		invoke<PropertyUnit>('units_update', { unitId, input }),
+	archiveUnit: (unitId: string) => invoke<void>('units_archive', { unitId }),
+	listTenants: () => invoke<Tenant[]>('tenants_list'),
+	createTenant: (input: TenantInput) => invoke<Tenant>('tenants_create', { input }),
+	updateTenant: (tenantId: string, input: TenantInput) =>
+		invoke<Tenant>('tenants_update', { tenantId, input }),
+	archiveTenant: (tenantId: string) => invoke<void>('tenants_archive', { tenantId }),
 	checkForUpdates: () => invoke<UpdateResult>('system_check_for_updates'),
 	downloadUpdate: () => invoke<string>('system_download_update'),
 	installUpdate: () => invoke<void>('system_install_update')

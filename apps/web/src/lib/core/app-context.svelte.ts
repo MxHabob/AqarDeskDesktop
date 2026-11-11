@@ -34,13 +34,9 @@ export function createAppContext() {
 	let fullName = $state('');
 	let email = $state('');
 	let accountPassword = $state('');
-	let newUserName = $state('');
-	let newUserEmail = $state('');
-	let newUserPassword = $state('');
-	let newUserRole = $state('staff');
 	let updateResult = $state<UpdateResult | null>(null);
 	let updateProgress = $state<UpdateProgress | null>(null);
-	let theme = $state<AppTheme>('light');
+	let theme = $state<AppTheme>('dark');
 	let initialization: Promise<void> | undefined;
 
 	const locale = $derived.by(() => {
@@ -170,21 +166,11 @@ export function createAppContext() {
 		}
 	}
 
-	async function addUser(event: SubmitEvent) {
-		event.preventDefault();
+	async function addUser(input: { name: string; email: string; password: string; role: string }) {
 		busy = true;
 		clearMessages();
 		try {
-			await desktopApi.createUser({
-				name: newUserName,
-				email: newUserEmail,
-				password: newUserPassword,
-				role: newUserRole
-			});
-			newUserName = '';
-			newUserEmail = '';
-			newUserPassword = '';
-			newUserRole = 'staff';
+			await desktopApi.createUser(input);
 			await queryClient.invalidateQueries({
 				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
 			});
@@ -224,13 +210,6 @@ export function createAppContext() {
 		} finally {
 			busy = false;
 		}
-	}
-
-	function resetNewUser() {
-		newUserName = '';
-		newUserEmail = '';
-		newUserPassword = '';
-		newUserRole = 'staff';
 	}
 
 	async function signOut() {
@@ -302,7 +281,7 @@ export function createAppContext() {
 
 	function initializeTheme() {
 		try {
-			applyTheme(localStorage.getItem('aqardesk:theme') === 'dark' ? 'dark' : 'light');
+			applyTheme(localStorage.getItem('aqardesk:theme') === 'light' ? 'light' : 'dark');
 		} catch (cause) {
 			setError(cause);
 		}
@@ -363,14 +342,6 @@ export function createAppContext() {
 		set email(value: string) { email = value; },
 		get accountPassword() { return accountPassword; },
 		set accountPassword(value: string) { accountPassword = value; },
-		get newUserName() { return newUserName; },
-		set newUserName(value: string) { newUserName = value; },
-		get newUserEmail() { return newUserEmail; },
-		set newUserEmail(value: string) { newUserEmail = value; },
-		get newUserPassword() { return newUserPassword; },
-		set newUserPassword(value: string) { newUserPassword = value; },
-		get newUserRole() { return newUserRole; },
-		set newUserRole(value: string) { newUserRole = value; },
 		get updateResult() { return updateResult; },
 		get updateProgress() { return updateProgress; },
 		get progressPercent() { return progressPercent; },
@@ -382,7 +353,6 @@ export function createAppContext() {
 		signIn,
 		addUser,
 		setUserActive,
-		resetNewUser,
 		signOut,
 		checkForUpdates,
 		downloadUpdate,

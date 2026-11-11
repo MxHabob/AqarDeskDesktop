@@ -15,26 +15,10 @@
 		enabled: app.currentUser?.role === 'admin'
 	}));
 	const users = $derived(usersQuery.data ?? []);
-
-	async function addUser(event: SubmitEvent): Promise<boolean> {
-		return app.addUser(event);
-	}
 </script>
 
 <div class="flex items-start justify-between gap-4">
-	<AddUserSheet
-		busy={app.busy}
-		name={app.newUserName}
-		email={app.newUserEmail}
-		password={app.newUserPassword}
-		role={app.newUserRole}
-		onAdd={addUser}
-		onCancel={app.resetNewUser}
-		onNameChange={(value) => (app.newUserName = value)}
-		onEmailChange={(value) => (app.newUserEmail = value)}
-		onPasswordChange={(value) => (app.newUserPassword = value)}
-		onRoleChange={(value) => (app.newUserRole = value)}
-	/>
+	<AddUserSheet busy={app.busy} onAdd={app.addUser} />
 </div>
 {#if usersQuery.error || app.error}
 	<MessageBanner message={usersQuery.error ? String(usersQuery.error) : app.error} />

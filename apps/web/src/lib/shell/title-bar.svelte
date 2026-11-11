@@ -79,7 +79,7 @@
 </script>
 
 <header
-	class="z-50 flex h-12 shrink-0 select-none items-center justify-between gap-3 border-b border-border/70 bg-card px-3 text-xs"
+	class="z-50 flex h-14 shrink-0 select-none items-center justify-between gap-3 border-b border-border/70 bg-card px-3 text-xs"
 	data-tauri-drag-region
 >
 	<div class="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>

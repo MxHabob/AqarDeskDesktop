@@ -20,6 +20,7 @@
     "dev:api": "cargo run --manifest-path backend/api/Cargo.toml",
     "check:backend": "cargo check --workspace --manifest-path Cargo.toml",
     "test:backend": "cargo test --workspace --manifest-path Cargo.toml",
+    "generate:sdk": "cargo run --manifest-path backend/api/Cargo.toml -- --export-openapi backend/api/openapi.json && bun run --cwd packages/sdk generate",
     "lint:all": "turbo run check --filter=web && cargo check --workspace --manifest-path Cargo.toml"
   },
   "devDependencies": {

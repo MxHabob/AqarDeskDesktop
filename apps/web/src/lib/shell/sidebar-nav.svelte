@@ -74,16 +74,6 @@
 			</Button>
 		</div>
 	{:else}
-		<div class="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-			<span class="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-				<span class="text-xs font-bold">{currentUser.name.slice(0, 1).toLocaleUpperCase()}</span>
-			</span>
-			<div class="min-w-0 flex-1">
-				<p class="truncate text-sm font-semibold text-foreground">{m.app_name()}</p>
-				<p class="truncate text-[11px] text-muted-foreground">{currentUser.name}</p>
-			</div>
-		</div>
-
 		<nav class="min-h-0 flex-1 overflow-y-auto px-3 py-4 scrollbar-none" aria-label={m.nav_workspace()}>
 			<section>
 				<h2 class="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

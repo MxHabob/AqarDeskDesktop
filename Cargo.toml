@@ -33,6 +33,7 @@ chrono = { version = "0.4", features = ["serde"] }
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "sync-secret-service", "windows-native"] }
 url = "2"
 reqwest = { version = "0.13", features = ["json"] }
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
 
 [profile.dev]
 panic = "abort"

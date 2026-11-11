@@ -6,10 +6,11 @@
 		label: string;
 		id?: string;
 		description?: string;
+		error?: string;
 		children: Snippet;
 	};
 
-	let { label, id, description, children }: Props = $props();
+	let { label, id, description, error, children }: Props = $props();
 </script>
 
 <div class="grid min-w-0 gap-2">
@@ -17,5 +18,8 @@
 	{@render children()}
 	{#if description}
 		<p class="text-xs leading-relaxed text-muted-foreground">{description}</p>
+	{/if}
+	{#if error}
+		<p class="text-xs leading-relaxed text-destructive" role="alert">{error}</p>
 	{/if}
 </div>

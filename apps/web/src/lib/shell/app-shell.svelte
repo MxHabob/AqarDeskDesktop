@@ -24,7 +24,7 @@
 	let sidebarSize = $state(2);
 	let desktopShell = $state(false);
 	const showContextNavigation = $derived(
-		active !== 'settings' && !page.params.propertyId
+		active !== 'overview' && active !== 'settings' && !page.params.propertyId
 	);
 
 	onMount(() => {
@@ -65,8 +65,8 @@
 						</div>
 					</header>
 				{/if}
-				<main class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-8">
-					<div class="mx-auto grid w-full max-w-6xl gap-5">
+				<main class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6">
+					<div class="grid min-h-full w-full content-start gap-4">
 						{@render children()}
 					</div>
 				</main>

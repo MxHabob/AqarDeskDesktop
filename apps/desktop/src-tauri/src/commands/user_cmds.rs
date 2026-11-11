@@ -354,7 +354,7 @@ fn connection_key(config: &ConnectionConfig) -> Result<String, String> {
         .map_err(|error| format!("Could not identify the active connection: {error}"))
 }
 
-async fn require_admin(
+pub(super) async fn require_active_user(
     connection: &ConnectionState,
     database: &DatabaseState,
     state: &AuthState,
@@ -374,17 +374,29 @@ async fn require_admin(
         user = to_logged_in_user(active_user);
         *state.current_user.write().await = Some(user.clone());
     }
-    if !user.is_active || user.role != "admin" {
+    if !user.is_active {
+        return Err("The session is no longer valid. Sign in again.".to_string());
+    }
+    Ok(user)
+}
+
+async fn require_admin(
+    connection: &ConnectionState,
+    database: &DatabaseState,
+    state: &AuthState,
+) -> Result<LoggedInUser, String> {
+    let user = require_active_user(connection, database, state).await?;
+    if user.role != "admin" {
         return Err("Administrator access is required.".to_string());
     }
     Ok(user)
 }
 
-fn connection_mode(state: &ConnectionState) -> Result<ConnectionMode, String> {
+pub(super) fn connection_mode(state: &ConnectionState) -> Result<ConnectionMode, String> {
     Ok(get_config(state)?.mode)
 }
 
-fn get_config(
+pub(super) fn get_config(
     state: &ConnectionState,
 ) -> Result<aqardesk_infrastructure::settings::ConnectionConfig, String> {
     state
@@ -395,7 +407,7 @@ fn get_config(
         .ok_or_else(|| "Choose and save a database connection first.".to_string())
 }
 
-async fn api_request<T: DeserializeOwned>(
+pub(super) async fn api_request<T: DeserializeOwned>(
     config: &aqardesk_infrastructure::settings::ConnectionConfig,
     method: Method,
     path: &str,

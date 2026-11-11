@@ -1,4 +1,5 @@
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub mod organization {
     use super::*;
@@ -122,7 +123,7 @@ pub mod user {
 pub mod property {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "properties")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -155,7 +156,7 @@ pub mod property {
 pub mod unit {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "property_units")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -185,7 +186,7 @@ pub mod unit {
 pub mod tenant {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "tenants")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -210,7 +211,7 @@ pub mod tenant {
 pub mod lease {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "leases")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -245,7 +246,7 @@ pub mod lease {
 pub mod lease_charge {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "lease_charges")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -275,7 +276,7 @@ pub mod lease_charge {
 pub mod payment {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, DeriveEntityModel)]
     #[sea_orm(table_name = "payments")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]

@@ -1,5 +1,7 @@
+pub mod dashboard;
 pub mod migration;
 pub mod models;
+pub mod services;
 pub mod settings;
 pub mod users;
 

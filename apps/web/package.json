@@ -19,6 +19,7 @@
 	},
 	"dependencies": {
 		"@aqardesk/ui": "workspace:*",
+		"@aqardesk/sdk": "workspace:*",
 		"@tanstack/svelte-form": "^1.33.5",
 		"@tanstack/svelte-query": "^6.4.1",
 		"@tauri-apps/api": "^2.9.1",
