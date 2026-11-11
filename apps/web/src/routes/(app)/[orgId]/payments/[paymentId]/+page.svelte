@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import { ArrowLeft, Printer } from '@lucide/svelte';
-	import { Button, Card, CardContent, toast } from '@aqardesk/ui';
+	import { Button, Card, toast } from '@aqardesk/ui';
 	import type {
 		ContractTemplate,
 		CurrencySettings,
@@ -16,7 +16,8 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
 
-	type ReceiptBlock = { kind: 'heading' | 'paragraph' | 'list-item'; text: string };
+	type ReceiptSection = { title: string; items: string[]; paragraphs: string[] };
+	type ReceiptDocument = { title: string; sections: ReceiptSection[]; footer: string[] };
 
 	let { data }: PageProps = $props();
 	let payment = $state<Payment | null>(null);
@@ -105,18 +106,44 @@
 		}
 	}
 
-	function receiptBlocks(content: string): ReceiptBlock[] {
-		return content
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.map((line) => {
-				const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-				if (heading) return { kind: 'heading', text: heading[2]! };
-				const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
-				if (item) return { kind: 'list-item', text: item[1]! };
-				return { kind: 'paragraph', text: line };
-			});
+	function receiptDocument(content: string): ReceiptDocument {
+		const result: ReceiptDocument = { title: '', sections: [], footer: [] };
+		let section: ReceiptSection | undefined;
+		for (const rawLine of content.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line) continue;
+
+			const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+			if (heading) {
+				if (heading[1]!.length === 1 && !result.title) {
+					result.title = heading[2]!;
+					section = undefined;
+				} else {
+					section = { title: heading[2]!, items: [], paragraphs: [] };
+					result.sections.push(section);
+				}
+				continue;
+			}
+
+			const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
+			if (item && section) {
+				section.items.push(item[1]!);
+			} else if (section) {
+				section.paragraphs.push(line);
+			} else {
+				result.footer.push(line);
+			}
+		}
+		return result;
+	}
+
+	function receiptField(item: string) {
+		const separator = item.search(/[:：]/);
+		if (separator < 0) return { label: '', value: item };
+		return {
+			label: item.slice(0, separator).trim(),
+			value: item.slice(separator + 1).trim()
+		};
 	}
 
 	function printReceipt() {
@@ -161,38 +188,96 @@
 			})}
 		</p>
 	{:else}
-		<Card
+		{@const document = receiptDocument(renderedTemplate.content)}
+		<article
 			id="payment-receipt"
 			dir={receiptTemplate.locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
-			class="mx-auto w-full max-w-2xl rounded-lg bg-card p-5 shadow-card ring-border/50 sm:p-8 print:max-w-none print:border-0 print:bg-white print:text-slate-950 print:shadow-none"
+			class="receipt-paper mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-300 bg-white text-slate-800 shadow-lg print:max-w-none print:rounded-none print:border-0 print:shadow-none"
 		>
-			<CardContent class="grid gap-4 p-0 text-sm leading-8">
-				{#each receiptBlocks(renderedTemplate.content) as block, index (`${block.kind}-${index}`)}
-					{#if block.kind === 'heading'}
-						{#if index === 0}
-							<h2 class="border-b border-border pb-4 text-xl font-semibold print:border-slate-300">
-								{block.text}
-							</h2>
-						{:else}
-							<h3 class="pt-2 text-base font-semibold">{block.text}</h3>
+			<div class="receipt-accent h-3 bg-amber-400"></div>
+			<header class="receipt-header grid gap-5 bg-indigo-950 px-6 py-6 text-white sm:grid-cols-[1fr_auto] sm:items-center sm:px-10">
+				<div class="grid gap-1">
+					<p class="text-xl font-bold tracking-wide">{organization?.name ?? m.app_name()}</p>
+					<p class="text-sm text-indigo-100">{m.payments_receipts()}</p>
+				</div>
+				<div class="justify-self-start rounded-full border-2 border-amber-400 bg-amber-300 px-8 py-2 text-center text-xl font-bold text-indigo-950 sm:justify-self-end">
+					{document.title || m.payments_receipt()}
+				</div>
+			</header>
+
+			<div class="receipt-body grid gap-6 p-5 sm:p-9">
+				<div class="grid gap-3 rounded-lg border-2 border-indigo-900/70 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+					<div class="grid gap-1">
+						<span class="text-xs font-medium text-slate-500">{m.payments_receipt_number()}</span>
+						<strong class="font-mono text-sm" dir="ltr">{payment.id}</strong>
+					</div>
+					<div class="grid gap-1 sm:px-5 sm:text-center">
+						<span class="text-xs font-medium text-slate-500">{m.payments_received_at()}</span>
+						<strong class="text-sm">{formatDate(payment.received_at, 'datetime', undefined, organization?.timezone)}</strong>
+					</div>
+					<div class="grid gap-1 sm:border-s border-indigo-200 sm:ps-5 sm:text-end">
+						<span class="text-xs font-medium text-slate-500">{m.payments_status()}</span>
+						<strong class={`text-sm ${payment.status === 'void' ? 'text-rose-700' : 'text-emerald-700'}`}>
+							{payment.status === 'posted' ? m.payments_status_posted() : m.payments_status_void()}
+						</strong>
+					</div>
+				</div>
+
+				{#each document.sections as section, sectionIndex (section.title)}
+					<section class="grid gap-3" class:receipt-payment-section={sectionIndex > 0}>
+						<h2 class="border-b border-slate-200 pb-2 text-base font-bold text-indigo-950">
+							{section.title}
+						</h2>
+						{#if section.items.length}
+							<div class="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+								{#each section.items as item, itemIndex (`${section.title}-${itemIndex}`)}
+									{@const field = receiptField(item)}
+									<div
+										class={`receipt-field grid min-w-0 gap-1 border-b border-slate-200 pb-2 ${field.label === m.payments_amount() ? 'rounded-md border-2 border-indigo-900 bg-amber-100 p-3 text-indigo-950' : ''}`}
+										class:receipt-amount={field.label === m.payments_amount()}
+									>
+										{#if field.label}
+											<span class="text-xs text-slate-500">{field.label}</span>
+										{/if}
+										<strong class="break-words text-sm font-semibold">{field.value}</strong>
+									</div>
+								{/each}
+							</div>
 						{/if}
-					{:else if block.kind === 'list-item'}
-						<p class="before:me-2 before:text-primary before:content-['•'] print:before:text-slate-700">
-							{block.text}
-						</p>
-					{:else}
-						<p class="whitespace-pre-wrap">{block.text}</p>
-					{/if}
+						{#each section.paragraphs as paragraph, paragraphIndex (`${section.title}-paragraph-${paragraphIndex}`)}
+							<p class="whitespace-pre-wrap text-sm leading-7 text-slate-700">{paragraph}</p>
+						{/each}
+					</section>
 				{/each}
-			</CardContent>
-		</Card>
+
+				{#if document.footer.length}
+					<div class="grid gap-2 border-t border-slate-200 pt-4 text-sm leading-7 text-slate-600">
+						{#each document.footer as line, index (`footer-${index}`)}
+							<p>{line}</p>
+						{/each}
+					</div>
+				{/if}
+
+				<div class="receipt-signatures grid gap-6 border-t border-slate-200 pt-6 sm:grid-cols-3">
+					{#each [m.payments_signature_cashier(), m.payments_signature_accounts(), m.payments_signature_manager()] as label (label)}
+						<div class="grid gap-8 text-center">
+							<strong class="text-sm text-indigo-950">{label}</strong>
+							<span class="border-b border-dotted border-slate-400"></span>
+						</div>
+					{/each}
+				</div>
+			</div>
+			<footer class="receipt-footer bg-indigo-950 px-6 py-3 text-center text-xs text-white sm:px-10">
+				{organization?.name ?? m.app_name()} · {m.payments_receipt_number()}: <span dir="ltr">{payment.id}</span>
+			</footer>
+		</article>
 	{/if}
 {/if}
 
 <style>
 	@media print {
 		@page {
-			size: A4;
+			size: A4 landscape;
 			margin: 0;
 		}
 
@@ -214,11 +299,41 @@
 			inset: 0 !important;
 			width: 100% !important;
 			max-width: none !important;
+			min-height: 0 !important;
 			margin: 0 !important;
-			padding: 18mm !important;
 			border: 0 !important;
 			background: white !important;
 			box-shadow: none !important;
+		}
+
+		:global(#payment-receipt .receipt-accent),
+		:global(#payment-receipt .receipt-header),
+		:global(#payment-receipt .receipt-footer) {
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+
+		:global(#payment-receipt .receipt-body) {
+			padding: 10mm !important;
+		}
+
+		:global(#payment-receipt .receipt-amount) {
+			border: 2px solid #312e81 !important;
+			border-radius: 0.5rem;
+			background: #fef3c7 !important;
+			padding: 0.75rem !important;
+			color: #1e1b4b !important;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+
+		:global(#payment-receipt .receipt-payment-section) {
+			break-inside: avoid;
+		}
+
+		:global(#payment-receipt .receipt-signatures) {
+			break-inside: avoid;
+			margin-top: 6mm;
 		}
 	}
 </style>

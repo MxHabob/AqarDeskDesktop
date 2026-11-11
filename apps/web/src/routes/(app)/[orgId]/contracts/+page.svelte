@@ -1,7 +1,19 @@
 <script lang="ts">
+	import { createForm } from '@tanstack/svelte-form';
 	import { onMount } from 'svelte';
-	import { toast } from '@aqardesk/ui';
+	import {
+		Button,
+		Card,
+		CardContent,
+		Input,
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+		toast
+	} from '@aqardesk/ui';
 	import { Printer } from '@lucide/svelte';
+	import { z } from 'zod';
 	import type {
 		ContractTemplate,
 		CurrencySettings,
@@ -12,9 +24,21 @@
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
+	import FormField from '#lib/shared/components/form-field.svelte';
+	import { getFieldError } from '#lib/shared/form-errors';
 	import * as m from '#lib/paraglide/messages';
 
 	type DocumentBlock = { kind: 'heading' | 'paragraph' | 'list-item'; text: string };
+	type ContractFormValues = {
+		templateId: string;
+		tenantId: string;
+		propertyId: string;
+		unitId: string;
+		startDate: string;
+		endDate: string;
+		rentAmount: string;
+		depositAmount: string;
+	};
 
 	const app = getAppContext();
 	const locale = $derived(getLocale());
@@ -24,14 +48,8 @@
 	let tenants = $state<Tenant[]>([]);
 	let currencies = $state<CurrencySettings[]>([]);
 	let loading = $state(true);
-	let selectedTemplateId = $state('');
-	let selectedTenantId = $state('');
-	let selectedPropertyId = $state('');
-	let selectedUnitId = $state('');
-	let startDate = $state(new Date().toISOString().slice(0, 10));
-	let endDate = $state('');
-	let rentAmount = $state('');
-	let depositAmount = $state('');
+	let loadError = $state('');
+	let preparing = $state(false);
 	let generatedDocument = $state('');
 	let generatedTitle = $state('');
 	let generatedNumber = $state('');
@@ -45,65 +63,34 @@
 				template.versions[0]?.content_body?.trim()
 		)
 	);
-	const selectedProperty = $derived(properties.find((item) => item.id === selectedPropertyId));
-	const propertyUnits = $derived(
-		units.filter((unit) => unit.property_id === selectedPropertyId && unit.status !== 'inactive')
+	const activeProperties = $derived(
+		properties.filter(
+			(property) =>
+				property.status === 'active' &&
+				units.some((unit) => unit.property_id === property.id && unit.status !== 'inactive')
+		)
 	);
-	const selectedTemplate = $derived(activeTemplates.find((item) => item.id === selectedTemplateId));
-	const selectedUnit = $derived(propertyUnits.find((unit) => unit.id === selectedUnitId));
-	const isReadonly = $derived(app.currentUser?.role === 'readonly');
-
-	$effect(() => {
-		selectedTemplateId;
-		selectedTenantId;
-		selectedPropertyId;
-		selectedUnitId;
-		startDate;
-		endDate;
-		rentAmount;
-		depositAmount;
-		generatedDocument = '';
-	});
-
-	onMount(() => {
-		void load();
-	});
-
-	async function load() {
-		loading = true;
-		try {
-			[templates, properties, units, tenants, currencies] = await Promise.all([
-				desktopApi.listContractTemplates(),
-				desktopApi.listProperties(),
-				desktopApi.listUnits(),
-				desktopApi.listTenants(),
-				desktopApi.listCurrencies()
-			]);
-			selectedTemplateId = templates.find(
-				(template) => template.is_active && template.versions[0]?.content_body?.trim()
-			)?.id ?? '';
-			selectedTenantId = tenants[0]?.id ?? '';
-			selectedPropertyId = properties.find((property) => property.status === 'active')?.id ?? '';
-			selectedUnitId =
-				units.find((unit) => unit.property_id === selectedPropertyId && unit.status !== 'inactive')?.id ?? '';
-			updateAmountsForUnit();
-		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
-		} finally {
-			loading = false;
-		}
-	}
-
-	function updateAmountsForUnit() {
-		const unit = units.find((item) => item.id === selectedUnitId);
-		const digits = currencies.find((currency) => currency.code === unit?.currency_code)?.decimal_digits ?? 2;
-		rentAmount = unit?.market_rent_minor == null
-			? ''
-			: (unit.market_rent_minor / 10 ** digits).toFixed(digits);
-	}
 
 	function currencyDigits(currencyCode: string) {
 		return currencies.find((currency) => currency.code === currencyCode)?.decimal_digits ?? 2;
+	}
+
+	function localDateValue() {
+		const today = new Date();
+		const year = today.getFullYear();
+		const month = String(today.getMonth() + 1).padStart(2, '0');
+		const day = String(today.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	function isValidDate(value: string) {
+		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+		if (!match) return false;
+		const year = Number(match[1]);
+		const month = Number(match[2]);
+		const day = Number(match[3]);
+		const date = new Date(year, month - 1, day);
+		return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 	}
 
 	function money(value: string, currencyCode: string) {
@@ -124,37 +111,203 @@
 		return fraction.length <= currencyDigits(currencyCode) && Number.isFinite(Number(value));
 	}
 
-	function selectedCurrency() {
-		return selectedUnit?.currency_code ?? currencies.find((currency) => currency.is_enabled_for_organization)?.code ?? 'SAR';
+	const contractSchema = z.object({
+		templateId: z.string().min(1, m.contracts_no_templates()),
+		tenantId: z.string().min(1, m.contracts_no_tenants()),
+		propertyId: z.string().min(1, m.contracts_no_units()),
+		unitId: z.string().min(1, m.contracts_no_units()),
+		startDate: z.string().min(1, m.contracts_invalid_dates()).refine((value) => !value || isValidDate(value), m.contracts_invalid_dates()),
+		endDate: z.string().min(1, m.contracts_invalid_dates()).refine((value) => !value || isValidDate(value), m.contracts_invalid_dates()),
+		rentAmount: z.string().min(1, m.contracts_amount_invalid()),
+		depositAmount: z.string()
+	}).superRefine((values, context) => {
+		if (values.startDate && values.endDate && values.startDate > values.endDate) {
+			context.addIssue({
+				code: 'custom',
+				path: ['endDate'],
+				message: m.contracts_invalid_dates()
+			});
+		}
+		const currencyCode =
+			units.find((unit) => unit.id === values.unitId)?.currency_code ??
+			currencies.find((currency) => currency.is_enabled_for_organization)?.code ??
+			'SAR';
+		if (!isValidAmount(values.rentAmount, currencyCode, true) || Number(values.rentAmount) < 0) {
+			context.addIssue({
+				code: 'custom',
+				path: ['rentAmount'],
+				message: m.contracts_amount_invalid()
+			});
+		}
+		if (!isValidAmount(values.depositAmount, currencyCode, false) || Number(values.depositAmount || 0) < 0) {
+			context.addIssue({
+				code: 'custom',
+				path: ['depositAmount'],
+				message: m.contracts_amount_invalid()
+			});
+		}
+	});
+
+	const form = createForm(() => ({
+		defaultValues: {
+			templateId: '',
+			tenantId: '',
+			propertyId: '',
+			unitId: '',
+			startDate: localDateValue(),
+			endDate: '',
+			rentAmount: '',
+			depositAmount: ''
+		} satisfies ContractFormValues,
+		validators: { onSubmit: contractSchema },
+		onSubmit: async ({ value }) => {
+			preparing = true;
+			try {
+				prepareDocument(value);
+			} finally {
+				preparing = false;
+			}
+		}
+	}));
+	const propertyUnits = $derived(
+		units.filter(
+			(unit) =>
+				unit.property_id === form.state.values.propertyId && unit.status !== 'inactive'
+		)
+	);
+	const selectedTemplateName = $derived(
+		activeTemplates.find((template) => template.id === form.state.values.templateId)?.name
+	);
+	const selectedTenantName = $derived(
+		tenants.find((tenant) => tenant.id === form.state.values.tenantId)?.full_name
+	);
+	const selectedPropertyName = $derived(
+		activeProperties.find((property) => property.id === form.state.values.propertyId)?.name
+	);
+	const selectedUnit = $derived(
+		propertyUnits.find((unit) => unit.id === form.state.values.unitId)
+	);
+	const selectedUnitName = $derived(
+		selectedUnit ? `${selectedUnit.unit_number} · ${selectedUnit.unit_type}` : undefined
+	);
+	const selectedCurrency = $derived(
+		selectedUnit?.currency_code ??
+			currencies.find((currency) => currency.is_enabled_for_organization)?.code ??
+			'SAR'
+	);
+	const isReadonly = $derived(app.currentUser?.role === 'readonly');
+
+	$effect(() => {
+		form.state.values.templateId;
+		form.state.values.tenantId;
+		form.state.values.propertyId;
+		form.state.values.unitId;
+		form.state.values.startDate;
+		form.state.values.endDate;
+		form.state.values.rentAmount;
+		form.state.values.depositAmount;
+		generatedDocument = '';
+	});
+
+	onMount(() => {
+		void load();
+	});
+
+	async function load() {
+		loading = true;
+		loadError = '';
+		try {
+			const [nextTemplates, nextProperties, nextUnits, nextTenants, nextCurrencies] =
+				await Promise.all([
+					desktopApi.listContractTemplates(),
+					desktopApi.listProperties(),
+					desktopApi.listUnits(),
+					desktopApi.listTenants(),
+					desktopApi.listCurrencies()
+				]);
+			templates = nextTemplates;
+			properties = nextProperties;
+			units = nextUnits;
+			tenants = nextTenants;
+			currencies = nextCurrencies;
+
+			const firstProperty = nextProperties.find(
+				(property) =>
+					property.status === 'active' &&
+					nextUnits.some((unit) => unit.property_id === property.id && unit.status !== 'inactive')
+			);
+			const firstUnit = nextUnits.find(
+				(unit) => unit.property_id === firstProperty?.id && unit.status !== 'inactive'
+			);
+			form.setFieldValue(
+				'templateId',
+				nextTemplates.find(
+					(template) =>
+						template.lease_type !== 'receipt' &&
+						template.is_active &&
+						template.versions[0]?.content_body?.trim()
+				)?.id ?? ''
+			);
+			form.setFieldValue('tenantId', nextTenants[0]?.id ?? '');
+			form.setFieldValue('propertyId', firstProperty?.id ?? '');
+			form.setFieldValue('unitId', firstUnit?.id ?? '');
+			form.setFieldValue('startDate', localDateValue());
+			form.setFieldValue('rentAmount', '');
+			form.setFieldValue('depositAmount', '');
+			form.setFieldValue('endDate', '');
+			updateAmountsForUnit(firstUnit?.id ?? '', nextUnits, nextCurrencies);
+		} catch (cause) {
+			loadError = cause instanceof Error ? cause.message : String(cause);
+			toast.error(loadError);
+		} finally {
+			loading = false;
+		}
 	}
 
-	function prepareDocument() {
-		const template = selectedTemplate;
-		const tenant = tenants.find((item) => item.id === selectedTenantId);
-		const property = selectedProperty;
-		const unit = selectedUnit;
+	function updateAmountsForUnit(
+		unitId: string,
+		sourceUnits: PropertyUnit[] = units,
+		sourceCurrencies: CurrencySettings[] = currencies
+	) {
+		const unit = sourceUnits.find((item) => item.id === unitId);
+		const digits = sourceCurrencies.find((currency) => currency.code === unit?.currency_code)?.decimal_digits ?? 2;
+		form.setFieldValue(
+			'rentAmount',
+			unit?.market_rent_minor == null
+				? ''
+				: (unit.market_rent_minor / 10 ** digits).toFixed(digits)
+		);
+	}
+
+	function selectProperty(propertyId: string) {
+		form.setFieldValue('propertyId', propertyId);
+		const firstUnit = units.find(
+			(unit) => unit.property_id === propertyId && unit.status !== 'inactive'
+		);
+		form.setFieldValue('unitId', firstUnit?.id ?? '');
+		updateAmountsForUnit(firstUnit?.id ?? '');
+	}
+
+	function prepareDocument(input: ContractFormValues) {
+		const template = activeTemplates.find((item) => item.id === input.templateId);
+		const tenant = tenants.find((item) => item.id === input.tenantId);
+		const property = properties.find((item) => item.id === input.propertyId);
+		const unit = units.find(
+			(item) =>
+				item.id === input.unitId &&
+				item.property_id === input.propertyId &&
+				item.status !== 'inactive'
+		);
 		if (!template || !tenant || !property || !unit) {
 			toast.error(m.contracts_no_units());
 			return;
 		}
-		if (!startDate || !endDate || startDate > endDate) {
-			toast.error(m.contracts_invalid_dates());
-			return;
-		}
-		const currencyCode = selectedCurrency();
-		if (!isValidAmount(rentAmount, currencyCode, true) || Number(rentAmount) < 0) {
-			toast.error(m.contracts_amount_invalid());
-			return;
-		}
-		if (!isValidAmount(depositAmount, currencyCode, false) || Number(depositAmount || 0) < 0) {
-			toast.error(m.contracts_deposit());
-			return;
-		}
+		const currencyCode = unit.currency_code ?? selectedCurrency;
 
 		const address = [property.address_line_1, property.address_line_2, property.city, property.region]
 			.filter(Boolean)
 			.join('، ');
-		const today = new Date().toISOString().slice(0, 10);
+		const today = localDateValue();
 		const number = `AQD-${today.replaceAll('-', '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 		const values: Record<string, string> = {
 			'tenant.full_name': tenant.full_name,
@@ -171,13 +324,13 @@
 			'unit.area': unit.area_square_meters == null ? '—' : `${unit.area_square_meters} م²`,
 			'unit.bedrooms': String(unit.bedrooms),
 			'unit.bathrooms': String(unit.bathrooms),
-			'unit.rent': money(rentAmount, currencyCode),
+			'unit.rent': money(input.rentAmount, currencyCode),
 			'unit.currency': currencyCode,
 			'contract.number': number,
 			'contract.date': today,
-			'contract.start_date': startDate,
-			'contract.end_date': endDate,
-			'contract.deposit': depositAmount ? money(depositAmount, currencyCode) : '—',
+			'contract.start_date': input.startDate,
+			'contract.end_date': input.endDate,
+			'contract.deposit': input.depositAmount ? money(input.depositAmount, currencyCode) : '—',
 			'organization.name': app.organizationName || '—'
 		};
 		const content = template.versions[0]?.content_body ?? '';
@@ -234,14 +387,22 @@
 	}
 </script>
 
-<div class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-y-auto p-4 lg:p-6">
-	<header class="grid gap-1">
-		<h1 class="text-xl font-semibold">{m.contracts_builder_title()}</h1>
-		<p class="max-w-3xl text-sm text-muted-foreground">{m.contracts_builder_description()}</p>
-	</header>
+<svelte:head>
+	<title>{m.contracts_builder_title()} | AqarDesk</title>
+</svelte:head>
 
+<div class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-y-auto p-4 lg:p-6">
 	{#if loading}
-		<div class="rounded-xl border border-border/70 p-6 text-sm text-muted-foreground">{m.common_loading()}</div>
+		<Card role="status" aria-live="polite">
+			<CardContent class="p-6 text-sm text-muted-foreground">{m.common_loading()}</CardContent>
+		</Card>
+	{:else if loadError}
+		<Card class="border-destructive/40">
+			<CardContent class="flex flex-wrap items-center justify-between gap-4 p-5">
+				<p class="min-w-0 text-sm text-destructive" role="alert">{loadError}</p>
+				<Button variant="outline" onclick={() => void load()}>{m.common_retry()}</Button>
+			</CardContent>
+		</Card>
 	{:else if activeTemplates.length === 0}
 		<div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
 			{m.contracts_no_templates()}
@@ -250,96 +411,261 @@
 		<div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
 			{m.contracts_no_tenants()}
 		</div>
-	{:else if properties.filter((property) => property.status === 'active').length === 0 || units.length === 0}
+	{:else if activeProperties.length === 0}
 		<div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
 			{m.contracts_no_units()}
 		</div>
 	{:else}
-		<section class="grid gap-4 rounded-xl border border-border/70 bg-card p-4 sm:grid-cols-2 xl:grid-cols-4">
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_template()}
-				<select bind:value={selectedTemplateId} class="h-10 rounded-md border border-input bg-background px-3 text-sm">
-					{#each activeTemplates as template (template.id)}
-						<option value={template.id}>{template.name}</option>
-					{/each}
-				</select>
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.payments_tenant()}
-				<select bind:value={selectedTenantId} class="h-10 rounded-md border border-input bg-background px-3 text-sm">
-					{#each tenants as tenant (tenant.id)}
-						<option value={tenant.id}>{tenant.full_name}</option>
-					{/each}
-				</select>
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_select_property()}
-				<select
-					bind:value={selectedPropertyId}
-					onchange={() => {
-						selectedUnitId = propertyUnits[0]?.id ?? '';
-						updateAmountsForUnit();
-					}}
-					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				>
-					{#each properties.filter((property) => property.status === 'active') as property (property.id)}
-						<option value={property.id}>{property.name}</option>
-					{/each}
-				</select>
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_select_unit()}
-				<select
-					bind:value={selectedUnitId}
-					onchange={updateAmountsForUnit}
-					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				>
-					{#each propertyUnits as unit (unit.id)}
-						<option value={unit.id}>{unit.unit_number} · {unit.unit_type}</option>
-					{/each}
-				</select>
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_start_date()}
-				<input bind:value={startDate} type="date" class="h-10 rounded-md border border-input bg-background px-3 text-sm" />
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_end_date()}
-				<input bind:value={endDate} type="date" class="h-10 rounded-md border border-input bg-background px-3 text-sm" />
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_rent()} ({selectedCurrency()})
-				<input
-					type="number"
-					min="0"
-					step="any"
-					value={rentAmount}
-					oninput={(event) => (rentAmount = event.currentTarget.value)}
-					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				/>
-			</label>
-			<label class="grid gap-2 text-sm font-medium">
-				{m.contracts_deposit()} ({selectedCurrency()})
-				<input
-					type="number"
-					min="0"
-					step="any"
-					value={depositAmount}
-					oninput={(event) => (depositAmount = event.currentTarget.value)}
-					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				/>
-			</label>
-			<div class="flex items-end sm:col-span-2 xl:col-span-4">
-				<button
-					type="button"
-					disabled={isReadonly || !propertyUnits.length}
-					onclick={prepareDocument}
-					class="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-				>
-					{m.contracts_generate()}
-				</button>
-			</div>
-		</section>
+		<form
+			class="grid min-w-0 gap-5"
+			onsubmit={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				void form.handleSubmit();
+			}}
+		>
+			<Card>
+				<CardContent class="grid gap-x-4 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">
+					<form.Field name="templateId">
+						{#snippet children(field)}
+							<FormField
+								label={m.contracts_template()}
+								id="contract-template"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Select
+									type="single"
+									value={field.state.value}
+									onValueChange={(value) => {
+										if (typeof value === 'string') field.handleChange(value);
+									}}
+								>
+									<SelectTrigger
+										id="contract-template"
+										aria-invalid={field.state.meta.errors.length > 0}
+										disabled={isReadonly}
+									>
+										<span class="min-w-0 flex-1 truncate">
+											{selectedTemplateName ?? m.contracts_template()}
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{#each activeTemplates as template (template.id)}
+											<SelectItem value={template.id} label={template.name}>{template.name}</SelectItem>
+										{/each}
+									</SelectContent>
+								</Select>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="tenantId">
+						{#snippet children(field)}
+							<FormField
+								label={m.payments_tenant()}
+								id="contract-tenant"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Select
+									type="single"
+									value={field.state.value}
+									onValueChange={(value) => {
+										if (typeof value === 'string') field.handleChange(value);
+									}}
+								>
+									<SelectTrigger
+										id="contract-tenant"
+										aria-invalid={field.state.meta.errors.length > 0}
+										disabled={isReadonly}
+									>
+										<span class="min-w-0 flex-1 truncate">
+											{selectedTenantName ?? m.payments_tenant()}
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{#each tenants as tenant (tenant.id)}
+											<SelectItem value={tenant.id} label={tenant.full_name}>{tenant.full_name}</SelectItem>
+										{/each}
+									</SelectContent>
+								</Select>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="propertyId">
+						{#snippet children(field)}
+							<FormField
+								label={m.contracts_select_property()}
+								id="contract-property"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Select
+									type="single"
+									value={field.state.value}
+									onValueChange={(value) => {
+										if (typeof value === 'string') {
+											field.handleChange(value);
+											selectProperty(value);
+										}
+									}}
+								>
+									<SelectTrigger
+										id="contract-property"
+										aria-invalid={field.state.meta.errors.length > 0}
+										disabled={isReadonly}
+									>
+										<span class="min-w-0 flex-1 truncate">
+											{selectedPropertyName ?? m.contracts_select_property()}
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{#each activeProperties as property (property.id)}
+											<SelectItem value={property.id} label={property.name}>{property.name}</SelectItem>
+										{/each}
+									</SelectContent>
+								</Select>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="unitId">
+						{#snippet children(field)}
+							<FormField
+								label={m.contracts_select_unit()}
+								id="contract-unit"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Select
+									type="single"
+									value={field.state.value}
+									onValueChange={(value) => {
+										if (typeof value === 'string') {
+											field.handleChange(value);
+											updateAmountsForUnit(value);
+										}
+									}}
+								>
+									<SelectTrigger
+										id="contract-unit"
+										aria-invalid={field.state.meta.errors.length > 0}
+										disabled={isReadonly || propertyUnits.length === 0}
+									>
+										<span class="min-w-0 flex-1 truncate">
+											{selectedUnitName ?? m.contracts_select_unit()}
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{#each propertyUnits as unit (unit.id)}
+											<SelectItem
+												value={unit.id}
+												label={`${unit.unit_number} · ${unit.unit_type}`}
+											>
+												{unit.unit_number} · {unit.unit_type}
+											</SelectItem>
+										{/each}
+									</SelectContent>
+								</Select>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="startDate">
+						{#snippet children(field)}
+							<FormField
+								label={m.contracts_start_date()}
+								id="contract-start-date"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Input
+									id="contract-start-date"
+									type="date"
+									value={field.state.value}
+									max={form.state.values.endDate || undefined}
+									oninput={(event) => field.handleChange(event.currentTarget.value)}
+									onblur={field.handleBlur}
+									aria-invalid={field.state.meta.errors.length > 0}
+									disabled={isReadonly}
+								/>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="endDate">
+						{#snippet children(field)}
+							<FormField
+								label={m.contracts_end_date()}
+								id="contract-end-date"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Input
+									id="contract-end-date"
+									type="date"
+									value={field.state.value}
+									min={form.state.values.startDate || undefined}
+									oninput={(event) => field.handleChange(event.currentTarget.value)}
+									onblur={field.handleBlur}
+									aria-invalid={field.state.meta.errors.length > 0}
+									disabled={isReadonly}
+								/>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="rentAmount">
+						{#snippet children(field)}
+							<FormField
+								label={`${m.contracts_rent()} (${selectedCurrency})`}
+								id="contract-rent"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Input
+									id="contract-rent"
+									type="number"
+									inputmode="decimal"
+									dir="ltr"
+									min="0"
+									step={1 / 10 ** currencyDigits(selectedCurrency)}
+									value={field.state.value}
+									oninput={(event) => field.handleChange(event.currentTarget.value)}
+									onblur={field.handleBlur}
+									aria-invalid={field.state.meta.errors.length > 0}
+									disabled={isReadonly}
+								/>
+							</FormField>
+						{/snippet}
+					</form.Field>
+
+					<form.Field name="depositAmount">
+						{#snippet children(field)}
+							<FormField
+								label={`${m.contracts_deposit()} (${selectedCurrency})`}
+								id="contract-deposit"
+								error={getFieldError(field.state.meta.errors)}
+							>
+								<Input
+									id="contract-deposit"
+									type="number"
+									inputmode="decimal"
+									dir="ltr"
+									min="0"
+									step={1 / 10 ** currencyDigits(selectedCurrency)}
+									value={field.state.value}
+									oninput={(event) => field.handleChange(event.currentTarget.value)}
+									onblur={field.handleBlur}
+									aria-invalid={field.state.meta.errors.length > 0}
+									disabled={isReadonly}
+								/>
+							</FormField>
+						{/snippet}
+					</form.Field>
+				</CardContent>
+				<div class="flex justify-end border-t border-border px-6 py-4">
+					<Button type="submit" disabled={isReadonly || preparing}>
+						{preparing ? m.common_processing() : m.contracts_generate()}
+					</Button>
+				</div>
+			</Card>
+		</form>
 
 		{#if generatedDocument}
 			<section class="grid gap-3">
@@ -348,14 +674,10 @@
 						<h2 class="text-base font-semibold">{m.contracts_preview()}</h2>
 						<p class="text-xs text-muted-foreground">{m.contracts_disclaimer()}</p>
 					</div>
-					<button
-						type="button"
-						onclick={printDocument}
-						class="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
-					>
+					<Button variant="outline" onclick={printDocument}>
 						<Printer size={15} class="me-2" />
 						{m.contracts_print()}
-					</button>
+					</Button>
 				</div>
 				<article
 					id="issued-contract"

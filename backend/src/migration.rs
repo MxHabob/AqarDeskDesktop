@@ -6,6 +6,7 @@ mod m20261112_000001_contract_templates;
 mod m20261112_000002_onboarding_defaults;
 mod m20261112_000003_contract_template_starters;
 mod m20261112_000004_payment_receipt_templates;
+mod m20261112_000005_default_lease_templates;
 
 pub struct PlatformMigrator;
 
@@ -18,6 +19,7 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000002_onboarding_defaults::Migration),
             Box::new(m20261112_000003_contract_template_starters::Migration),
             Box::new(m20261112_000004_payment_receipt_templates::Migration),
+            Box::new(m20261112_000005_default_lease_templates::Migration),
         ]
     }
 }

@@ -393,7 +393,7 @@
 										onblur={field.handleBlur}
 										placeholder={m.settings_template_preview_empty()}
 										dir="auto"
-										class="min-h-[calc(100dvh-18rem)] w-full resize-y border-0 bg-transparent px-6 py-7 text-sm leading-8 text-foreground outline-none focus-visible:ring-0 sm:px-10 sm:py-9"
+										class="min-h-[calc(100dvh-18rem)] w-full resize-y border-0 bg-transparent px-6 py-7 text-sm leading-8 text-foreground outline-none focus-visible:ring-0 scrollbar-none sm:px-10 sm:py-9"
 									></textarea>
 									{#if variableMenuOpen}
 										<div
