@@ -21,7 +21,7 @@
 
 	$effect(() => {
 		if (open) {
-			name = initial?.name ?? '';
+			name = initial?.name ?? m.settings_template_new();
 			editingName = false;
 		}
 	});

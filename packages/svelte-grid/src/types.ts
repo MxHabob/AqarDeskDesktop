@@ -150,7 +150,7 @@ export interface GridActionEvent {
 export interface ActionItem {
   id: string;
   icon?: string;
-  label?: string;
+  label?: string | ((row: GridRow) => string);
   variant?:
     | "default"
     | "destructive"

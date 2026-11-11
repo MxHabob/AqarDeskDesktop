@@ -20,7 +20,13 @@ export function exportRows(
     options.columns
       ? columns.filter((c) => options.columns!.includes(columnId(c)))
       : columns
-  ).filter((c) => !c.hidden && !columnId(c).startsWith("__"));
+  ).filter(
+    (c) =>
+      !c.hidden &&
+      !columnId(c).startsWith("__") &&
+      c.type !== "action" &&
+      columnId(c) !== "actions",
+  );
 
   let subset = rows;
   if (options.scope === "selected" && selection) {
@@ -47,8 +53,19 @@ export function exportRows(
     header,
     ...subset.map((row) => cols.map((col) => getCellValue(row, col))),
   ];
-  const text = toTsv(matrix);
-  return options.format === "csv" ? text.replace(/\t/g, ",") : text;
+  return options.format === "csv"
+    ? matrix
+        .map((row) => row.map(toCsvCell).join(","))
+        .join("\r\n")
+    : toTsv(matrix);
+}
+
+function toCsvCell(value: unknown): string {
+  let text = value == null ? "" : String(value);
+  if (typeof value === "string" && /^\s*[=+\-@]/.test(value)) {
+    text = `'${text}`;
+  }
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 export function downloadText(
@@ -62,6 +79,9 @@ export function downloadText(
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

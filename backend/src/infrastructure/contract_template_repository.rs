@@ -106,7 +106,7 @@ pub(super) async fn seed_onboarding_templates(
             description: Set(None),
             lease_type: Set(template.lease_type.to_string()),
             locale: Set(template.locale.to_string()),
-            is_active: Set(false),
+            is_active: Set(template.is_active),
             created_by: Set(Some(actor_id.to_string())),
             updated_by: Set(Some(actor_id.to_string())),
             created_at: Set(now),

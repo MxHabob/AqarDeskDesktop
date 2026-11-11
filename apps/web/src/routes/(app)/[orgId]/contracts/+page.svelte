@@ -38,7 +38,12 @@
 	let generatedDirection = $state<'rtl' | 'ltr'>('rtl');
 
 	const activeTemplates = $derived(
-		templates.filter((template) => template.is_active && template.versions[0]?.content_body?.trim())
+		templates.filter(
+			(template) =>
+				template.lease_type !== 'receipt' &&
+				template.is_active &&
+				template.versions[0]?.content_body?.trim()
+		)
 	);
 	const selectedProperty = $derived(properties.find((item) => item.id === selectedPropertyId));
 	const propertyUnits = $derived(
@@ -213,13 +218,13 @@
 		const printStyles = document.createElement('style');
 		printStyles.textContent = `
 			@media print {
-				@page { size: A4; margin: 18mm; }
+				@page { size: A4; margin: 0; }
 				body * { visibility: hidden !important; overflow: visible !important; }
 				#issued-contract, #issued-contract * { visibility: visible !important; }
 				#issued-contract {
 					position: absolute !important; inset: 0 !important; width: 100% !important;
 					max-width: none !important; min-height: 0 !important; margin: 0 !important;
-					padding: 0 !important; border: 0 !important; border-radius: 0 !important;
+					padding: 18mm !important; border: 0 !important; border-radius: 0 !important;
 					box-shadow: none !important; background: #fff !important; color: #172033 !important;
 				}
 			}`;
@@ -304,11 +309,25 @@
 			</label>
 			<label class="grid gap-2 text-sm font-medium">
 				{m.contracts_rent()} ({selectedCurrency()})
-				<input bind:value={rentAmount} type="number" min="0" step="any" class="h-10 rounded-md border border-input bg-background px-3 text-sm" />
+				<input
+					type="number"
+					min="0"
+					step="any"
+					value={rentAmount}
+					oninput={(event) => (rentAmount = event.currentTarget.value)}
+					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+				/>
 			</label>
 			<label class="grid gap-2 text-sm font-medium">
 				{m.contracts_deposit()} ({selectedCurrency()})
-				<input bind:value={depositAmount} type="number" min="0" step="any" class="h-10 rounded-md border border-input bg-background px-3 text-sm" />
+				<input
+					type="number"
+					min="0"
+					step="any"
+					value={depositAmount}
+					oninput={(event) => (depositAmount = event.currentTarget.value)}
+					class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+				/>
 			</label>
 			<div class="flex items-end sm:col-span-2 xl:col-span-4">
 				<button

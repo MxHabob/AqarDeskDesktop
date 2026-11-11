@@ -21,6 +21,7 @@ import { interpretKey, clampIndex } from "./keyboard";
 import { visibleVariableWindow, visibleWindow } from "./virtual";
 import { groupRows, grandTotals } from "./grouping";
 import { queryClient } from "./query";
+import { exportRows } from "./export";
 import { autoscrollDelta, colFromOffset, rowFromOffset } from "./pointer";
 import { coerceValue } from "./coerce";
 import type { GridRow, AqarDeskColumnDef } from "../types";
@@ -283,6 +284,27 @@ describe("query + coerce", () => {
         dateColumn,
       ).map((row) => row.id),
     ).toEqual(["b", "c"]);
+  });
+});
+
+describe("export", () => {
+  test("CSV export escapes fields and protects spreadsheet formulas", () => {
+    const result = exportRows(
+      [
+        { id: "1", name: "Ali", note: 'A, "quoted" note' },
+        { id: "2", name: "Sara", note: "=1+1" },
+      ],
+      [
+        { id: "name", header: "Name" },
+        { id: "note", header: "Note" },
+        { id: "actions", type: "action" },
+      ],
+      { format: "csv", scope: "all" },
+    );
+
+    expect(result).toBe(
+      'Name,Note\r\nAli,"A, ""quoted"" note"\r\nSara,\'=1+1',
+    );
   });
 });
 

@@ -38,6 +38,7 @@
 	function handleGridAction(event: GridActionEvent) {
 		const tenant = tenants.find((item) => item.id === String(event.row.id ?? ''));
 		if (!tenant) return;
+		if (event.actionId === 'dblclick') onEdit(tenant);
 		if (event.actionId === 'edit') onEdit(tenant);
 		if (event.actionId === 'archive') onArchive(tenant);
 	}

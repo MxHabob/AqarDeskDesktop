@@ -1,4 +1,5 @@
 <script lang="ts">
+import { toast } from "@aqardesk/ui";
 import { setContext, type Snippet } from "svelte";
 import {
   FilterBuilder,
@@ -39,11 +40,13 @@ import {
   clearRange,
   coerceValue,
   contextMenuItems,
+  downloadText,
   defaultAlign,
   duplicateRows,
   emptySelection,
   extendRange,
   extractMatrix,
+  exportRows,
   fillDown,
   fillRight,
   formatCell,
@@ -86,6 +89,7 @@ interface Props {
   serverQuery?: boolean;
   showSearch?: boolean;
   showFilterButton?: boolean;
+  showExportButton?: boolean;
   showAddRow?: boolean;
   toolbarFilters?: Snippet;
   filterTranslations?: FilterTranslations;
@@ -129,6 +133,7 @@ let {
   serverQuery = false,
   showSearch = true,
   showFilterButton = true,
+  showExportButton = true,
   showAddRow = false,
   toolbarFilters,
   filterTranslations,
@@ -1245,7 +1250,7 @@ function onContext(row: number, col: number, e: MouseEvent) {
     context: "cell",
     hasSelection: !!hasSelection,
     canEdit: !readonly,
-    filtered: (shouldRunClientQuery || usesServerQuery) && Boolean(filter),
+    filtered: (shouldRunClientQuery || usesServerQuery) && Boolean(filter || search),
   }).filter(
     (item) =>
       isColumnSortable(visibleCols[col] ?? {}) ||
@@ -1258,6 +1263,30 @@ function onContext(row: number, col: number, e: MouseEvent) {
     col,
     items,
   };
+}
+
+function exportGrid(scope: "all" | "selected" | "filtered") {
+  const contents = exportRows(
+    displayRows,
+    visibleCols,
+    { format: "csv", scope },
+    selection,
+    undefined,
+    rowIdKey,
+  );
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `aqardesk-${scope}-${date}.csv`;
+  try {
+    downloadText(filename, `\uFEFF${contents}`, "text/csv;charset=utf-8");
+    toast.success(rtl ? "بدأ تنزيل الملف" : "Download started", {
+      description: filename,
+    });
+  } catch (error) {
+    console.error("AqarDeskGrid failed to export data:", error);
+    toast.error(rtl ? "تعذر تنزيل الملف" : "Download failed", {
+      description: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function runMenu(id: string) {
@@ -1350,6 +1379,15 @@ function runMenu(id: string) {
       break;
     case "pin-column":
       if (col) col.pin = isColumnPinnedLeft(col) ? undefined : "left";
+      break;
+    case "export-visible":
+      exportGrid("all");
+      break;
+    case "export-filtered":
+      exportGrid("filtered");
+      break;
+    case "export-selection":
+      exportGrid("selected");
       break;
     default:
       onaction?.({
@@ -1704,7 +1742,7 @@ export function scrollToColumnProp(prop: string) {
       role="toolbar"
       aria-label={rtl ? "أدوات الجدول" : "Grid tools"}
     >
-      {#if showSearch || showFilterButton || toolbarFilters}
+      {#if showSearch || showFilterButton || showExportButton || toolbarFilters}
         <div class="aqardesk-toolbar-controls">
           {#if showSearch}
             <label class="aqardesk-search">
@@ -1752,6 +1790,20 @@ export function scrollToColumnProp(prop: string) {
                 translations={activeFilterTranslations}
               />
             </FilterDialogFrame>
+          {/if}
+          {#if showExportButton}
+            <button
+              type="button"
+              class="aqardesk-toolbar-button"
+              aria-label={rtl ? "تصدير البيانات إلى Excel بصيغة CSV" : "Export data to Excel (CSV)"}
+              title={rtl ? "تصدير البيانات إلى Excel بصيغة CSV" : "Export data to Excel (CSV)"}
+              onclick={() => exportGrid("all")}
+            >
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 12.5v3A1.5 1.5 0 0 0 5 17h10a1.5 1.5 0 0 0 1.5-1.5v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              {rtl ? "تصدير Excel (CSV)" : "Export Excel (CSV)"}
+            </button>
           {/if}
           {#if toolbarFilters}
             {@render toolbarFilters()}
@@ -2095,12 +2147,13 @@ export function scrollToColumnProp(prop: string) {
                       <div class="aqardesk-actions-group">
                         {#each items as action (action.id)}
                           {#if !action.visible || action.visible(row)}
+                            {@const actionLabel = typeof action.label === "function" ? action.label(row) : action.label || action.id}
                             <button
                               type="button"
                               class="aqardesk-action-btn aqardesk-action-{action.variant || 'ghost'}"
                               disabled={action.disabled?.(row)}
-                              title={action.label || action.id}
-                              aria-label={action.label || action.id}
+                              title={actionLabel}
+                              aria-label={actionLabel}
                               onclick={(e) => {
                                 e.stopPropagation();
                                 onaction?.({ actionId: action.id, row, rowIndex: r, prop: id, originalEvent: e });

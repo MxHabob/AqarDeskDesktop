@@ -535,7 +535,7 @@ mod tests {
             .expect("template count exists")
             .try_get_by::<i64, _>("count")
             .expect("read template count");
-        assert_eq!(seeded_template_count, 6);
+        assert_eq!(seeded_template_count, 8);
         let populated_template_count = database
             .query_one(sea_orm::Statement::from_string(
                 sea_orm::DbBackend::Sqlite,

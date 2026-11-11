@@ -170,7 +170,9 @@
 	function handleGridAction(event: GridActionEvent) {
 		const payment = payments.find((item) => item.id === String(event.row.id ?? ''));
 		if (!payment) return;
-		if (event.actionId === 'open') void goto(`/${organizationId}/payments/${payment.id}`);
+		if (event.actionId === 'dblclick' || event.actionId === 'open') {
+			void goto(`/${organizationId}/payments/${payment.id}`);
+		}
 		if (event.actionId === 'void') void voidPayment(payment);
 	}
 </script>

@@ -4,16 +4,18 @@ pub(crate) struct DefaultContractTemplate {
     pub legacy_name: &'static str,
     pub lease_type: &'static str,
     pub locale: &'static str,
+    pub is_active: bool,
     pub content: &'static str,
 }
 
-pub(crate) const DEFAULT_CONTRACT_TEMPLATES: [DefaultContractTemplate; 6] = [
+pub(crate) const DEFAULT_CONTRACT_TEMPLATES: [DefaultContractTemplate; 8] = [
     DefaultContractTemplate {
         key: "residential-lease-ar",
         name: "نموذج عقد إيجار سكني",
         legacy_name: "قالب إيجار سكني (فارغ)",
         lease_type: "residential",
         locale: "ar",
+        is_active: false,
         content: r#"# عقد إيجار سكني
 
 رقم العقد: {{contract.number}}  
@@ -58,6 +60,7 @@ pub(crate) const DEFAULT_CONTRACT_TEMPLATES: [DefaultContractTemplate; 6] = [
         legacy_name: "قالب إيجار تجاري (فارغ)",
         lease_type: "commercial",
         locale: "ar",
+        is_active: false,
         content: r#"# عقد إيجار تجاري
 
 رقم العقد: {{contract.number}}  
@@ -104,6 +107,7 @@ pub(crate) const DEFAULT_CONTRACT_TEMPLATES: [DefaultContractTemplate; 6] = [
         legacy_name: "قالب إيجار قصير الأجل (فارغ)",
         lease_type: "short_term",
         locale: "ar",
+        is_active: false,
         content: r#"# اتفاق إيجار قصير الأجل
 
 رقم الاتفاق: {{contract.number}}  
@@ -147,6 +151,7 @@ pub(crate) const DEFAULT_CONTRACT_TEMPLATES: [DefaultContractTemplate; 6] = [
         legacy_name: "Residential lease (blank)",
         lease_type: "residential",
         locale: "en",
+        is_active: false,
         content: r#"# Residential Lease Agreement
 
 Agreement number: {{contract.number}}  
@@ -191,6 +196,7 @@ Tenant: ________________________________    Date: __________
         legacy_name: "Commercial lease (blank)",
         lease_type: "commercial",
         locale: "en",
+        is_active: false,
         content: r#"# Commercial Lease Agreement
 
 Agreement number: {{contract.number}}  
@@ -237,6 +243,7 @@ Signature: _____________________________    Date: __________
         legacy_name: "Short-term lease (blank)",
         lease_type: "short_term",
         locale: "en",
+        is_active: false,
         content: r#"# Short-Term Stay Agreement
 
 Agreement number: {{contract.number}}  
@@ -272,6 +279,62 @@ The parties should review the stay details, amounts, and arrangements before sig
 Host / representative: _________________    Date: __________
 
 Guest: ________________________________    Date: __________
+"#,
+    },
+    DefaultContractTemplate {
+        key: "payment-receipt-ar",
+        name: "قالب إيصال قبض",
+        legacy_name: "",
+        lease_type: "receipt",
+        locale: "ar",
+        is_active: true,
+        content: r#"# إيصال قبض
+
+## بيانات الإيصال
+- رقم الإيصال: {{payment.receipt_number}}
+- تاريخ القبض: {{payment.date}}
+- الحالة: {{payment.status}}
+
+## استلمنا من
+- المستأجر: {{payment.tenant}}
+
+## تفاصيل المبلغ
+- المبلغ: {{payment.amount}} ({{payment.currency}})
+- طريقة الدفع: {{payment.method}}
+- المرجع: {{payment.reference}}
+
+## ملاحظات
+{{payment.notes}}
+
+تم إصدار هذا الإيصال بواسطة {{organization.name}}.
+"#,
+    },
+    DefaultContractTemplate {
+        key: "payment-receipt-en",
+        name: "Payment Receipt Template",
+        legacy_name: "",
+        lease_type: "receipt",
+        locale: "en",
+        is_active: true,
+        content: r#"# Payment Receipt
+
+## Receipt details
+- Receipt number: {{payment.receipt_number}}
+- Date received: {{payment.date}}
+- Status: {{payment.status}}
+
+## Received from
+- Tenant: {{payment.tenant}}
+
+## Payment details
+- Amount: {{payment.amount}} ({{payment.currency}})
+- Payment method: {{payment.method}}
+- Reference: {{payment.reference}}
+
+## Notes
+{{payment.notes}}
+
+Issued by {{organization.name}}.
 "#,
     },
 ];

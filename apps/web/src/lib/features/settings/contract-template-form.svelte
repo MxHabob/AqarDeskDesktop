@@ -87,6 +87,17 @@
 		] },
 		{ group: 'organization', fields: [
 			{ key: 'organization.name', label: m.contracts_variable_organization_name() }
+		] },
+		{ group: 'payment', fields: [
+			{ key: 'payment.receipt_number', label: m.contracts_variable_payment_receipt_number() },
+			{ key: 'payment.date', label: m.contracts_variable_payment_date() },
+			{ key: 'payment.status', label: m.contracts_variable_payment_status() },
+			{ key: 'payment.tenant', label: m.contracts_variable_payment_tenant() },
+			{ key: 'payment.amount', label: m.contracts_variable_payment_amount() },
+			{ key: 'payment.currency', label: m.contracts_variable_payment_currency() },
+			{ key: 'payment.method', label: m.contracts_variable_payment_method() },
+			{ key: 'payment.reference', label: m.contracts_variable_payment_reference() },
+			{ key: 'payment.notes', label: m.contracts_variable_payment_notes() }
 		] }
 	];
 	const allTemplateVariables = $derived(templateVariables.flatMap((group) => group.fields));
@@ -252,7 +263,7 @@
 		const printStyles = document.createElement('style');
 		printStyles.textContent = `
 			@media print {
-				@page { size: A4; margin: 18mm; }
+				@page { size: A4; margin: 0; }
 				body * { visibility: hidden !important; overflow: visible !important; }
 				#contract-template-preview,
 				#contract-template-preview * { visibility: visible !important; }
@@ -266,7 +277,7 @@
 					max-width: none !important;
 					min-height: 0 !important;
 					margin: 0 !important;
-					padding: 0 !important;
+					padding: 18mm !important;
 					border: 0 !important;
 					border-radius: 0 !important;
 					box-shadow: none !important;
@@ -290,7 +301,7 @@
 
 	const schema = z.object({
 		description: z.string(),
-		lease_type: z.enum(['residential', 'commercial', 'short_term', 'other']),
+		lease_type: z.enum(['residential', 'commercial', 'short_term', 'other', 'receipt']),
 		locale: z.string().trim().min(1).max(35),
 		content_body: z.string(),
 		change_note: z.string()
@@ -443,6 +454,7 @@
 								<SelectItem value="commercial">{m.properties_type_commercial()}</SelectItem>
 								<SelectItem value="short_term">{m.settings_template_short_term()}</SelectItem>
 								<SelectItem value="other">{m.common_other()}</SelectItem>
+								<SelectItem value="receipt">{m.settings_template_receipt()}</SelectItem>
 							</SelectContent>
 						</Select>
 					</FormField>

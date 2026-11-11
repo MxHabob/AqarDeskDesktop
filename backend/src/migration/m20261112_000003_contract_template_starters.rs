@@ -102,7 +102,11 @@ mod tests {
             .await
             .expect("create test organization");
 
-        for (index, template) in DEFAULT_CONTRACT_TEMPLATES.iter().enumerate() {
+        for (index, template) in DEFAULT_CONTRACT_TEMPLATES
+            .iter()
+            .filter(|template| template.lease_type != "receipt")
+            .enumerate()
+        {
             let id = format!("starter-template-{index}");
             let name = if index == 0 {
                 "Renamed by customer"

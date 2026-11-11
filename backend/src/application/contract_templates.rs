@@ -189,7 +189,7 @@ fn validate(mut input: ContractTemplateInput) -> Result<ContractTemplateInput, A
     }
     if !matches!(
         input.lease_type.as_str(),
-        "residential" | "commercial" | "short_term" | "other"
+        "residential" | "commercial" | "short_term" | "other" | "receipt"
     ) {
         return Err(validation("Unsupported lease type."));
     }

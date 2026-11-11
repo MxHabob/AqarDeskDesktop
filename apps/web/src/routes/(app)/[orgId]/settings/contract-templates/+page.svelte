@@ -22,6 +22,11 @@
 	let selectedTemplate = $state<ContractTemplate | null>(null);
 	let editSheetOpen = $state(false);
 	const rtl = $derived(getLocale() === 'ar');
+	function hasTemplateContent(row: Record<string, unknown>) {
+		const latest = row.versions instanceof Array ? row.versions[0] : undefined;
+		return typeof latest?.content_body === 'string' && latest.content_body.trim().length > 0;
+	}
+
 	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'name', header: m.settings_template_name(), width: 200 },
 		{ id: 'template_key', header: m.settings_template_key(), width: 200 },
@@ -34,7 +39,8 @@
 				{ value: 'residential', label: m.properties_type_residential() },
 				{ value: 'commercial', label: m.properties_type_commercial() },
 				{ value: 'short_term', label: m.settings_template_short_term() },
-				{ value: 'other', label: m.common_other() }
+				{ value: 'other', label: m.common_other() },
+				{ value: 'receipt', label: m.settings_template_receipt() }
 			]
 		},
 		{ id: 'locale', header: m.settings_template_locale(), width: 100 },
@@ -85,17 +91,13 @@
 					{
 						id: 'enable',
 						icon: 'Check',
-						label: m.settings_template_enable(),
+						label: (row: Record<string, unknown>) =>
+							hasTemplateContent(row)
+								? m.settings_template_enable()
+								: m.settings_template_enable_content_first(),
 						variant: 'outline',
-						visible: (row: Record<string, unknown>) => {
-							const latest = row.versions instanceof Array ? row.versions[0] : undefined;
-							return (
-								row.is_active !== true &&
-								typeof latest?.content_body === 'string' &&
-								latest.content_body.trim().length > 0
-							);
-						},
-						disabled: () => busy
+						visible: (row: Record<string, unknown>) => row.is_active !== true,
+						disabled: (row: Record<string, unknown>) => busy || !hasTemplateContent(row)
 					}
 				]
 			}
