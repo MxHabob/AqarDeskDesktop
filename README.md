@@ -35,10 +35,12 @@ bun run dev:web
 bun run desktop:dev
 ```
 
-The desktop setup flow supports local SQLite, direct PostgreSQL, and a
-configured API endpoint. Connection settings are stored in the application
+The desktop setup flow supports local SQLite, direct PostgreSQL, and API
+endpoint health checks. Connection settings are stored in the application
 data directory; PostgreSQL passwords are kept in the operating-system
-credential store.
+credential store. Current platform commands support local and direct database
+authentication; API-mode authentication and settings, audit, dashboard, and
+contract-template workflows are not yet migrated.
 
 ## Checks
 

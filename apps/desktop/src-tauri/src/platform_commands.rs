@@ -722,7 +722,7 @@ pub async fn platform_payments_list(
         .names(actor, &tenant_ids)
         .await
         .map_err(application_error)?;
-    Ok(payments
+    payments
         .into_iter()
         .map(|payment| {
             let tenant_name = tenant_names
@@ -737,7 +737,7 @@ pub async fn platform_payments_list(
                 })?;
             Ok::<PaymentView, String>(PaymentView::from((payment, tenant_name)))
         })
-        .collect::<Result<Vec<_>, String>>()?)
+        .collect::<Result<Vec<_>, String>>()
 }
 
 #[tauri::command]

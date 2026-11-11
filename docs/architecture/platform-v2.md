@@ -24,8 +24,9 @@ set the deletion timestamp instead of deleting business history.
 
 The initial migration creates missing tables and indexes but does not drop,
 rename, or truncate existing tables. On databases already initialized by the
-previous release, the business tables are reused in place; existing rows,
-password hashes, IDs, sessions, and migration history remain in the database.
+previous release, compatible business tables are reused in place; existing
+rows, password hashes, IDs, sessions, and migration history remain in the
+database.
 Migration application and schema verification are separate operations so
 startup fails explicitly if required structures are unavailable.
 
@@ -39,7 +40,8 @@ discarding the user's original values.
 `cargo test -p aqardesk-platform --all-features` covers domain validation,
 authorization, migration repeatability, authentication, and transactional
 repository behavior against SQLite, including migration of a legacy NUMERIC
-measurement schema. The Tauri application now initializes the platform runtime
-and exposes replacement connection, identity, property, unit, tenant, and
-payment commands. The frontend and the remaining organization, dashboard,
-contract, and lease workflows have not yet been switched to those commands.
+measurement schema. Tauri and the frontend now use the platform runtime for
+connection, identity, property, unit, tenant, and payment operations. Desktop
+settings, audit, dashboard, contract-template, and remote API authentication
+workflows still need platform use cases before their former command adapters
+can be removed without losing product behavior.
