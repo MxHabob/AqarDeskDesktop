@@ -338,7 +338,7 @@ async fn insert_user(
     .map_err(persistence_error)
 }
 
-fn hash_password(password: &str) -> Result<String, ApplicationError> {
+pub(crate) fn hash_password(password: &str) -> Result<String, ApplicationError> {
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
@@ -349,7 +349,10 @@ fn hash_password(password: &str) -> Result<String, ApplicationError> {
         })
 }
 
-fn verify_password(password: &str, password_hash: &str) -> Result<bool, ApplicationError> {
+pub(crate) fn verify_password(
+    password: &str,
+    password_hash: &str,
+) -> Result<bool, ApplicationError> {
     let hash = PasswordHash::new(password_hash).map_err(|error| {
         tracing::error!(%error, "Stored password hash is invalid");
         ApplicationError::Persistence

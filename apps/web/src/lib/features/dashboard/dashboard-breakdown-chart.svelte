@@ -4,11 +4,7 @@
 	import * as m from '#lib/paraglide/messages';
 
 	let { summary }: { summary: DashboardSummary } = $props();
-	let selectedBreakdown = $state<'units' | 'leases'>('units');
-
-	const statuses = $derived(
-		selectedBreakdown === 'units' ? summary.unit_status_counts : summary.lease_status_counts
-	);
+	const statuses = $derived(summary.unit_status_counts);
 	const maxCount = $derived(Math.max(0, ...statuses.map((status) => status.count)));
 
 	function statusLabel(status: string) {
@@ -30,24 +26,7 @@
 <Card class="flex h-[182px] min-w-0 flex-col p-3">
 	<div class="mb-2 flex items-center justify-between gap-3">
 		<h3 class="text-xs font-medium text-muted-foreground">{m.dashboard_status_breakdown()}</h3>
-		<div class="flex border border-border/70">
-			<button
-				type="button"
-				class={`px-2 py-1 text-[11px] ${selectedBreakdown === 'units' ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
-				aria-pressed={selectedBreakdown === 'units'}
-				onclick={() => (selectedBreakdown = 'units')}
-			>
-				{m.dashboard_unit_statuses()}
-			</button>
-			<button
-				type="button"
-				class={`border-s border-border/70 px-2 py-1 text-[11px] ${selectedBreakdown === 'leases' ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
-				aria-pressed={selectedBreakdown === 'leases'}
-				onclick={() => (selectedBreakdown = 'leases')}
-			>
-				{m.dashboard_lease_statuses()}
-			</button>
-		</div>
+		<span class="text-[11px] text-muted-foreground">{m.dashboard_unit_statuses()}</span>
 	</div>
 
 	<div class="grid min-h-0 flex-1 content-center gap-2 overflow-y-auto scrollbar-none">

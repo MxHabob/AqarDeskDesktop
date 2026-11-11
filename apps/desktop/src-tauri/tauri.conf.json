@@ -15,6 +15,7 @@
         "title": "AqarDesk Desktop",
         "width": 800,
         "height": 600,
+        "center": true,
         "resizable": true,
         "fullscreen": false,
         "decorations": false

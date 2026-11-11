@@ -25,14 +25,8 @@
 
 <main class="grid h-full min-h-0 overflow-y-auto bg-background font-sans text-foreground scrollbar-none lg:grid-cols-[minmax(18rem,0.8fr)_minmax(30rem,1.2fr)]">
 	<aside class="hidden min-h-0 flex-col justify-between bg-foreground p-10 text-background lg:flex">
-		<a href="/" class="flex items-center gap-3 text-background no-underline">
-			<span class="grid size-10 place-items-center rounded-lg bg-background/10 text-primary">
-				<AqarDeskLogo size={24} class="text-primary" />
-			</span>
-			<strong class="text-lg">{m.app_name()}</strong>
-		</a>
 		<div class="grid gap-4">
-			<span class="grid size-14 place-items-center rounded-xl bg-background/10 text-primary">
+			<span class="grid size-14 place-items-center rounded-xl text-foreground">
 				<AqarDeskLogo size={40} class="text-primary" />
 			</span>
 			<p class="text-xs font-semibold tracking-widest text-primary">{m.setup_kicker()}</p>

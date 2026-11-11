@@ -2,7 +2,7 @@
 
 A Tauri and SvelteKit desktop application for property, unit, tenant, and
 payment management. The Rust desktop backend and persistence implementation
-live in the `aqardesk-platform` modular-monolith crate.
+live in the `aqardesk-backend` modular-monolith crate.
 
 ## Architecture
 
@@ -49,5 +49,5 @@ workflows still need migration.
 ```bash
 bun run check:web
 cargo check --workspace --manifest-path Cargo.toml
-cargo test -p aqardesk-platform --manifest-path Cargo.toml
+cargo test -p aqardesk-backend --manifest-path Cargo.toml
 ```

@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { createQuery } from '@tanstack/svelte-query';
-	import { Building2, House, UsersRound, FileText } from '@lucide/svelte';
+	import { Building2, House, UsersRound, ReceiptText } from '@lucide/svelte';
 	import { Card } from '@aqardesk/ui';
 	import type { User } from '#lib/features/auth/types';
 	import { dashboardQueries, dashboardQueryKeys } from '#lib/features/dashboard/dashboard-queries';
 	import DashboardBreakdownChart from '#lib/features/dashboard/dashboard-breakdown-chart.svelte';
 	import DashboardMonthlyPaymentsChart from '#lib/features/dashboard/dashboard-monthly-payments-chart.svelte';
-	import DashboardOpenChargesCard from '#lib/features/dashboard/dashboard-open-charges-card.svelte';
 	import DashboardStatCard from '#lib/features/dashboard/dashboard-stat-card.svelte';
-	import DashboardStackedSummary from '#lib/features/dashboard/dashboard-stacked-summary.svelte';
 	import * as m from '#lib/paraglide/messages';
 	import { toast } from '@aqardesk/ui';
 
@@ -57,9 +55,9 @@
 							icon: UsersRound
 						},
 						{
-							label: m.dashboard_active_leases_count(),
-							value: summaryQuery.data.active_leases_count,
-							icon: FileText
+							label: m.dashboard_posted_payments_count(),
+							value: summaryQuery.data.posted_payments_count,
+							icon: ReceiptText
 						}
 					]
 				}
@@ -82,29 +80,21 @@
 	{:else if summaryQuery.data && cards}
 		{#if view === 'overview'}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-				<DashboardStackedSummary summary={summaryQuery.data} />
 				{#each cards.primary as card (card.label)}
 					<DashboardStatCard {...card} />
 				{/each}
 				<DashboardMonthlyPaymentsChart summary={summaryQuery.data} />
 				<DashboardBreakdownChart summary={summaryQuery.data} />
-				<DashboardOpenChargesCard summary={summaryQuery.data} />
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-				<DashboardStackedSummary summary={summaryQuery.data} />
 				<div class="lg:col-span-2">
 					<DashboardMonthlyPaymentsChart summary={summaryQuery.data} />
 				</div>
-				<div class="lg:col-span-2">
-					<DashboardBreakdownChart summary={summaryQuery.data} />
-				</div>
+				<div class="lg:col-span-2"><DashboardBreakdownChart summary={summaryQuery.data} /></div>
 				{#each cards.primary as card (card.label)}
 					<DashboardStatCard {...card} />
 				{/each}
-				<div class="lg:col-span-2">
-					<DashboardOpenChargesCard summary={summaryQuery.data} />
-				</div>
 			</div>
 		{/if}
 	{/if}

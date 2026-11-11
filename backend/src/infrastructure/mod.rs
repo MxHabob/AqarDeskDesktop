@@ -1,15 +1,27 @@
 mod audit;
+mod audit_log_repository;
+mod contract_template_repository;
+mod currency_repository;
+mod dashboard_repository;
 mod database;
 mod identity_repository;
 mod models;
+mod organization_settings_repository;
 mod payment_repository;
+mod profile_repository;
 mod property_repository;
 mod tenant_repository;
 mod unit_repository;
 
+pub use audit_log_repository::SeaOrmAuditLogRepository;
+pub use contract_template_repository::SeaOrmContractTemplateRepository;
+pub use currency_repository::SeaOrmCurrencyRepository;
+pub use dashboard_repository::SeaOrmDashboardRepository;
 pub use database::{Database, DatabaseError};
 pub use identity_repository::SeaOrmIdentityRepository;
+pub use organization_settings_repository::SeaOrmOrganizationSettingsRepository;
 pub use payment_repository::SeaOrmPaymentRepository;
+pub use profile_repository::SeaOrmProfileRepository;
 pub use property_repository::SeaOrmPropertyRepository;
 pub use tenant_repository::SeaOrmTenantRepository;
 pub use unit_repository::SeaOrmUnitRepository;

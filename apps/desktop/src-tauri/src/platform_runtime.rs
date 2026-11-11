@@ -1,4 +1,4 @@
-use aqardesk_platform::infrastructure::Database;
+use aqardesk_backend::infrastructure::Database;
 use keyring::{Entry, Error as KeyringError};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -114,7 +114,7 @@ pub struct PlatformState {
     pub app_data_dir: PathBuf,
     pub config: RwLock<Option<ConnectionConfig>>,
     pub database: RwLock<Option<Arc<Database>>>,
-    pub current_user: RwLock<Option<aqardesk_platform::domain::UserAccount>>,
+    pub current_user: RwLock<Option<aqardesk_backend::domain::UserAccount>>,
     pub api_token: RwLock<Option<String>>,
     pub http: reqwest::Client,
 }
@@ -163,7 +163,7 @@ impl PlatformState {
                 let database = Database::connect(&url)
                     .await
                     .map_err(|error| format!("Could not connect to database: {error}"))?;
-                aqardesk_platform::migration::initialize(database.connection())
+                aqardesk_backend::migration::initialize(database.connection())
                     .await
                     .map_err(|error| {
                         tracing::error!(%error, "Platform database initialization failed");

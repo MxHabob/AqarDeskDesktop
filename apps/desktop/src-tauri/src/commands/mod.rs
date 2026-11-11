@@ -1,7 +1,24 @@
+pub mod audit_cmds;
+pub mod contract_template_cmds;
+pub mod dashboard_cmds;
+pub mod organization_settings_cmds;
+pub mod profile_cmds;
 pub mod update_cmds;
 
 pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
+        audit_cmds::audit_list,
+        contract_template_cmds::contract_templates_list,
+        contract_template_cmds::contract_templates_create,
+        contract_template_cmds::contract_templates_update,
+        contract_template_cmds::contract_templates_set_active,
+        dashboard_cmds::dashboard_get_summary,
+        organization_settings_cmds::organization_get_settings,
+        organization_settings_cmds::organization_update_settings,
+        organization_settings_cmds::currencies_list,
+        organization_settings_cmds::currencies_set_organization_enabled,
+        profile_cmds::profile_get_settings,
+        profile_cmds::profile_update_settings,
         update_cmds::system_check_for_updates,
         update_cmds::system_download_update,
         update_cmds::system_install_update,

@@ -2,7 +2,7 @@ use crate::platform_runtime::{
     self, ConnectionConfig, ConnectionInput, ConnectionMode, ConnectionStatus, ConnectionView,
     PlatformState, SavedSession,
 };
-use aqardesk_platform::{
+use aqardesk_backend::{
     application::{
         IdentityService, NewUser, OrganizationBootstrap, PaymentLedger, PropertyCatalog,
         TenantDirectory, UnitCatalog,
@@ -188,13 +188,13 @@ impl From<(Payment, String)> for PaymentView {
     }
 }
 
-fn application_error(error: aqardesk_platform::application::ApplicationError) -> String {
+pub(crate) fn application_error(error: aqardesk_backend::application::ApplicationError) -> String {
     match error {
-        aqardesk_platform::application::ApplicationError::Domain(error) => error.to_string(),
-        aqardesk_platform::application::ApplicationError::Authentication => {
+        aqardesk_backend::application::ApplicationError::Domain(error) => error.to_string(),
+        aqardesk_backend::application::ApplicationError::Authentication => {
             "Email or password is incorrect.".to_string()
         }
-        aqardesk_platform::application::ApplicationError::Forbidden => {
+        aqardesk_backend::application::ApplicationError::Forbidden => {
             "This account is not permitted to perform this operation.".to_string()
         }
         error => {
@@ -213,7 +213,7 @@ async fn local_identity(
     )))
 }
 
-async fn local_business_state(
+pub(crate) async fn local_business_state(
     state: &PlatformState,
 ) -> Result<(ActorContext, sea_orm::DatabaseConnection), String> {
     let actor = active_actor(state).await?;
@@ -228,7 +228,7 @@ fn config_key(config: &ConnectionConfig) -> Result<String, String> {
     })
 }
 
-async fn active_actor(state: &PlatformState) -> Result<ActorContext, String> {
+pub(crate) async fn active_actor(state: &PlatformState) -> Result<ActorContext, String> {
     let config = state.config().await?;
     if config.mode == ConnectionMode::Api {
         return Err("API authentication is provided by the configured server.".to_string());
@@ -245,7 +245,7 @@ async fn active_actor(state: &PlatformState) -> Result<ActorContext, String> {
         .await
     {
         Ok(user) => user,
-        Err(aqardesk_platform::application::ApplicationError::Authentication) => {
+        Err(aqardesk_backend::application::ApplicationError::Authentication) => {
             *state.current_user.write().await = None;
             platform_runtime::clear_session()?;
             return Err("The session is no longer valid. Sign in again.".to_string());
@@ -284,7 +284,7 @@ async fn restore_local_session(state: &PlatformState) -> Result<Option<UserAccou
     };
     let user = match local_identity(state).await?.current_user(user_id).await {
         Ok(user) => user,
-        Err(aqardesk_platform::application::ApplicationError::Authentication) => {
+        Err(aqardesk_backend::application::ApplicationError::Authentication) => {
             *state.current_user.write().await = None;
             platform_runtime::clear_session()?;
             return Ok(None);
@@ -766,7 +766,7 @@ pub async fn platform_payments_void(
     state: State<'_, PlatformState>,
     payment_id: String,
 ) -> Result<(), String> {
-    let payment_id = aqardesk_platform::domain::PaymentId::parse(&payment_id)
+    let payment_id = aqardesk_backend::domain::PaymentId::parse(&payment_id)
         .map_err(|_| "The selected payment identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
     PaymentLedger::new(SeaOrmPaymentRepository::new(&database))

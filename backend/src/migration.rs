@@ -2,13 +2,17 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager, prelude::*};
 
 mod m20261111_000001_platform_core;
+mod m20261112_000001_contract_templates;
 
 pub struct PlatformMigrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for PlatformMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(m20261111_000001_platform_core::Migration)]
+        vec![
+            Box::new(m20261111_000001_platform_core::Migration),
+            Box::new(m20261112_000001_contract_templates::Migration),
+        ]
     }
 }
 
@@ -30,6 +34,8 @@ pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
         "tenants",
         "payments",
         "audit_events",
+        "contract_templates",
+        "contract_template_versions",
     ] {
         if !manager.has_table(table).await? {
             return Err(DbErr::Custom(format!(

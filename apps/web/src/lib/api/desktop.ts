@@ -48,11 +48,7 @@ export type DashboardSummary = {
 	units_count: number;
 	available_units_count: number;
 	tenants_count: number;
-	active_leases_count: number;
-	open_charges_count: number;
 	posted_payments_count: number;
-	contract_documents_count: number;
-	expiring_leases_count: number;
 	payment_months: string[];
 	monthly_payments: {
 		month: string;
@@ -62,13 +58,6 @@ export type DashboardSummary = {
 		payment_count: number;
 	}[];
 	unit_status_counts: { status: string; count: number }[];
-	lease_status_counts: { status: string; count: number }[];
-	open_charges_by_currency: {
-		currency_code: string;
-		currency_decimal_digits: number;
-		amount_minor: number;
-		charge_count: number;
-	}[];
 };
 
 export const desktopApi = {

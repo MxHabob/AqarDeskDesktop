@@ -1,4 +1,4 @@
-use aqardesk_platform::{
+use aqardesk_backend::{
     application::{PaymentLedger, TenantDirectory, UnitCatalog},
     domain::{
         AccessRole, ActorContext, CurrencyCode, OrganizationId, PaymentInput, PaymentMethod,
@@ -99,7 +99,7 @@ async fn tenant_directory_scopes_updates_and_preserves_archived_rows() {
 #[tokio::test]
 async fn unit_catalog_validates_inputs_and_scopes_all_operations() {
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("aqardesk_platform=debug")
+        .with_env_filter("aqardesk_backend=debug")
         .with_test_writer()
         .try_init();
     let database = database().await;
@@ -155,7 +155,7 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
         .record(
             actor,
             PaymentInput {
-                tenant_id: aqardesk_platform::domain::TenantId::new(),
+                tenant_id: aqardesk_backend::domain::TenantId::new(),
                 received_at: Utc::now(),
                 amount_minor: 12_500,
                 currency_code: CurrencyCode::try_from("sar".to_string()).expect("currency code"),
@@ -176,7 +176,7 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
             .expect("list payments")
             .iter()
             .any(|item| item.id == payment.id
-                && item.status == aqardesk_platform::domain::PaymentStatus::Void)
+                && item.status == aqardesk_backend::domain::PaymentStatus::Void)
     );
 
     let audit_rows = database
@@ -214,7 +214,7 @@ async fn migration_preserves_legacy_numeric_unit_measurements() {
     }
 
     let organization_id = OrganizationId::new();
-    let unit_id = aqardesk_platform::domain::UnitId::new();
+    let unit_id = aqardesk_backend::domain::UnitId::new();
     database
         .execute(Statement::from_sql_and_values(
             DbBackend::Sqlite,

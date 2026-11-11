@@ -7,7 +7,7 @@
 </script>
 
 <div
-	class="pointer-events-none fixed end-3 top-3 z-[var(--layer-toast)] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-2 sm:end-4 sm:top-4"
+	class="pointer-events-none fixed left-1/2 top-3 z-[var(--layer-toast)] flex w-[min(24rem,calc(100vw-1.5rem))] -translate-x-1/2 flex-col gap-2 sm:top-4"
 	role="region"
 	aria-label="Notifications"
 >
