@@ -463,6 +463,16 @@ mod tests {
         let view = serde_json::to_value(ConnectionView::from(&config))
             .expect("serialize frontend-safe connection view");
         assert!(view["direct"].get("credential_id").is_none());
+        assert!(
+            serde_json::to_string(&config)
+                .expect("serialize persisted connection settings")
+                .contains("credential-ref")
+        );
+        assert!(
+            !serde_json::to_string(&config)
+                .expect("serialize persisted connection settings")
+                .contains("password")
+        );
     }
 
     #[test]

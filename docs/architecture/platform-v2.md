@@ -26,6 +26,13 @@ rename, or truncate existing tables. On databases already initialized by the
 previous release, compatible business tables are reused in place; existing
 rows, password hashes, IDs, sessions, and migration history remain in the
 database.
+
+The backend crate lives directly in `backend` (not in a second nested
+`platform` project). Desktop connection options are persisted to
+`<app-data>/connection.json`; only non-secret options and operating-system
+credential references are stored there. Database passwords and saved sessions
+are kept in the OS credential store, while active connections and users exist
+only in runtime state.
 Migration application and schema verification are separate operations so
 startup fails explicitly if required structures are unavailable.
 
