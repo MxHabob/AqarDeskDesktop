@@ -1,6 +1,6 @@
 # Platform domain architecture
 
-The desktop backend is implemented in `backend/platform` as a modular
+The desktop backend is implemented directly in `backend` as a modular
 monolith.
 
 - `domain` owns validated identifiers, money, identity and access roles,

@@ -1,8 +1,7 @@
 # Platform v2 architecture
 
-The replacement backend is implemented in the `aqardesk-platform` crate. It is
-a modular monolith and does not depend on the previous `domain`, `app`, or
-`infrastructure` crates.
+The replacement backend is the `backend` crate (`aqardesk-platform`). It is a
+modular monolith and does not depend on the removed legacy backend crates.
 
 ## Boundaries
 

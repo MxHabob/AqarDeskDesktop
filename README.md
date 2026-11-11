@@ -17,7 +17,7 @@ live in the `aqardesk-platform` modular-monolith crate.
 
 - `apps/desktop`: Tauri desktop application
 - `apps/web`: SvelteKit frontend
-- `backend/platform`: domain, application, persistence, and migration modules
+- `backend`: domain, application, persistence, and migration modules
 - `packages`: shared frontend packages
 
 ## Development
