@@ -10,6 +10,8 @@ import { getContext, setContext } from 'svelte';
 
 export const APP_CONTEXT = Symbol('aqardesk-app');
 
+export type AppTheme = 'light' | 'dark';
+
 export function createAppContext() {
 	let mode = $state<ConnectionMode>('local');
 	let databasePath = $state('aqardesk.sqlite');
@@ -38,6 +40,7 @@ export function createAppContext() {
 	let newUserRole = $state('staff');
 	let updateResult = $state<UpdateResult | null>(null);
 	let updateProgress = $state<UpdateProgress | null>(null);
+	let theme = $state<AppTheme>('light');
 	let initialization: Promise<void> | undefined;
 
 	const locale = $derived.by(() => {
@@ -292,6 +295,28 @@ export function createAppContext() {
 		}
 	}
 
+	function applyTheme(nextTheme: AppTheme) {
+		theme = nextTheme;
+		document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+	}
+
+	function initializeTheme() {
+		try {
+			applyTheme(localStorage.getItem('aqardesk:theme') === 'dark' ? 'dark' : 'light');
+		} catch (cause) {
+			setError(cause);
+		}
+	}
+
+	function changeTheme(nextTheme: AppTheme) {
+		try {
+			localStorage.setItem('aqardesk:theme', nextTheme);
+			applyTheme(nextTheme);
+		} catch (cause) {
+			setError(cause);
+		}
+	}
+
 	function setError(cause: unknown) {
 		error = cause instanceof Error ? cause.message : String(cause);
 	}
@@ -329,6 +354,7 @@ export function createAppContext() {
 		get busy() { return busy; },
 		get booting() { return booting; },
 		get locale() { return locale; },
+		get theme() { return theme; },
 		get organizationName() { return organizationName; },
 		set organizationName(value: string) { organizationName = value; },
 		get fullName() { return fullName; },
@@ -362,6 +388,8 @@ export function createAppContext() {
 		downloadUpdate,
 		installUpdate,
 		changeLanguage,
+		initializeTheme,
+		changeTheme,
 		setError,
 		clearMessages
 	};

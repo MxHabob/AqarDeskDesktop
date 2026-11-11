@@ -1,4 +1,13 @@
-import type { HealthResponse, ReadinessResponse } from '@aqardesk/api-contracts';
+export type HealthResponse = {
+  status: 'ok';
+  service: string;
+  version: string;
+};
+
+export type ReadinessResponse = {
+  ready: boolean;
+  database: boolean;
+};
 
 export async function getHealth(baseUrl: string): Promise<HealthResponse> {
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/v1/health`);

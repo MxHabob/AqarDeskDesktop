@@ -38,6 +38,8 @@
 	"common_language": "اللغة",
 	"language_arabic": "العربية",
 	"language_english": "English",
+	"theme_switch_to_light": "التبديل إلى المظهر الفاتح",
+	"theme_switch_to_dark": "التبديل إلى المظهر الداكن",
 	"setup_kicker": "لنبدأ بخطوات بسيطة",
 	"setup_title": "جهّز مساحة عملك",
 	"setup_description": "اختر مكان حفظ بياناتك. يمكنك تغيير الاتصال لاحقًا من الإعدادات.",

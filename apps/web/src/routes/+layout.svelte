@@ -48,6 +48,7 @@
 
 	onMount(() => {
 		desktopShell = '__TAURI_INTERNALS__' in window;
+		app.initializeTheme();
 		void app.initialize();
 		let disposed = false;
 		let unlisten: UnlistenFn | undefined;
@@ -79,8 +80,10 @@
 				currentUser={app.currentUser}
 				connected={app.connected}
 				locale={app.locale}
+				theme={app.theme}
 				onSearch={() => (searchOpen = true)}
 				onToggleLanguage={() => void app.changeLanguage(app.locale === 'ar' ? 'en' : 'ar')}
+				onToggleTheme={() => app.changeTheme(app.theme === 'dark' ? 'light' : 'dark')}
 			/>
 		{/if}
 		<div class="min-h-0 flex-1 overflow-hidden">

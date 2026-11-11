@@ -38,6 +38,8 @@
 	"common_language": "Language",
 	"language_arabic": "العربية",
 	"language_english": "English",
+	"theme_switch_to_light": "Switch to light theme",
+	"theme_switch_to_dark": "Switch to dark theme",
 	"setup_kicker": "A few simple steps",
 	"setup_title": "Set up your workspace",
 	"setup_description": "Choose where to store your data. You can change this connection later in Settings.",

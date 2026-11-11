@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Window as TauriWindow } from '@tauri-apps/api/window';
-	import { Copy, Globe2, Minus, Search, Square, X } from '@lucide/svelte';
+	import { Copy, Globe2, Minus, Moon, Search, Square, Sun, X } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
+	import type { AppTheme } from '#lib/core/app-context.svelte';
 	import type { AppLocale } from '#lib/core/i18n';
 	import type { User } from '#lib/features/auth/types';
 	import * as m from '#lib/paraglide/messages';
@@ -13,15 +14,19 @@
 		currentUser,
 		connected,
 		locale,
+		theme,
 		onSearch,
-		onToggleLanguage
+		onToggleLanguage,
+		onToggleTheme
 	}: {
 		title: string;
 		currentUser: User | null;
 		connected: boolean;
 		locale: AppLocale;
+		theme: AppTheme;
 		onSearch: () => void;
 		onToggleLanguage: () => void;
+		onToggleTheme: () => void;
 	} = $props();
 
 	let appWindow: TauriWindow | null = $state(null);
@@ -114,6 +119,17 @@
 			onclick={onToggleLanguage}
 		>
 			<Globe2 size={15} />
+		</Button>
+
+		<Button
+			variant="ghost"
+			size="icon"
+			class="size-8 rounded-lg text-muted-foreground"
+			aria-label={theme === 'dark' ? m.theme_switch_to_light() : m.theme_switch_to_dark()}
+			title={theme === 'dark' ? m.theme_switch_to_light() : m.theme_switch_to_dark()}
+			onclick={onToggleTheme}
+		>
+			{#if theme === 'dark'}<Sun size={15} />{:else}<Moon size={15} />{/if}
 		</Button>
 
 		<div class="ms-1 flex items-center border-s border-border/70 ps-1">
