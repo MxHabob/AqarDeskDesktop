@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import './layout.css';
-	import favicon from '#lib/assets/favicon.svg';
+	import favicon from '#lib/assets/aqardesk-logo.svg';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { Toaster } from '@aqardesk/ui';
 	import { queryClient } from '#lib/core/query-client';
@@ -28,7 +28,7 @@
 		if (!app.currentUser) return m.app_name();
 		const parts = deLocalizeUrl(page.url).pathname.split('/').filter(Boolean);
 		const routes = parts.slice(1);
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings'];
+		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'organization', 'profile', 'audit', 'contract-templates'];
 		const segment = [...routes].reverse().find((part) => known.includes(part)) ?? routes[0] ?? 'overview';
 		switch (segment) {
 			case 'properties': return m.nav_properties();
@@ -38,6 +38,10 @@
 			case 'payments': return m.nav_payments();
 			case 'users': return m.nav_users();
 			case 'settings': return m.nav_settings();
+			case 'organization': return m.settings_organization();
+			case 'profile': return m.settings_my_profile();
+			case 'audit': return m.settings_audit();
+			case 'contract-templates': return m.settings_contract_templates();
 			default: return m.nav_overview();
 		}
 	});
@@ -78,6 +82,7 @@
 		{#if desktopShell}
 			<TitleBar
 				title={pageTitle}
+				organizationName={app.organizationName}
 				currentUser={app.currentUser}
 				connected={app.connected}
 				locale={app.locale}

@@ -33,6 +33,11 @@ struct ApiSetupResponse {
     needs_admin: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct ApiOrganizationResponse {
+    name: String,
+}
+
 #[tauri::command]
 pub async fn auth_get_setup_status(
     connection: State<'_, ConnectionState>,
@@ -122,6 +127,37 @@ pub async fn auth_login(
         )
     };
     establish_session(&auth, &config, user, token).await
+}
+
+#[tauri::command]
+pub async fn organization_get_name(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+) -> Result<String, String> {
+    let user = require_active_user(&connection, &database, &auth).await?;
+    let config = get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        let token = auth.api_token.read().await.clone();
+        let organization: ApiOrganizationResponse = api_request(
+            &config,
+            Method::GET,
+            "/api/v1/organizations/current",
+            token,
+            None,
+        )
+        .await?;
+        return Ok(organization.name);
+    }
+
+    let organization = aqardesk_infrastructure::models::organization::Entity::find_by_id(
+        &user.organization_id,
+    )
+    .one(&database.get().await?)
+    .await
+    .map_err(|error| format!("Could not load the organization name: {error}"))?
+    .ok_or_else(|| "The organization for this account could not be found.".to_string())?;
+    Ok(organization.name)
 }
 
 #[tauri::command]

@@ -14,13 +14,14 @@
 		active: ViewKey;
 		title: string;
 		currentUser: User;
+		organizationName: string;
 		connected: boolean;
 		onSelect: (view: ViewKey) => void;
 		onLogout: () => void;
 		children: Snippet;
 	};
 
-	let { active, title, currentUser, connected, onSelect, onLogout, children }: Props = $props();
+	let { active, title, currentUser, organizationName, connected, onSelect, onLogout, children }: Props = $props();
 	let sidebarSize = $state(2);
 	let desktopShell = $state(false);
 	const showContextNavigation = $derived(
@@ -34,7 +35,7 @@
 
 <div class="flex h-full min-h-0 min-w-0 overflow-hidden bg-background font-sans text-foreground">
 	<div class="hidden h-full md:flex">
-		<AppSidebar {active} {currentUser} {onSelect} {onLogout} />
+		<AppSidebar {active} {currentUser} {organizationName} {onSelect} {onLogout} />
 	</div>
 	<MainViewport name="workspace-secondary-sidebar" bind:sidebarSize showLeft={showContextNavigation}>
 		{#snippet left()}

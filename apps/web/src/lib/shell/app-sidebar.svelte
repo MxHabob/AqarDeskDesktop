@@ -16,11 +16,12 @@
 	type Props = {
 		active: ViewKey;
 		currentUser: User;
+		organizationName: string;
 		onSelect: (view: ViewKey) => void;
 		onLogout: () => void;
 	};
 
-	let { active, currentUser, onSelect, onLogout }: Props = $props();
+	let { active, currentUser, organizationName, onSelect, onLogout }: Props = $props();
 	const tooltipSide = $derived(getLocale() === 'ar' ? 'left' : 'right');
 
 	const links = [
@@ -49,7 +50,7 @@
 <TooltipProvider delayDuration={150}>
 	<aside class="flex h-full w-14 shrink-0 flex-col items-center justify-between py-3 select-none">
 		<div class="flex flex-col items-center gap-3">
-			<OrgSidebarSwitcher organizationId={currentUser.organization_id} />
+			<OrgSidebarSwitcher organizationId={currentUser.organization_id} {organizationName} />
 
 			<div class="h-px w-8 bg-border/80"></div>
 

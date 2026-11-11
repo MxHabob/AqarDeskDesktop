@@ -14,6 +14,7 @@ use utoipa::{
     paths(
         super::health,
         super::readiness,
+        super::get_current_organization,
         super::dashboard_summary,
         super::list_properties,
         super::create_property,
@@ -31,6 +32,7 @@ use utoipa::{
     components(schemas(
         super::HealthPayload,
         super::ReadinessPayload,
+        super::OrganizationName,
         super::dto::Property,
         super::dto::PropertyInput,
         super::dto::PropertyType,
@@ -51,6 +53,7 @@ use utoipa::{
     modifiers(&BearerAuth),
     tags(
         (name = "System", description = "API health and readiness"),
+        (name = "Organization", description = "Organization information"),
         (name = "Dashboard", description = "Organization dashboard metrics"),
         (name = "Properties", description = "Property management"),
         (name = "Units", description = "Property unit management"),

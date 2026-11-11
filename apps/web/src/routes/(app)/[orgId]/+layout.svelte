@@ -21,7 +21,7 @@
 			: 'overview'
 	);
 	const title = $derived.by(() => {
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings'];
+		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'organization', 'profile', 'audit', 'contract-templates'];
 		const routeName = [...routeParts].reverse().find((part) => known.includes(part)) ?? section;
 		switch (routeName) {
 			case 'properties': return m.nav_properties();
@@ -31,6 +31,10 @@
 			case 'payments': return m.nav_payments();
 			case 'users': return m.nav_users();
 			case 'settings': return m.nav_settings();
+			case 'organization': return m.settings_organization();
+			case 'profile': return m.settings_my_profile();
+			case 'audit': return m.settings_audit();
+			case 'contract-templates': return m.settings_contract_templates();
 			default: return m.nav_overview();
 		}
 	});
@@ -66,6 +70,7 @@
 	<AppShell
 		{active}
 		{title}
+		organizationName={app.organizationName}
 		currentUser={app.currentUser}
 		connected={app.connected}
 		onSelect={selectView}

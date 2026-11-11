@@ -14,6 +14,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         user_cmds::auth_get_setup_status,
         user_cmds::auth_bootstrap_admin,
         user_cmds::auth_login,
+        user_cmds::organization_get_name,
         user_cmds::auth_logout,
         user_cmds::users_list,
         user_cmds::users_create,

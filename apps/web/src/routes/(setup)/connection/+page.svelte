@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { Building2, Globe2, ShieldCheck } from '@lucide/svelte';
+	import { Globe2, ShieldCheck } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
+	import AqarDeskLogo from '#lib/shared/components/aqardesk-logo.svelte';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import ConnectionForm from '#lib/features/connection/connection-form.svelte';
 	import * as m from '#lib/paraglide/messages';
@@ -26,13 +27,13 @@
 	<aside class="hidden min-h-0 flex-col justify-between bg-foreground p-10 text-background lg:flex">
 		<a href="/" class="flex items-center gap-3 text-background no-underline">
 			<span class="grid size-10 place-items-center rounded-lg bg-background/10 text-primary">
-				<Building2 size={21} />
+				<AqarDeskLogo size={24} class="text-primary" />
 			</span>
 			<strong class="text-lg">{m.app_name()}</strong>
 		</a>
 		<div class="grid gap-4">
 			<span class="grid size-14 place-items-center rounded-xl bg-background/10 text-primary">
-				<Building2 size={28} />
+				<AqarDeskLogo size={40} class="text-primary" />
 			</span>
 			<p class="text-xs font-semibold tracking-widest text-primary">{m.setup_kicker()}</p>
 			<h1 class="text-3xl font-semibold leading-tight">{m.setup_title()}</h1>
@@ -64,7 +65,7 @@
 	<section class="flex min-h-0 flex-col p-5 sm:p-8 lg:px-14">
 		<div class="flex items-center justify-between">
 			<a href="/" class="flex items-center gap-2 text-sm font-semibold text-foreground no-underline lg:hidden">
-				<Building2 size={20} />{m.app_name()}
+				<AqarDeskLogo size={20} class="text-foreground" />{m.app_name()}
 			</a>
 			<span class="hidden lg:block"></span>
 			{#if !desktopShell}<Button

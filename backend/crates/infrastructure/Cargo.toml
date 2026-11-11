@@ -20,3 +20,4 @@ rand = { workspace = true }
 chrono = { workspace = true }
 keyring = { workspace = true }
 url = { workspace = true }
+sha2 = { workspace = true }

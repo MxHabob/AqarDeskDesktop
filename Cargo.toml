@@ -36,6 +36,7 @@ url = "2"
 reqwest = { version = "0.13", features = ["json"] }
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
 async-trait = "0.1"
+sha2 = "0.10"
 
 [profile.dev]
 panic = "abort"

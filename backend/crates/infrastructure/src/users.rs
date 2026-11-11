@@ -39,6 +39,14 @@ fn verify_password(password: String, password_hash: String) -> Result<bool, Stri
         .is_ok())
 }
 
+pub fn verify_password_value(password: &str, password_hash: &str) -> Result<bool, String> {
+    verify_password(password.to_string(), password_hash.to_string())
+}
+
+pub fn hash_password_value(password: &str) -> Result<String, String> {
+    hash_password(password.to_string())
+}
+
 pub async fn has_users(database: &DatabaseConnection) -> Result<bool, String> {
     user::Entity::find()
         .one(database)

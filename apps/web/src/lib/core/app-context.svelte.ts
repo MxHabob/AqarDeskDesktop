@@ -117,6 +117,15 @@ export function createAppContext() {
 		connected = true;
 		needsAdmin = status.needs_admin;
 		currentUser = status.current_user;
+		await loadOrganizationName();
+	}
+
+	async function loadOrganizationName() {
+		if (!currentUser) {
+			organizationName = '';
+			return;
+		}
+		organizationName = await desktopApi.getOrganizationName();
 	}
 
 	async function checkApi() {
@@ -143,6 +152,7 @@ export function createAppContext() {
 				email,
 				password: accountPassword
 			});
+			await loadOrganizationName();
 			needsAdmin = false;
 			accountPassword = '';
 			setNotice(m.notification_admin_created());
@@ -159,6 +169,7 @@ export function createAppContext() {
 		clearMessages();
 		try {
 			currentUser = await desktopApi.signIn(email, accountPassword);
+			await loadOrganizationName();
 			accountPassword = '';
 		} catch (cause) {
 			setError(cause);
@@ -219,6 +230,7 @@ export function createAppContext() {
 		try {
 			await desktopApi.signOut();
 			currentUser = null;
+			organizationName = '';
 			return true;
 		} catch (cause) {
 			setError(cause);

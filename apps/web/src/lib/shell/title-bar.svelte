@@ -12,6 +12,7 @@
 	let {
 		title,
 		currentUser,
+		organizationName,
 		connected,
 		locale,
 		theme,
@@ -21,6 +22,7 @@
 	}: {
 		title: string;
 		currentUser: User | null;
+		organizationName: string;
 		connected: boolean;
 		locale: AppLocale;
 		theme: AppTheme;
@@ -83,7 +85,7 @@
 	data-tauri-drag-region
 >
 	<div class="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>
-		<TitleBreadcrumbs {title} />
+		<TitleBreadcrumbs {title} {organizationName} />
 		{#if currentUser}
 			<span
 				class="hidden items-center gap-1.5 rounded-full border border-border/70 bg-background px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"

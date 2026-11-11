@@ -4,6 +4,7 @@ use aqardesk_app::{
 };
 use aqardesk_infrastructure::{
     connect_database,
+    models::organization,
     repositories::{
         properties::SeaOrmPropertyRepository, tenants::SeaOrmTenantRepository,
         units::SeaOrmUnitRepository,
@@ -18,7 +19,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     routing::{get, patch, post, put},
 };
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, EntityTrait};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -88,6 +89,11 @@ struct LoginResponse {
 #[derive(Debug, Serialize)]
 struct SetupResponse {
     needs_admin: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct OrganizationName {
+    name: String,
 }
 
 fn error(status: StatusCode, message: impl Into<String>) -> (StatusCode, Json<serde_json::Value>) {
@@ -182,6 +188,33 @@ async fn get_session(
         .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message))?
         .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))?;
     Ok(Json(user))
+}
+
+#[utoipa::path(
+    get,
+    operation_id = "getCurrentOrganization",
+    path = "/api/v1/organizations/current",
+    tag = "Organization",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current organization name", body = OrganizationName),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 404, description = "Organization not found", body = dto::ErrorResponse)
+    )
+)]
+async fn get_current_organization(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<OrganizationName>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_user(&state, &headers).await?;
+    let organization = organization::Entity::find_by_id(&user.organization_id)
+        .one(&state.database)
+        .await
+        .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message.to_string()))?
+        .ok_or_else(|| error(StatusCode::NOT_FOUND, "Organization not found."))?;
+    Ok(Json(OrganizationName {
+        name: organization.name,
+    }))
 }
 
 async fn logout(
@@ -761,6 +794,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/session", get(get_session))
         .route("/api/v1/auth/logout", post(logout))
+        .route(
+            "/api/v1/organizations/current",
+            get(get_current_organization),
+        )
         .route("/api/v1/dashboard/summary", get(dashboard_summary))
         .route("/api/v1/users", get(list_users).post(create_user))
         .route("/api/v1/users/{user_id}", patch(update_user))
@@ -803,6 +840,7 @@ mod tests {
 
         assert!(paths.contains_key("/api/v1/properties"));
         assert!(paths.contains_key("/api/v1/properties/{property_id}"));
+        assert!(paths.contains_key("/api/v1/organizations/current"));
         assert!(paths.contains_key("/api/v1/units"));
         assert!(paths.contains_key("/api/v1/tenants"));
         assert_eq!(
@@ -847,6 +885,12 @@ mod tests {
             axum::http::header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {token}")).expect("valid auth header"),
         );
+
+        let organization = get_current_organization(State(state.clone()), headers.clone())
+            .await
+            .expect("load current organization")
+            .0;
+        assert_eq!(organization.name, "AqarDesk");
 
         let restored = get_session(State(state.clone()), headers.clone())
             .await

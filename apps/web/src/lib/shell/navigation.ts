@@ -9,5 +9,7 @@ export type ViewKey =
 	| 'settings';
 
 export function getViewPath(organizationId: string, view: ViewKey) {
-	return view === 'overview' ? `/${organizationId}` : `/${organizationId}/${view}`;
+	if (view === 'overview') return `/${organizationId}`;
+	if (view === 'users') return `/${organizationId}/settings/users`;
+	return `/${organizationId}/${view}`;
 }

@@ -86,6 +86,7 @@ export const desktopApi = {
 	}) => invoke<User>('auth_bootstrap_admin', input),
 	signIn: (email: string, password: string) => invoke<User>('auth_login', { email, password }),
 	signOut: () => invoke<void>('auth_logout'),
+	getOrganizationName: () => invoke<string>('organization_get_name'),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	listUsers: () => invoke<User[]>('users_list'),
 	createUser: (input: { name: string; email: string; password: string; role: string }) =>

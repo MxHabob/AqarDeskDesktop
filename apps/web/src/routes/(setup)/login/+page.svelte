@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { Building2, Database, Globe2 } from '@lucide/svelte';
+	import { Database, Globe2 } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
+	import AqarDeskLogo from '#lib/shared/components/aqardesk-logo.svelte';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import LoginForm from '#lib/features/auth/login-form.svelte';
 	import LoginVideoBackground from '#lib/features/auth/login-video-background.svelte';
@@ -31,7 +32,7 @@
 	{#if !desktopShell}
 	<header class="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 xl:px-8">
 		<a href="/" class="flex items-center gap-2 text-sm font-semibold text-foreground no-underline">
-			<Building2 size={20} />{m.app_name()}
+			<AqarDeskLogo size={20} class="text-foreground" />{m.app_name()}
 		</a>
 		<Button
 			variant="ghost"
