@@ -4,8 +4,8 @@ use crate::platform_runtime::{
 };
 use aqardesk_backend::{
     application::{
-        IdentityService, NewUser, OrganizationBootstrap, PaymentLedger, PropertyCatalog,
-        TenantDirectory, UnitCatalog, UserUpdate,
+        IdentityService, NewUser, OrganizationBootstrap, OrganizationSettingsService,
+        PaymentLedger, PropertyCatalog, TenantDirectory, UnitCatalog, UserUpdate,
     },
     domain::{
         AccessRole, ActorContext, Payment, PaymentInput, Property, PropertyId, PropertyInput,
@@ -13,8 +13,8 @@ use aqardesk_backend::{
         UserId,
     },
     infrastructure::{
-        SeaOrmIdentityRepository, SeaOrmPaymentRepository, SeaOrmPropertyRepository,
-        SeaOrmTenantRepository, SeaOrmUnitRepository,
+        SeaOrmIdentityRepository, SeaOrmOrganizationSettingsRepository, SeaOrmPaymentRepository,
+        SeaOrmPropertyRepository, SeaOrmTenantRepository, SeaOrmUnitRepository,
     },
 };
 use rust_decimal::prelude::ToPrimitive;
@@ -498,6 +498,10 @@ pub async fn platform_users_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<UserAccount>, String> {
     let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
     let identities = local_identity(&state).await?;
     identities
         .list_users(actor)
@@ -514,9 +518,26 @@ pub async fn platform_users_create(
     role: String,
 ) -> Result<UserAccount, String> {
     let actor = active_actor(&state).await?;
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "user_management")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    let identities = local_identity(&state).await?;
+    let current_count = identities
+        .list_users(actor)
+        .await
+        .map_err(application_error)?
+        .into_iter()
+        .filter(|user| user.is_active)
+        .count() as u64;
+    state
+        .license
+        .check_limit_for_organization(&organization_id, "users.max", current_count, 1)
+        .await?;
     let role = AccessRole::parse(&role)
         .ok_or_else(|| "The selected user role is not supported.".to_string())?;
-    let identities = local_identity(&state).await?;
     identities
         .create_user(
             actor,
@@ -541,6 +562,10 @@ pub async fn platform_users_update(
     password: Option<String>,
 ) -> Result<UserAccount, String> {
     let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
     let user_id = UserId::parse(&user_id)
         .map_err(|_| "The selected user identifier is invalid.".to_string())?;
     let role = AccessRole::parse(&role)
@@ -570,8 +595,38 @@ pub async fn platform_users_set_active(
     let actor = active_actor(&state).await?;
     let user_id = UserId::parse(&user_id)
         .map_err(|_| "The selected user identifier is invalid.".to_string())?;
-    local_identity(&state)
-        .await?
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    let identities = local_identity(&state).await?;
+    let _quota_guard = if is_active {
+        Some(state.license_quota_lock.lock().await)
+    } else {
+        None
+    };
+    if is_active {
+        let users = identities
+            .list_users(actor)
+            .await
+            .map_err(application_error)?;
+        if users
+            .iter()
+            .any(|user| user.id == user_id && !user.is_active)
+        {
+            let active_count = users.iter().filter(|user| user.is_active).count() as u64;
+            state
+                .license
+                .check_limit_for_organization(
+                    &actor.organization_id().to_string(),
+                    "users.max",
+                    active_count,
+                    1,
+                )
+                .await?;
+        }
+    }
+    identities
         .set_user_active(actor, user_id, is_active)
         .await
         .map_err(application_error)?;
@@ -583,6 +638,10 @@ pub async fn platform_properties_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<PropertyView>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
     PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
         .list(actor)
         .await
@@ -596,7 +655,19 @@ pub async fn platform_properties_create(
     input: PropertyInput,
 ) -> Result<PropertyView, String> {
     let (actor, database) = local_business_state(&state).await?;
-    PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "properties")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    let catalog = PropertyCatalog::new(SeaOrmPropertyRepository::new(&database));
+    let current_count = catalog.list(actor).await.map_err(application_error)?.len() as u64;
+    state
+        .license
+        .check_limit_for_organization(&organization_id, "properties.max", current_count, 1)
+        .await?;
+    catalog
         .create(actor, input)
         .await
         .map(PropertyView::from)
@@ -612,6 +683,10 @@ pub async fn platform_properties_update(
     let property_id = PropertyId::parse(&property_id)
         .map_err(|_| "The selected property identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
     PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
         .update(actor, property_id, input)
         .await
@@ -627,6 +702,10 @@ pub async fn platform_properties_archive(
     let property_id = PropertyId::parse(&property_id)
         .map_err(|_| "The selected property identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
     PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
         .archive(actor, property_id)
         .await
@@ -645,6 +724,10 @@ pub async fn platform_units_list(
         })
         .transpose()?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "units")
+        .await?;
     let units = UnitCatalog::new(SeaOrmUnitRepository::new(&database))
         .list(actor, property_id)
         .await
@@ -658,7 +741,23 @@ pub async fn platform_units_create(
     input: PropertyUnitInput,
 ) -> Result<UnitView, String> {
     let (actor, database) = local_business_state(&state).await?;
-    let unit = UnitCatalog::new(SeaOrmUnitRepository::new(&database))
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "units")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    let catalog = UnitCatalog::new(SeaOrmUnitRepository::new(&database));
+    let current_count = catalog
+        .list(actor, None)
+        .await
+        .map_err(application_error)?
+        .len() as u64;
+    state
+        .license
+        .check_limit_for_organization(&organization_id, "units.max", current_count, 1)
+        .await?;
+    let unit = catalog
         .create(actor, input)
         .await
         .map_err(application_error)?;
@@ -674,6 +773,10 @@ pub async fn platform_units_update(
     let unit_id = UnitId::parse(&unit_id)
         .map_err(|_| "The selected unit identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "units")
+        .await?;
     let unit = UnitCatalog::new(SeaOrmUnitRepository::new(&database))
         .update(actor, unit_id, input)
         .await
@@ -689,6 +792,10 @@ pub async fn platform_units_archive(
     let unit_id = UnitId::parse(&unit_id)
         .map_err(|_| "The selected unit identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "units")
+        .await?;
     UnitCatalog::new(SeaOrmUnitRepository::new(&database))
         .archive(actor, unit_id)
         .await
@@ -700,6 +807,10 @@ pub async fn platform_tenants_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<TenantView>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "tenants")
+        .await?;
     TenantDirectory::new(SeaOrmTenantRepository::new(&database))
         .list(actor)
         .await
@@ -713,7 +824,23 @@ pub async fn platform_tenants_create(
     input: TenantInput,
 ) -> Result<TenantView, String> {
     let (actor, database) = local_business_state(&state).await?;
-    TenantDirectory::new(SeaOrmTenantRepository::new(&database))
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "tenants")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    let directory = TenantDirectory::new(SeaOrmTenantRepository::new(&database));
+    let current_count = directory
+        .list(actor)
+        .await
+        .map_err(application_error)?
+        .len() as u64;
+    state
+        .license
+        .check_limit_for_organization(&organization_id, "tenants.max", current_count, 1)
+        .await?;
+    directory
         .create(actor, input)
         .await
         .map(TenantView::from)
@@ -729,6 +856,10 @@ pub async fn platform_tenants_update(
     let tenant_id = TenantId::parse(&tenant_id)
         .map_err(|_| "The selected tenant identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "tenants")
+        .await?;
     TenantDirectory::new(SeaOrmTenantRepository::new(&database))
         .update(actor, tenant_id, input)
         .await
@@ -744,6 +875,10 @@ pub async fn platform_tenants_archive(
     let tenant_id = TenantId::parse(&tenant_id)
         .map_err(|_| "The selected tenant identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "tenants")
+        .await?;
     TenantDirectory::new(SeaOrmTenantRepository::new(&database))
         .archive(actor, tenant_id)
         .await
@@ -755,6 +890,10 @@ pub async fn platform_payments_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<PaymentView>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "payments")
+        .await?;
     let payments = PaymentLedger::new(SeaOrmPaymentRepository::new(&database))
         .list(actor)
         .await
@@ -791,6 +930,35 @@ pub async fn platform_payments_record(
     input: PaymentInput,
 ) -> Result<PaymentView, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "payments")
+        .await?;
+    let organization_settings =
+        OrganizationSettingsService::new(SeaOrmOrganizationSettingsRepository::new(&database))
+            .get(actor)
+            .await
+            .map_err(application_error)?;
+    if input.currency_code.as_str() != organization_settings.default_currency {
+        let organization_id = actor.organization_id().to_string();
+        state
+            .license
+            .require_feature(&organization_id, "multi_currency")
+            .await?;
+        let enabled_currencies = aqardesk_backend::application::CurrencyCatalog::new(
+            aqardesk_backend::infrastructure::SeaOrmCurrencyRepository::new(&database),
+        )
+        .list(actor)
+        .await
+        .map_err(application_error)?
+        .into_iter()
+        .filter(|currency| currency.is_enabled_for_organization)
+        .count() as u64;
+        state
+            .license
+            .check_limit_for_organization(&organization_id, "currencies.max", enabled_currencies, 0)
+            .await?;
+    }
     let tenant_names = TenantDirectory::new(SeaOrmTenantRepository::new(&database))
         .names(actor, &[input.tenant_id])
         .await
@@ -814,6 +982,10 @@ pub async fn platform_payments_void(
     let payment_id = aqardesk_backend::domain::PaymentId::parse(&payment_id)
         .map_err(|_| "The selected payment identifier is invalid.".to_string())?;
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "payments")
+        .await?;
     PaymentLedger::new(SeaOrmPaymentRepository::new(&database))
         .void(actor, payment_id)
         .await

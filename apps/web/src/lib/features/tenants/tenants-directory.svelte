@@ -6,7 +6,7 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
-	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
+	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 	type Props = {
 		tenants: Tenant[];
 		loading: boolean;
@@ -18,7 +18,7 @@
 	let { tenants, loading, readonly, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'full_name', header: m.tenants_name(), width: 180 },
 		{ id: 'email', header: m.auth_email(), width: 220 },
 		{ id: 'phone', header: m.tenants_phone(), width: 140 },
@@ -43,7 +43,7 @@
 	}
 </script>
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={tenants}
 		{loading}
@@ -60,5 +60,5 @@
 				<Plus size={16} />{m.tenants_add()}
 			</Button>
 		{/snippet}
-	</OrbisGrid>
+	</AqarDeskGrid>
 </div>

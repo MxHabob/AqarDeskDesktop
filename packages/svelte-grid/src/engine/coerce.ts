@@ -1,11 +1,11 @@
-import type { ColumnValidateResult, GridRow, OrbisColumnDef } from "../types";
+import type { ColumnValidateResult, GridRow, AqarDeskColumnDef } from "../types";
 
 const TRUE_SET = new Set(["true", "1", "yes", "y", "نعم", "صح"]);
 const FALSE_SET = new Set(["false", "0", "no", "n", "لا"]);
 
 export function coerceValue(
   raw: unknown,
-  col: OrbisColumnDef,
+  col: AqarDeskColumnDef,
   row: GridRow = {},
 ): ColumnValidateResult {
   let value = raw;
@@ -80,7 +80,7 @@ export function coerceValue(
   }
 }
 
-function inferType(col: OrbisColumnDef): NonNullable<OrbisColumnDef["type"]> {
+function inferType(col: AqarDeskColumnDef): NonNullable<AqarDeskColumnDef["type"]> {
   const editor = typeof col.editor === "string" ? col.editor : "";
   if (editor === "checkbox") return "boolean";
   if (editor === "number") return "number";

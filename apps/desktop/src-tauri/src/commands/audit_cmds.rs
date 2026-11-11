@@ -13,6 +13,10 @@ pub async fn audit_list(
     offset: u64,
 ) -> Result<Vec<aqardesk_backend::application::AuditEntry>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "audit_log")
+        .await?;
     AuditLog::new(SeaOrmAuditLogRepository::new(&database))
         .list(actor, limit, offset)
         .await

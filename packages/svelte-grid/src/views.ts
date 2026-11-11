@@ -13,12 +13,20 @@ export interface TableViewState {
   density?: number;
 }
 
-const keyFor = (tableId: string) => `orbis.table.views.${tableId}`;
+const keyFor = (tableId: string) => `aqardesk.table.views.${tableId}`;
+const previousKeyFor = (tableId: string) => `orbis.table.views.${tableId}`;
 
 export function loadViews(tableId: string): TableViewState[] {
   if (typeof localStorage === "undefined") return [];
   try {
-    const raw = localStorage.getItem(keyFor(tableId));
+    let raw = localStorage.getItem(keyFor(tableId));
+    if (raw === null) {
+      raw = localStorage.getItem(previousKeyFor(tableId));
+      if (raw !== null) {
+        localStorage.setItem(keyFor(tableId), raw);
+        localStorage.removeItem(previousKeyFor(tableId));
+      }
+    }
     return raw ? (JSON.parse(raw) as TableViewState[]) : [];
   } catch {
     return [];

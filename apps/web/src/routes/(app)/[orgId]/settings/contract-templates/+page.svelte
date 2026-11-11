@@ -2,9 +2,9 @@
 	import { onMount } from 'svelte';
 	import { toast } from '@aqardesk/ui';
 	import {
-		OrbisGrid,
+		AqarDeskGrid,
 		type GridActionEvent,
-		type OrbisColumnDef
+		type AqarDeskColumnDef
 	} from '@aqardesk/svelte-grid';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
@@ -22,7 +22,7 @@
 	let selectedTemplate = $state<ContractTemplate | null>(null);
 	let editSheetOpen = $state(false);
 	const rtl = $derived(getLocale() === 'ar');
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'name', header: m.settings_template_name(), width: 200 },
 		{ id: 'template_key', header: m.settings_template_key(), width: 200 },
 		{
@@ -158,7 +158,7 @@
 </script>
 
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={templates}
 		{loading}
@@ -176,7 +176,7 @@
 				onSubmit={(input) => save(input)}
 			/>
 		{/snippet}
-	</OrbisGrid>
+	</AqarDeskGrid>
 </div>
 
 {#if selectedTemplate}

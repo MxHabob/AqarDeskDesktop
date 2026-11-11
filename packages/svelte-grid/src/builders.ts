@@ -1,4 +1,4 @@
-import type { OrbisColumnDef } from "./types";
+import type { AqarDeskColumnDef } from "./types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Canonical grid column builders for @aqardesk/svelte-grid.
@@ -7,7 +7,7 @@ import type { OrbisColumnDef } from "./types";
 /**
  * Build a standard frozen index / row-number column.
  */
-export function indexColumn(label = "#"): OrbisColumnDef {
+export function indexColumn(label = "#"): AqarDeskColumnDef {
   return {
     id: "__idx",
     prop: "__idx",
@@ -26,7 +26,7 @@ export function indexColumn(label = "#"): OrbisColumnDef {
 /**
  * Build a selection checkbox column for multi-row selection.
  */
-export function selectionColumn(): OrbisColumnDef {
+export function selectionColumn(): AqarDeskColumnDef {
   return {
     id: "__selected",
     prop: "__selected",
@@ -46,7 +46,7 @@ export function selectionColumn(): OrbisColumnDef {
  */
 export function studentNameColumn(
   opts: { label?: string; locale?: string; size?: number; prop?: string } = {},
-): OrbisColumnDef {
+): AqarDeskColumnDef {
   const { label = "Student", locale = "en", size = 200, prop } = opts;
   const colId = prop || (locale === "ar" ? "student_name_ar" : "student_name");
   return {
@@ -72,7 +72,7 @@ export function scoreColumn(opts: {
   maxScore?: number;
   size?: number;
   readonly?: boolean;
-}): OrbisColumnDef {
+}): AqarDeskColumnDef {
   const { prop, name, maxScore = 100, size = 90, readonly = false } = opts;
   return {
     id: prop,
@@ -102,7 +102,7 @@ export function textColumn(opts: {
   name: string;
   size?: number;
   align?: "start" | "center" | "end";
-}): OrbisColumnDef {
+}): AqarDeskColumnDef {
   const { prop, name, size = 120, align = "start" } = opts;
   return {
     id: prop,
@@ -124,7 +124,7 @@ export function statusColumn(opts: {
   prop: string;
   name: string;
   size?: number;
-}): OrbisColumnDef {
+}): AqarDeskColumnDef {
   const { prop, name, size = 100 } = opts;
   return {
     id: prop,
@@ -146,7 +146,7 @@ export function percentageColumn(opts: {
   prop: string;
   name: string;
   size?: number;
-}): OrbisColumnDef {
+}): AqarDeskColumnDef {
   const { prop, name, size = 80 } = opts;
   return {
     id: prop,
@@ -228,10 +228,10 @@ export function buildAttendanceColumns(opts: {
     absent?: string;
     rate?: string;
   };
-}): OrbisColumnDef[] {
+}): AqarDeskColumnDef[] {
   const { days, readonly = false, locale = "en", labels = {} } = opts;
 
-  const cols: OrbisColumnDef[] = [
+  const cols: AqarDeskColumnDef[] = [
     indexColumn(labels.rowIndex || "#"),
     studentNameColumn({
       label: labels.studentName || "Student",
@@ -290,7 +290,7 @@ export function buildStudentListColumns(opts: {
     email?: string;
     guardian?: string;
   };
-}): OrbisColumnDef[] {
+}): AqarDeskColumnDef[] {
   const { locale = "en", labels = {} } = opts;
 
   return [
@@ -332,7 +332,7 @@ export function buildFeesColumns(opts: {
     balance?: string;
     status?: string;
   };
-}): OrbisColumnDef[] {
+}): AqarDeskColumnDef[] {
   const { locale = "en", labels = {} } = opts;
 
   return [

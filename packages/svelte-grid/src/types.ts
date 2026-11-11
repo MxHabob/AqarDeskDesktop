@@ -78,7 +78,7 @@ export interface ColumnValidateResult {
   value?: unknown;
 }
 
-export interface OrbisColumnDef {
+export interface AqarDeskColumnDef {
   id?: string;
   header?: string;
   width?: number;
@@ -261,32 +261,32 @@ export interface DataQuery {
   search?: string;
 }
 
-export function columnId(col: OrbisColumnDef): string {
+export function columnId(col: AqarDeskColumnDef): string {
   return String(col.id || col.prop || "");
 }
 
-export function columnHeader(col: OrbisColumnDef): string {
+export function columnHeader(col: AqarDeskColumnDef): string {
   return String(col.header || col.name || columnId(col));
 }
 
-export function columnWidth(col: OrbisColumnDef): number {
+export function columnWidth(col: AqarDeskColumnDef): number {
   return col.width ?? col.size ?? 120;
 }
 
-export function isColumnPinnedLeft(col: OrbisColumnDef): boolean {
+export function isColumnPinnedLeft(col: AqarDeskColumnDef): boolean {
   return col.pin === "left" || col.pin === "colPinStart";
 }
 
-export function isColumnPinnedRight(col: OrbisColumnDef): boolean {
+export function isColumnPinnedRight(col: AqarDeskColumnDef): boolean {
   return col.pin === "right" || col.pin === "colPinEnd";
 }
 
-export function isColumnSortable(col: OrbisColumnDef): boolean {
+export function isColumnSortable(col: AqarDeskColumnDef): boolean {
   if (col.sortable === false || col.sort === false) return false;
   return col.sort !== undefined || col.sortable === true || !!col.type;
 }
 
-export function getCellValue(row: GridRow, col: OrbisColumnDef): unknown {
+export function getCellValue(row: GridRow, col: AqarDeskColumnDef): unknown {
   if (col.accessor) return col.accessor(row);
   return row[columnId(col)];
 }

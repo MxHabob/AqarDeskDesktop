@@ -23,7 +23,7 @@
 {#if app.currentUser}
 	<section class="grid w-full gap-4">
 		<header class="flex min-h-10 flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center">
-			<DashboardGreeting currentUser={app.currentUser} />
+			<DashboardGreeting currentUser={app.currentUser} timeZone={app.organizationTimezone} />
 			<DashboardToolbar
 				months={selectedMonths}
 				view={dashboardView}

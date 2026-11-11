@@ -27,7 +27,10 @@
 	let sidebarSize = $state(2);
 	let desktopShell = $state(false);
 	const showContextNavigation = $derived(
-		active !== 'overview' && active !== 'account' && !page.params.propertyId
+		active !== 'overview' &&
+			active !== 'account' &&
+			active !== 'billing' &&
+			!page.params.propertyId
 	);
 	const settingsPath = $derived(`/${currentUser.organization_id}/settings`);
 	const routePath = $derived(deLocalizeUrl(page.url).pathname);

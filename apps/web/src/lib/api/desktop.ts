@@ -65,6 +65,47 @@ export type UpdateResult = {
 
 export type UpdateProgress = { downloaded_bytes: number; total_bytes: number | null };
 
+export type LicenseState =
+	| 'unavailable'
+	| 'pending'
+	| 'trial'
+	| 'active'
+	| 'expiring'
+	| 'offline_grace'
+	| 'deactivation_pending'
+	| 'expired'
+	| 'suspended'
+	| 'revoked'
+	| 'invalid';
+
+export type LicenseLimit = {
+	key: string;
+	max_value: number | null;
+	unit: string;
+};
+
+export type LicenseStateDto = {
+	state: LicenseState;
+	product: string;
+	plan: string | null;
+	plan_name: string | null;
+	organization_id: string | null;
+	valid_until: string | null;
+	days_until_expiry: number | null;
+	trial_days_remaining: number;
+	is_operational: boolean;
+	is_restricted: boolean;
+	is_configured: boolean;
+	configuration_error: string | null;
+	last_error: string | null;
+	installation_id: string;
+	last_sync_at: string | null;
+	enabled_features: string[];
+	trial_features: string[];
+	limits: LicenseLimit[];
+	app_version: string;
+};
+
 export type DashboardSummary = {
 	active_properties_count: number;
 	units_count: number;
@@ -136,6 +177,13 @@ export const desktopApi = {
 	checkApi: (serverUrl: string) => invoke<void>('platform_connection_check_api', { serverUrl }),
 	getSetupStatus: () =>
 		invoke<{ needs_admin: boolean; current_user: User | null }>('platform_auth_get_setup_status'),
+	getLicenseState: (organizationId: string) =>
+		invoke<LicenseStateDto>('license_get_state', { organizationId }),
+	activateLicense: (productKey: string) =>
+		invoke<LicenseStateDto>('license_activate_key', { productKey }),
+	startLicenseTrial: () => invoke<LicenseStateDto>('license_start_trial'),
+	refreshLicense: () => invoke<LicenseStateDto>('license_refresh'),
+	deactivateLicense: () => invoke<LicenseStateDto>('license_deactivate'),
 	createAdmin: (input: {
 		organizationName: string;
 		name: string;

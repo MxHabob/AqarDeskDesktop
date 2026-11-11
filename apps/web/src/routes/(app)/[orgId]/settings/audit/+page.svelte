@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { toast } from '@aqardesk/ui';
-	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
+	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 	import type { AuditEntry } from '@aqardesk/sdk';
 	import SettingsDetailsDialog from '#lib/features/settings/settings-details-dialog.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
@@ -42,7 +42,7 @@
 				]
 			: []
 	);
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{
 			id: 'actor_name',
 			header: m.settings_audit_actor(),
@@ -87,7 +87,7 @@
 </script>
 
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={entries}
 		{loading}

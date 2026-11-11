@@ -15,7 +15,7 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import PaymentSheet from '#lib/features/payments/payment-sheet.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
+	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 
 	let { data }: PageProps = $props();
 	const app = getAppContext();
@@ -121,7 +121,7 @@
 		}))
 	);
 
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'received_at_display', header: m.payments_received_at(), sortable: false, width: 180 },
 		{ id: 'tenant_name', header: m.payments_tenant(), width: 180 },
 		{
@@ -176,7 +176,7 @@
 </script>
 
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={gridRows}
 		{loading}
@@ -200,5 +200,5 @@
 				<span class="px-2 text-xs text-muted-foreground">{m.payments_need_tenant()}</span>
 			{/if}
 		{/snippet}
-	</OrbisGrid>
+	</AqarDeskGrid>
 </div>

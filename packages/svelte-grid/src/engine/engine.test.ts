@@ -23,9 +23,9 @@ import { groupRows, grandTotals } from "./grouping";
 import { queryClient } from "./query";
 import { autoscrollDelta, colFromOffset, rowFromOffset } from "./pointer";
 import { coerceValue } from "./coerce";
-import type { GridRow, OrbisColumnDef } from "../types";
+import type { GridRow, AqarDeskColumnDef } from "../types";
 
-const cols: OrbisColumnDef[] = [
+const cols: AqarDeskColumnDef[] = [
   { id: "name", header: "Name", type: "text" },
   { id: "gpa", header: "GPA", type: "decimal" },
   {
@@ -214,7 +214,7 @@ describe("virtualization", () => {
 
 describe("grouping", () => {
   test("group and sum", () => {
-    const withAgg: OrbisColumnDef[] = [...cols];
+    const withAgg: AqarDeskColumnDef[] = [...cols];
     withAgg[1] = { ...cols[1]!, aggregate: "sum" };
     const groups = groupRows(rows(), "dept", withAgg);
     expect(groups.length).toBe(2);
@@ -248,7 +248,7 @@ describe("query + coerce", () => {
     );
   });
   test("coerce validates against the current row", () => {
-    const column: OrbisColumnDef = {
+    const column: AqarDeskColumnDef = {
       id: "score",
       type: "decimal",
       validate: (value, row) =>
@@ -270,7 +270,7 @@ describe("query + coerce", () => {
       { id: "b", start: "2024-03-01" },
       { id: "c", start: "2024-06-01" },
     ];
-    const dateColumn: OrbisColumnDef[] = [
+    const dateColumn: AqarDeskColumnDef[] = [
       { id: "start", type: "date", accessor: (row) => row.start },
     ];
     expect(

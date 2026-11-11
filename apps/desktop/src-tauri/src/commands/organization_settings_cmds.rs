@@ -29,6 +29,10 @@ pub async fn organization_update_settings(
     input: OrganizationSettingsInput,
 ) -> Result<aqardesk_backend::application::OrganizationSettings, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
     OrganizationSettingsService::new(SeaOrmOrganizationSettingsRepository::new(&database))
         .update(actor, input)
         .await
@@ -40,6 +44,10 @@ pub async fn currencies_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<aqardesk_backend::application::CurrencySettings>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
     CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
         .list(actor)
         .await
@@ -52,6 +60,26 @@ pub async fn currencies_create(
     input: NewCurrencyInput,
 ) -> Result<(), String> {
     let (actor, database) = local_business_state(&state).await?;
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "multi_currency")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    if input.enable_for_organization {
+        let currencies = CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+            .list(actor)
+            .await
+            .map_err(application_error)?;
+        let enabled_count = currencies
+            .iter()
+            .filter(|currency| currency.is_enabled_for_organization)
+            .count() as u64;
+        state
+            .license
+            .check_limit_for_organization(&organization_id, "currencies.max", enabled_count, 1)
+            .await?;
+    }
     CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
         .create(actor, input)
         .await
@@ -65,6 +93,10 @@ pub async fn currencies_update(
     input: CurrencyInput,
 ) -> Result<(), String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "multi_currency")
+        .await?;
     CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
         .update(actor, &currency_code, input)
         .await
@@ -78,6 +110,39 @@ pub async fn currencies_set_organization_enabled(
     is_enabled: bool,
 ) -> Result<(), String> {
     let (actor, database) = local_business_state(&state).await?;
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "multi_currency")
+        .await?;
+    let _quota_guard = if is_enabled {
+        Some(state.license_quota_lock.lock().await)
+    } else {
+        None
+    };
+    if is_enabled {
+        let currencies = CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+            .list(actor)
+            .await
+            .map_err(application_error)?;
+        if currencies
+            .iter()
+            .any(|currency| currency.code == currency_code && currency.is_enabled_for_organization)
+        {
+            return CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+                .set_enabled(actor, &currency_code, is_enabled)
+                .await
+                .map_err(application_error);
+        }
+        let enabled_count = currencies
+            .iter()
+            .filter(|currency| currency.is_enabled_for_organization)
+            .count() as u64;
+        state
+            .license
+            .check_limit_for_organization(&organization_id, "currencies.max", enabled_count, 1)
+            .await?;
+    }
     CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
         .set_enabled(actor, &currency_code, is_enabled)
         .await

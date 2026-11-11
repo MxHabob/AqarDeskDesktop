@@ -2,6 +2,7 @@ pub mod audit_cmds;
 pub mod contract_template_cmds;
 pub mod dashboard_cmds;
 pub mod database_admin_cmds;
+pub mod license_cmds;
 pub mod organization_settings_cmds;
 pub mod profile_cmds;
 pub mod update_cmds;
@@ -19,6 +20,11 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         database_admin_cmds::database_admin_restore,
         database_admin_cmds::database_admin_check_integrity,
         database_admin_cmds::database_admin_change_location,
+        license_cmds::license_get_state,
+        license_cmds::license_activate_key,
+        license_cmds::license_start_trial,
+        license_cmds::license_refresh,
+        license_cmds::license_deactivate,
         dashboard_cmds::dashboard_get_summary,
         organization_settings_cmds::organization_get_settings,
         organization_settings_cmds::organization_update_settings,

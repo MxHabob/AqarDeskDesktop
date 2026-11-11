@@ -1,5 +1,5 @@
 /**
- * Thin Data Source helpers for Orbis grids.
+ * Thin Data Source helpers for AqarDesk grids.
  */
 import type {
   BulkResult,

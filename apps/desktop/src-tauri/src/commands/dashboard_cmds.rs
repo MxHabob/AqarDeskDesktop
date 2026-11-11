@@ -15,6 +15,10 @@ pub async fn dashboard_get_summary(
     months: u8,
 ) -> Result<DashboardSummary, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
     DashboardService::new(SeaOrmDashboardRepository::new(&database))
         .summary(actor, months)
         .await

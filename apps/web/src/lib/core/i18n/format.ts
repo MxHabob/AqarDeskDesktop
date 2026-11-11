@@ -3,7 +3,7 @@ import {
 	formatCell as formatGridCellFallback,
 	getCellValue,
 	type GridRow,
-	type OrbisColumnDef
+	type AqarDeskColumnDef
 } from '@aqardesk/svelte-grid';
 
 type DateFormat = 'date' | 'datetime' | 'time';
@@ -101,7 +101,7 @@ export function formatMonthLabel(month: string): string {
 
 export function formatGridCell(
 	row: GridRow,
-	column: OrbisColumnDef,
+	column: AqarDeskColumnDef,
 	timeZone?: string
 ): string {
 	const value = getCellValue(row, column);

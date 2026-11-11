@@ -6,7 +6,7 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
-	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
+	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 
 	type Props = {
 		units: PropertyUnit[];
@@ -22,7 +22,7 @@
 	const app = getAppContext();
 	const propertyNames = $derived(new Map(properties.map((property) => [property.id, property.name])));
 	const rtl = $derived(getLocale() === 'ar');
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'unit_number', header: m.units_number(), width: 120 },
 		{
 			id: 'property_name',
@@ -74,7 +74,7 @@
 </script>
 
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={units}
 		{loading}
@@ -91,5 +91,5 @@
 				<Plus size={16} />{m.units_add()}
 			</Button>
 		{/snippet}
-	</OrbisGrid>
+	</AqarDeskGrid>
 </div>

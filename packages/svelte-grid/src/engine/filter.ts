@@ -2,7 +2,7 @@ import type {
   FilterCondition,
   GridFilter,
   GridRow,
-  OrbisColumnDef,
+  AqarDeskColumnDef,
 } from "../types";
 import { columnId, getCellValue } from "../types";
 
@@ -31,7 +31,7 @@ function asString(val: unknown): string {
 function compareFilterNumbers(
   val: unknown,
   target: unknown,
-  col?: OrbisColumnDef,
+  col?: AqarDeskColumnDef,
 ): [number, number] {
   if (col?.type === "date" || col?.type === "datetime") {
     return [Date.parse(asString(val)), Date.parse(asString(target))];
@@ -42,7 +42,7 @@ function compareFilterNumbers(
 function matchCondition(
   row: GridRow,
   cond: FilterCondition,
-  columns?: ReadonlyMap<string, OrbisColumnDef>,
+  columns?: ReadonlyMap<string, AqarDeskColumnDef>,
 ): boolean {
   const col = columns?.get(cond.field);
   const val = col ? getCellValue(row, col) : row[cond.field];
@@ -122,7 +122,7 @@ function matchCondition(
 function matchesSearch(
   row: GridRow,
   search: string,
-  columns?: ReadonlyMap<string, OrbisColumnDef>,
+  columns?: ReadonlyMap<string, AqarDeskColumnDef>,
 ): boolean {
   const q = search.toLowerCase();
   if (columns) {
@@ -147,7 +147,7 @@ function isSearchMatch(value: unknown, query: string): boolean {
 export function matchesFilter(
   row: GridRow,
   filter: GridFilter | null | undefined,
-  columns?: OrbisColumnDef[],
+  columns?: AqarDeskColumnDef[],
 ): boolean {
   const columnMap = columns
     ? new Map(columns.map((col) => [columnId(col), col]))
@@ -158,7 +158,7 @@ export function matchesFilter(
 function matchesFilterWithColumns(
   row: GridRow,
   filter: GridFilter | null | undefined,
-  columns?: ReadonlyMap<string, OrbisColumnDef>,
+  columns?: ReadonlyMap<string, AqarDeskColumnDef>,
 ): boolean {
   if (!filter) return true;
   if (filter.search && !matchesSearch(row, filter.search, columns))
@@ -180,7 +180,7 @@ function matchesFilterWithColumns(
 export function applyFilter<T extends GridRow>(
   items: readonly T[],
   filter: GridFilter | null | undefined,
-  columns?: OrbisColumnDef[],
+  columns?: AqarDeskColumnDef[],
 ): T[] {
   if (!filter) return items as T[];
   const hasSearch = !!filter.search;

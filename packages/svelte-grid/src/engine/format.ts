@@ -1,9 +1,9 @@
-import type { GridRow, OrbisColumnDef } from "../types";
+import type { GridRow, AqarDeskColumnDef } from "../types";
 import { getCellValue } from "../types";
 
 export function formatCell(
   row: GridRow,
-  col: OrbisColumnDef,
+  col: AqarDeskColumnDef,
   locale = "en",
 ): string {
   const value = getCellValue(row, col);
@@ -70,7 +70,7 @@ export function formatCell(
   return String(value);
 }
 
-export function defaultAlign(col: OrbisColumnDef): "start" | "center" | "end" {
+export function defaultAlign(col: AqarDeskColumnDef): "start" | "center" | "end" {
   if (col.align) return col.align;
   switch (col.type) {
     case "number":

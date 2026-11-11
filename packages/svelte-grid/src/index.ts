@@ -1,4 +1,4 @@
-export { default as OrbisGrid } from "./OrbisGrid.svelte";
+export { default as AqarDeskGrid } from "./AqarDeskGrid.svelte";
 
 export type {
   ActionItem,
@@ -22,7 +22,7 @@ export type {
   GridRow,
   GridRowsChangeEvent,
   GroupNode,
-  OrbisColumnDef,
+  AqarDeskColumnDef,
   PinSide,
   SelectScope,
   SelectionSnapshot,

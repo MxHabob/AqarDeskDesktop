@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
               {
                 name: "vendor-icons",
                 test: (id: string) =>
-                  id.includes("node_modules") && id.includes("@orbis/icons"),
+                  id.includes("node_modules") && id.includes("@lucide/svelte"),
                 priority: 10,
               },
               {

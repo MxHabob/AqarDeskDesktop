@@ -45,6 +45,7 @@
 	let isBackupCliOpen = $state(false);
 	let isAboutOpen = $state(false);
 	let isSupportOpen = $state(false);
+	const mulverseHomeUrl = 'https://www.mulverse.com/';
 	const direction = $derived(getHtmlDirection());
 	const tooltipSide = $derived(getInlineEndSide(direction));
 	const menuItemClass = 'flex cursor-pointer items-center gap-2.5 px-2.5 py-2 text-xs';
@@ -99,25 +100,25 @@
 					</span>
 				</DropdownMenuSubTrigger>
 				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
-					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl('https://www.mulverse.com/')}>
+					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl(mulverseHomeUrl)}>
 						<Globe2 size={13} class={iconClass} />
 						{m.sidebar_welcome()}
 					</DropdownMenuItem>
-					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl('https://docs.orbis.edu')}>
+					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl(mulverseHomeUrl)}>
 						<FileText size={13} class={iconClass} />
 						{m.sidebar_documentation()}
 					</DropdownMenuItem>
-					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl('https://docs.orbis.edu/api')}>
+					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl(mulverseHomeUrl)}>
 						<Code2 size={13} class={iconClass} />
 						{m.sidebar_api_docs()}
 					</DropdownMenuItem>
-					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl('https://help.orbis.edu')}>
+					<DropdownMenuItem class={menuItemClass} onclick={() => void openUrl(mulverseHomeUrl)}>
 						<CircleHelp size={13} class={iconClass} />
 						{m.sidebar_help_center()}
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						class={menuItemClass}
-						onclick={() => void openUrl('https://www.mulverse.com/p/orbis/support')}
+						onclick={() => void openUrl(mulverseHomeUrl)}
 					>
 						<Headphones size={13} class={iconClass} />
 						{m.sidebar_contact_support()}
@@ -175,14 +176,14 @@
 				<DropdownMenuSubContent align="end" sideOffset={4} dir={direction} class="w-48 text-start">
 					<DropdownMenuItem
 						class={menuItemClass}
-						onclick={() => void openUrl('https://www.mulverse.com/p/orbis/terms')}
+						onclick={() => void openUrl(mulverseHomeUrl)}
 					>
 						<FileText size={13} class={iconClass} />
 						{m.sidebar_terms()}
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						class={menuItemClass}
-						onclick={() => void openUrl('https://www.mulverse.com/p/orbis/privacy')}
+						onclick={() => void openUrl(mulverseHomeUrl)}
 					>
 						<LockKeyhole size={13} class={iconClass} />
 						{m.sidebar_privacy()}
@@ -224,7 +225,7 @@
 
 			<DropdownMenuItem
 				class={menuItemClass}
-				onclick={() => void openUrl('https://www.mulverse.com/')}
+				onclick={() => void openUrl(mulverseHomeUrl)}
 			>
 				<Globe2 size={14} class={iconClass} />
 				{m.sidebar_tour()}

@@ -1,4 +1,4 @@
-import type { GridRow, OrbisColumnDef, SortSpec } from "../types";
+import type { GridRow, AqarDeskColumnDef, SortSpec } from "../types";
 import { columnId, getCellValue } from "../types";
 
 function compareValues(a: unknown, b: unknown): number {
@@ -17,7 +17,7 @@ function compareValues(a: unknown, b: unknown): number {
 export function applySort<T extends GridRow>(
   items: readonly T[],
   sorts: SortSpec[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
 ): T[] {
   if (!sorts.length) return items as T[];
   const colById = new Map(columns.map((c) => [columnId(c), c]));

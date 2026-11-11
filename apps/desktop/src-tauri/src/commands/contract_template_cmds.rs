@@ -14,6 +14,10 @@ pub async fn contract_templates_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<aqardesk_backend::application::ContractTemplate>, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "contract_templates")
+        .await?;
     ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
         .list(actor)
         .await
@@ -26,7 +30,19 @@ pub async fn contract_templates_create(
     input: ContractTemplateInput,
 ) -> Result<aqardesk_backend::application::ContractTemplate, String> {
     let (actor, database) = local_business_state(&state).await?;
-    ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
+    let organization_id = actor.organization_id().to_string();
+    state
+        .license
+        .require_feature(&organization_id, "contract_templates")
+        .await?;
+    let _quota_guard = state.license_quota_lock.lock().await;
+    let service = ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database));
+    let current_count = service.list(actor).await.map_err(application_error)?.len() as u64;
+    state
+        .license
+        .check_limit_for_organization(&organization_id, "contract_templates.max", current_count, 1)
+        .await?;
+    service
         .create(actor, input)
         .await
         .map_err(application_error)
@@ -39,6 +55,10 @@ pub async fn contract_templates_update(
     input: ContractTemplateInput,
 ) -> Result<aqardesk_backend::application::ContractTemplate, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "contract_templates")
+        .await?;
     ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
         .update(actor, &template_id, input)
         .await
@@ -52,6 +72,10 @@ pub async fn contract_templates_set_active(
     is_active: bool,
 ) -> Result<(), String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "contract_templates")
+        .await?;
     ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
         .set_active(actor, &template_id, is_active)
         .await

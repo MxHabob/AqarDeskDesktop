@@ -7,6 +7,14 @@
     "Cargo.toml",
     "rust-toolchain.toml"
   ],
+  "globalEnv": [
+    "MULVERSE_LICENSE_API_BASE_URL",
+    "MULVERSE_LICENSE_PRODUCT_CODE",
+    "MULVERSE_LICENSE_PRODUCT_ID",
+    "MULVERSE_LICENSE_KEY_PREFIX",
+    "MULVERSE_LICENSE_PUBLIC_KEY_ID",
+    "MULVERSE_LICENSE_PUBLIC_KEY_B64"
+  ],
   "tasks": {
     "dev": {
       "cache": false,

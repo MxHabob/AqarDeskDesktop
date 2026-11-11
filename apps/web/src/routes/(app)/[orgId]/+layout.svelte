@@ -8,6 +8,7 @@
 	import type { ViewKey } from '#lib/shell/navigation';
 	import { getViewPath } from '#lib/shell/navigation';
 	import AppShell from '#lib/shell/app-shell.svelte';
+	import LicenseGate from '#lib/features/system/license-gate.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	let { data, children }: LayoutProps = $props();
@@ -16,12 +17,12 @@
 	const routeParts = $derived(deLocalizeUrl(page.url).pathname.split('/').filter(Boolean).slice(1));
 	const section = $derived(routeParts[0] ?? 'overview');
 	const active = $derived(
-		(['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account'] as string[]).includes(section)
+		(['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing'] as string[]).includes(section)
 			? (section as ViewKey)
 			: 'overview'
 	);
 	const title = $derived.by(() => {
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'organization', 'profile', 'audit', 'currencies', 'contract-templates'];
+		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing', 'organization', 'profile', 'audit', 'currencies', 'contract-templates'];
 		const routeName = [...routeParts].reverse().find((part) => known.includes(part)) ?? section;
 		switch (routeName) {
 			case 'properties': return m.nav_properties();
@@ -33,6 +34,7 @@
 			case 'settings': return m.nav_settings();
 			case 'databases': return m.database_management_title();
 			case 'account': return m.nav_account();
+			case 'billing': return m.billing_nav();
 			case 'organization': return m.settings_organization();
 			case 'profile': return m.settings_my_profile();
 			case 'audit': return m.settings_audit();
@@ -53,8 +55,11 @@
 		} else if (active === 'users' && app.currentUser.role !== 'admin') {
 			void goto(getViewPath(organization, 'overview'), { replaceState: true });
 		} else if (
-			active === 'settings' &&
-			['users', 'audit', 'currencies', 'contract-templates', 'databases'].includes(routeParts.slice(1).join('/')) &&
+			(active === 'billing' ||
+				(active === 'settings' &&
+					['users', 'audit', 'currencies', 'contract-templates', 'databases'].includes(
+						routeParts.slice(1).join('/')
+					))) &&
 			app.currentUser.role !== 'admin'
 		) {
 			void goto(`/${organization}/settings`, { replaceState: true });
@@ -76,15 +81,20 @@
 		<p class="text-sm">{m.common_loading()}</p>
 	</main>
 {:else}
-	<AppShell
-		{active}
-		{title}
-		organizationName={app.organizationName}
-		currentUser={app.currentUser}
-		connected={app.connected}
-		onSelect={selectView}
-		onLogout={signOut}
+	<LicenseGate
+		organizationId={organization}
+		routePath={deLocalizeUrl(page.url).pathname}
 	>
-		{@render children()}
-	</AppShell>
+		<AppShell
+			{active}
+			{title}
+			organizationName={app.organizationName}
+			currentUser={app.currentUser}
+			connected={app.connected}
+			onSelect={selectView}
+			onLogout={signOut}
+		>
+			{@render children()}
+		</AppShell>
+	</LicenseGate>
 {/if}

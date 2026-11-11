@@ -3,7 +3,7 @@ import type {
   BulkResult,
   CellRange,
   GridRow,
-  OrbisColumnDef,
+  AqarDeskColumnDef,
 } from "../types";
 import { columnId, getCellValue } from "../types";
 import { normalizeRange } from "./selection";
@@ -68,7 +68,7 @@ export function toTsv(matrix: unknown[][]): string {
 
 export function extractMatrix(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   range: CellRange,
 ): unknown[][] {
   const n = normalizeRange(range);
@@ -86,7 +86,7 @@ export function extractMatrix(
 
 export function applyPaste(args: {
   rows: GridRow[];
-  columns: OrbisColumnDef[];
+  columns: AqarDeskColumnDef[];
   startRow: number;
   startCol: number;
   matrix: string[][];
@@ -146,7 +146,7 @@ export function applyPaste(args: {
 
 export function fillDown(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   range: CellRange,
 ): GridRow[] {
   const n = normalizeRange(range);
@@ -167,7 +167,7 @@ export function fillDown(
 
 export function fillRight(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   range: CellRange,
 ): GridRow[] {
   const n = normalizeRange(range);
@@ -210,7 +210,7 @@ export function duplicateRows(
 
 export function clearRange(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   range: CellRange,
 ): GridRow[] {
   const n = normalizeRange(range);

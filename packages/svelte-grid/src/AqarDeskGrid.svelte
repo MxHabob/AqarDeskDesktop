@@ -21,7 +21,7 @@ import type {
   GridFilter,
   GridRow,
   GridRowsChangeEvent,
-  OrbisColumnDef,
+  AqarDeskColumnDef,
   SelectionSnapshot,
   SortSpec,
 } from "./types";
@@ -68,7 +68,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from "./data-source";
 
 interface Props {
-  columns: OrbisColumnDef[];
+  columns: AqarDeskColumnDef[];
   source: GridRow[];
   loading?: boolean;
   emptyTitle?: string;
@@ -103,8 +103,8 @@ interface Props {
   onrowschange?: (event: GridRowsChangeEvent) => void;
   onpasteResult?: (result: BulkResult) => void;
   onselection?: (sel: SelectionSnapshot) => void;
-  cellStyle?: (row: GridRow, col: OrbisColumnDef) => string;
-  formatCellValue?: (row: GridRow, col: OrbisColumnDef) => string;
+  cellStyle?: (row: GridRow, col: AqarDeskColumnDef) => string;
+  formatCellValue?: (row: GridRow, col: AqarDeskColumnDef) => string;
   createEmptyRow?: () => GridRow;
   hasMore?: boolean;
   onloadmore?: () => void | Promise<unknown>;
@@ -195,13 +195,13 @@ let loadMoreError = $state<unknown>(null);
 let serverQueryTimer: ReturnType<typeof setTimeout> | null = null;
 let lastServerQueryKey = "";
 
-setContext("orbis-grid-onaction", (event: GridActionEvent) => {
+setContext("aqardesk-grid-onaction", (event: GridActionEvent) => {
   onaction?.(event);
 });
 
 const usesServerQuery = $derived(serverQuery || Boolean(onquerychange));
 
-function getFormattedCell(row: GridRow, column: OrbisColumnDef): string {
+function getFormattedCell(row: GridRow, column: AqarDeskColumnDef): string {
   return formatCellValue?.(row, column) ?? formatCell(row, column, rtl ? "ar" : "en");
 }
 const shouldRunClientQuery = $derived(
@@ -334,7 +334,7 @@ function clearSearch() {
 
 const DEFAULT_DATA_COLUMN_WIDTH = 144;
 
-function isUtilityColumn(col: OrbisColumnDef): boolean {
+function isUtilityColumn(col: AqarDeskColumnDef): boolean {
   const id = columnId(col);
   return (
     id === "__idx" ||
@@ -466,7 +466,7 @@ const computedWidthMap = $derived.by<Record<string, number>>(() => {
   return map;
 });
 
-function widthOf(col: OrbisColumnDef): number {
+function widthOf(col: AqarDeskColumnDef): number {
   const id = columnId(col);
   return computedWidthMap[id] ?? columnWidths[id] ?? columnWidth(col);
 }
@@ -592,7 +592,7 @@ function appendEmptyRow(): GridRow {
   return newRow;
 }
 
-function isEditableColumn(col: OrbisColumnDef): boolean {
+function isEditableColumn(col: AqarDeskColumnDef): boolean {
   const id = columnId(col);
   return (
     !col.readonly &&
@@ -725,7 +725,7 @@ function requestMoreIfNeeded(force = false) {
   Promise.resolve()
     .then(() => onloadmore?.())
     .catch((error: unknown) => {
-      console.error("OrbisGrid failed to load the next row batch:", error);
+      console.error("AqarDeskGrid failed to load the next row batch:", error);
       loadMoreError = error;
     })
     .finally(() => {
@@ -813,7 +813,7 @@ function scrollActiveCellIntoView(row: number, col: number) {
 
 function commitOverlay(
   rowIndex: number,
-  col: OrbisColumnDef,
+  col: AqarDeskColumnDef,
   newValue: unknown,
 ): boolean {
   const row = displayRows[rowIndex];
@@ -1062,7 +1062,7 @@ function handlePointer(row: number, col: number, e: PointerEvent) {
   if (e.button !== 0) return;
   if ((e.target as HTMLElement | null)?.closest(".resize-handle")) return;
   if (isCheckboxTarget(e.target)) return;
-  if ((e.target as HTMLElement | null)?.closest(".orbis-action-btn")) return;
+  if ((e.target as HTMLElement | null)?.closest(".aqardesk-action-btn")) return;
   e.preventDefault();
   root?.focus();
   if (e.ctrlKey || e.metaKey) {
@@ -1104,7 +1104,7 @@ function handleDblClick(row: number, col: number, e: MouseEvent) {
 function handleRootKeydown(event: KeyboardEvent) {
   if (
     event.target instanceof Element &&
-    event.target.closest(".orbis-toolbar")
+    event.target.closest(".aqardesk-toolbar")
   ) {
     return;
   }
@@ -1219,7 +1219,7 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-function onHeaderClick(col: OrbisColumnDef, e: MouseEvent) {
+function onHeaderClick(col: AqarDeskColumnDef, e: MouseEvent) {
   if (e.target instanceof Element && e.target.closest(".resize-handle")) {
     return;
   }
@@ -1227,7 +1227,7 @@ function onHeaderClick(col: OrbisColumnDef, e: MouseEvent) {
   sortColumn(col, e.shiftKey);
 }
 
-function sortColumn(col: OrbisColumnDef, shiftKey = false) {
+function sortColumn(col: AqarDeskColumnDef, shiftKey = false) {
   if (!isColumnSortable(col)) return;
   sorts = toggleSort(sorts, columnId(col), shiftKey);
   notifyQueryChange();
@@ -1362,13 +1362,13 @@ function runMenu(id: string) {
   }
 }
 
-function onResizeStart(col: OrbisColumnDef, e: PointerEvent) {
+function onResizeStart(col: AqarDeskColumnDef, e: PointerEvent) {
   e.preventDefault();
   e.stopPropagation();
   resizing = { id: columnId(col), startX: e.clientX, startW: widthOf(col) };
 }
 
-function onResizeDblClick(col: OrbisColumnDef, e: MouseEvent) {
+function onResizeDblClick(col: AqarDeskColumnDef, e: MouseEvent) {
   e.preventDefault();
   e.stopPropagation();
   const id = columnId(col);
@@ -1414,7 +1414,7 @@ function onPointerUp() {
   dragging = false;
 }
 
-function editorInputType(col: OrbisColumnDef): string {
+function editorInputType(col: AqarDeskColumnDef): string {
   switch (col.type) {
     case "integer":
     case "number":
@@ -1433,11 +1433,11 @@ function editorInputType(col: OrbisColumnDef): string {
 
 function cellClass(
   row: GridRow,
-  col: OrbisColumnDef,
+  col: AqarDeskColumnDef,
   r: number,
   c: number,
 ): string {
-  const parts: string[] = ["orbis-cell"];
+  const parts: string[] = ["aqardesk-cell"];
   const errors = row.__errors as Map<string, string> | undefined;
   if (errors?.has(columnId(col))) parts.push("is-error");
   if (selection.active?.row === r && selection.active?.col === c)
@@ -1530,19 +1530,19 @@ function getAvatarSrc(row: GridRow): string {
   );
 }
 
-function isIndexColumn(col: OrbisColumnDef): boolean {
+function isIndexColumn(col: AqarDeskColumnDef): boolean {
   const id = columnId(col);
   return id === "__idx" || id === "__rowIndex";
 }
 
-function isCheckboxColumn(col: OrbisColumnDef): boolean {
+function isCheckboxColumn(col: AqarDeskColumnDef): boolean {
   const id = columnId(col);
   return (
     id === "__selected" || col.type === "boolean" || col.editor === "checkbox"
   );
 }
 
-function isBadgeColumn(col: OrbisColumnDef, row?: GridRow): boolean {
+function isBadgeColumn(col: AqarDeskColumnDef, row?: GridRow): boolean {
   const id = columnId(col);
   if (col.type === "badge" || col.type === "status") return true;
   if (
@@ -1603,7 +1603,7 @@ function isBadgeColumn(col: OrbisColumnDef, row?: GridRow): boolean {
   return false;
 }
 
-function isAvatarColumn(col: OrbisColumnDef): boolean {
+function isAvatarColumn(col: AqarDeskColumnDef): boolean {
   const id = columnId(col);
   if (col.type === "avatar") return true;
   return (
@@ -1616,7 +1616,7 @@ function isAvatarColumn(col: OrbisColumnDef): boolean {
   );
 }
 
-function isActionColumn(col: OrbisColumnDef): boolean {
+function isActionColumn(col: AqarDeskColumnDef): boolean {
   return (
     col.type === "action" ||
     (Array.isArray(col.meta?.items) && col.meta.items.length > 0)
@@ -1662,7 +1662,7 @@ export function scrollToColumnProp(prop: string) {
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointerdown={(e) => {
-    if (menu && e.target instanceof Node && !(e.target as HTMLElement).closest(".orbis-menu")) {
+    if (menu && e.target instanceof Node && !(e.target as HTMLElement).closest(".aqardesk-menu")) {
       menu = null;
     }
   }}
@@ -1670,7 +1670,7 @@ export function scrollToColumnProp(prop: string) {
 
 <div
   bind:this={root}
-  class="orbis-grid"
+  class="aqardesk-grid"
   class:is-rtl={rtl}
   class:is-selecting={dragging}
   class:has-active-cell={selection.active !== null}
@@ -1700,14 +1700,14 @@ export function scrollToColumnProp(prop: string) {
 >
   {#if toolbar}
     <div
-      class="orbis-toolbar"
+      class="aqardesk-toolbar"
       role="toolbar"
       aria-label={rtl ? "أدوات الجدول" : "Grid tools"}
     >
       {#if showSearch || showFilterButton || toolbarFilters}
-        <div class="orbis-toolbar-controls">
+        <div class="aqardesk-toolbar-controls">
           {#if showSearch}
-            <label class="orbis-search">
+            <label class="aqardesk-search">
               <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                 <circle cx="8.75" cy="8.75" r="5.75" stroke="currentColor" stroke-width="1.5" />
                 <path d="m13 13 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -1726,7 +1726,7 @@ export function scrollToColumnProp(prop: string) {
               {#if search}
                 <button
                   type="button"
-                  class="orbis-toolbar-clear"
+                  class="aqardesk-toolbar-clear"
                   aria-label={rtl ? "مسح البحث" : "Clear search"}
                   onclick={clearSearch}
                 >×</button>
@@ -1760,7 +1760,7 @@ export function scrollToColumnProp(prop: string) {
       {/if}
       {#if toolbarActions || (!readonly && showAddRow)}
         <div
-          class="orbis-toolbar-actions"
+          class="aqardesk-toolbar-actions"
           class:has-query-controls={showSearch || showFilterButton || toolbarFilters}
         >
           {#if toolbarActions}
@@ -1769,7 +1769,7 @@ export function scrollToColumnProp(prop: string) {
           {#if !readonly && showAddRow}
             <button
               type="button"
-              class="orbis-toolbar-button orbis-add-row"
+              class="aqardesk-toolbar-button aqardesk-add-row"
               disabled={loading}
               onclick={addRowFromToolbar}
             >
@@ -1783,7 +1783,7 @@ export function scrollToColumnProp(prop: string) {
   {/if}
 
   {#if pasteBanner}
-    <div class="orbis-paste-banner" role="status">
+    <div class="aqardesk-paste-banner" role="status">
       <span class="ok">{pasteBanner.acceptedCount} accepted</span>
       {#if pasteBanner.rejectedCount}
         <span class="rej">{pasteBanner.rejectedCount} rejected</span>
@@ -1793,19 +1793,19 @@ export function scrollToColumnProp(prop: string) {
   {/if}
 
   {#if loading}
-    <div class="orbis-skeleton-wrap">
-      <div class="orbis-grid-head" role="row">
+    <div class="aqardesk-skeleton-wrap">
+      <div class="aqardesk-grid-head" role="row">
         {#each visibleCols as col (columnId(col))}
-          <div class="orbis-hcell" style:width="{widthOf(col)}px">
-            <div class="orbis-skeleton-bar" style:width="{Math.min(widthOf(col) * 0.7, 90)}px"></div>
+          <div class="aqardesk-hcell" style:width="{widthOf(col)}px">
+            <div class="aqardesk-skeleton-bar" style:width="{Math.min(widthOf(col) * 0.7, 90)}px"></div>
           </div>
         {/each}
       </div>
       {#each Array(8) as _, i (i)}
-        <div class="orbis-skeleton-row" style:opacity="{1 - i * 0.1}">
+        <div class="aqardesk-skeleton-row" style:opacity="{1 - i * 0.1}">
           {#each visibleCols as col, j (columnId(col) || j)}
             <div
-              class="orbis-skeleton-bar"
+              class="aqardesk-skeleton-bar"
               style:width="{Math.min(widthOf(col) * (j === 0 ? 0.4 : 0.75), 110)}px"
             ></div>
           {/each}
@@ -1814,26 +1814,26 @@ export function scrollToColumnProp(prop: string) {
     </div>
   {:else if displayRows.length === 0}
     {#if loadMoreError}
-      <div class="orbis-empty-wrap" role="alert">
-        <div class="orbis-empty-title">{rtl ? "تعذر تحميل السجلات" : "Couldn't load records"}</div>
-        <div class="orbis-empty-desc">
+      <div class="aqardesk-empty-wrap" role="alert">
+        <div class="aqardesk-empty-title">{rtl ? "تعذر تحميل السجلات" : "Couldn't load records"}</div>
+        <div class="aqardesk-empty-desc">
           {loadMoreError instanceof Error ? loadMoreError.message : String(loadMoreError)}
         </div>
-        <button type="button" class="orbis-load-retry" onclick={() => requestMoreIfNeeded(true)}>
+        <button type="button" class="aqardesk-load-retry" onclick={() => requestMoreIfNeeded(true)}>
           {rtl ? "إعادة المحاولة" : "Retry"}
         </button>
       </div>
     {:else}
-      <div class="orbis-empty-wrap">
-        <div class="orbis-empty-title">{emptyTitle}</div>
+      <div class="aqardesk-empty-wrap">
+        <div class="aqardesk-empty-title">{emptyTitle}</div>
         {#if emptyDescription}
-          <div class="orbis-empty-desc">{emptyDescription}</div>
+          <div class="aqardesk-empty-desc">{emptyDescription}</div>
         {/if}
       </div>
     {/if}
   {:else}
     <div
-      class="orbis-grid-body"
+      class="aqardesk-grid-body"
       onscroll={onScroll}
       {@attach (el) => {
         const node = el as HTMLDivElement;
@@ -1847,15 +1847,15 @@ export function scrollToColumnProp(prop: string) {
         };
       }}
     >
-      <div class="orbis-spacer" style:height="{HEADER_H + totalHeight}px" style:width="{totalWidth}px">
-        <div class="orbis-grid-head" role="row" style:padding-inline-start="{colWindow.offset}px">
+      <div class="aqardesk-spacer" style:height="{HEADER_H + totalHeight}px" style:width="{totalWidth}px">
+        <div class="aqardesk-grid-head" role="row" style:padding-inline-start="{colWindow.offset}px">
           {#each windowedCols as col, i (columnId(col) || i)}
             {@const c = colWindow.start + i}
             {@const id = columnId(col)}
             {@const Header = col.headerCell}
             {@const isSelectCol = id === "__selected"}
             <div
-              class="orbis-hcell align-{defaultAlign(col)}"
+              class="aqardesk-hcell align-{defaultAlign(col)}"
               class:pinned={isColumnPinnedLeft(col)}
               role="columnheader"
               tabindex="0"
@@ -1880,7 +1880,7 @@ export function scrollToColumnProp(prop: string) {
                 {@const isSomeSelected = !isAllSelected && displayRows.some((row, idx) => isGridRowSelected(row, idx))}
                 <input
                   type="checkbox"
-                  class="orbis-grid-checkbox"
+                  class="aqardesk-grid-checkbox"
                   checked={isAllSelected}
                   aria-checked={isSomeSelected ? "mixed" : isAllSelected}
                   aria-label="Select all"
@@ -1927,13 +1927,13 @@ export function scrollToColumnProp(prop: string) {
             </div>
           {/each}
         </div>
-        <div class="orbis-window" style:transform="translateY({rowWindow.offset}px)">
+        <div class="aqardesk-window" style:transform="translateY({rowWindow.offset}px)">
           {#each { length: rowWindow.count } as _, i (rowWindow.start + i)}
             {@const r = rowWindow.start + i}
             {@const row = displayRows[r]}
             {#if row}
               <div
-                class="orbis-row"
+                class="aqardesk-row"
                 class:selected={isGridRowSelected(row, r)}
                 role="row"
                 aria-rowindex={r + 1}
@@ -1964,7 +1964,7 @@ export function scrollToColumnProp(prop: string) {
                     {#if isEdit && editing}
                       {#if col.options?.length}
                         <select
-                          class="orbis-editor"
+                          class="aqardesk-editor"
                           class:invalid={!!editing.error}
                           bind:this={editorEl}
                           bind:value={editing.draft}
@@ -1991,7 +1991,7 @@ export function scrollToColumnProp(prop: string) {
                         </select>
                       {:else}
                         <input
-                          class="orbis-editor"
+                          class="aqardesk-editor"
                           class:invalid={!!editing.error}
                           type={editorInputType(col)}
                           bind:this={editorEl}
@@ -2023,13 +2023,13 @@ export function scrollToColumnProp(prop: string) {
                     {:else if Cell}
                       <Cell {row} column={{ ...col, id }} />
                     {:else if isIndexColumn(col)}
-                      <span class="orbis-index-text">{getCellValue(row, col) ?? (r + 1)}</span>
+                      <span class="aqardesk-index-text">{getCellValue(row, col) ?? (r + 1)}</span>
                     {:else if isCheckboxColumn(col)}
                       {@const isChecked = id === "__selected" ? isGridRowSelected(row, r) : getCellValue(row, col) === true || getCellValue(row, col) === 1 || getCellValue(row, col) === "true"}
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        class="orbis-grid-checkbox"
+                        class="aqardesk-grid-checkbox"
                         aria-checked={isChecked}
                         aria-label={id === "__selected" ? "Select row" : columnHeader(col)}
                         onclick={(e: MouseEvent) => {
@@ -2056,13 +2056,13 @@ export function scrollToColumnProp(prop: string) {
                     {:else if isAvatarColumn(col)}
                       {@const val = String(getCellValue(row, col) ?? "")}
                       {@const src = getAvatarSrc(row)}
-                      <div class="orbis-avatar-cell">
-                        <div class="orbis-avatar-circle">
+                      <div class="aqardesk-avatar-cell">
+                        <div class="aqardesk-avatar-circle">
                           {#if src}
                             <img
                               src={src}
                               alt={val}
-                              class="orbis-avatar-img"
+                              class="aqardesk-avatar-img"
                               onerror={(event) => {
                                 const image = event.currentTarget;
                                 if (image instanceof HTMLImageElement) image.hidden = true;
@@ -2070,34 +2070,34 @@ export function scrollToColumnProp(prop: string) {
                                 if (fallback instanceof HTMLElement) fallback.hidden = false;
                               }}
                             />
-                            <span class="orbis-avatar-fallback" hidden>{getInitials(val)}</span>
+                            <span class="aqardesk-avatar-fallback" hidden>{getInitials(val)}</span>
                           {:else}
-                            <span class="orbis-avatar-fallback">{getInitials(val)}</span>
+                            <span class="aqardesk-avatar-fallback">{getInitials(val)}</span>
                           {/if}
                         </div>
-                        <span class="orbis-avatar-text">{val}</span>
+                        <span class="aqardesk-avatar-text">{val}</span>
                       </div>
                     {:else if isBadgeColumn(col, row)}
                       {@const val = getCellValue(row, col)}
                       {@const formatted = getFormattedCell(row, col)}
-                      <span class="orbis-grid-badge orbis-grid-badge-{getBadgeVariant(val)}">
+                      <span class="aqardesk-grid-badge aqardesk-grid-badge-{getBadgeVariant(val)}">
                         {formatted || "—"}
                       </span>
                     {:else if Array.isArray(getCellValue(row, col))}
                       {@const arr = getCellValue(row, col) as unknown[]}
-                      <div class="orbis-tags-group">
+                      <div class="aqardesk-tags-group">
                         {#each arr as item, index (index)}
-                          <span class="orbis-grid-badge orbis-grid-badge-outline">{typeof item === 'object' && item ? (item as any).name || (item as any).label || JSON.stringify(item) : String(item)}</span>
+                          <span class="aqardesk-grid-badge aqardesk-grid-badge-outline">{typeof item === 'object' && item ? (item as any).name || (item as any).label || JSON.stringify(item) : String(item)}</span>
                         {/each}
                       </div>
                     {:else if isActionColumn(col)}
                       {@const items = (col.meta?.items as ActionItem[]) || []}
-                      <div class="orbis-actions-group">
+                      <div class="aqardesk-actions-group">
                         {#each items as action (action.id)}
                           {#if !action.visible || action.visible(row)}
                             <button
                               type="button"
-                              class="orbis-action-btn orbis-action-{action.variant || 'ghost'}"
+                              class="aqardesk-action-btn aqardesk-action-{action.variant || 'ghost'}"
                               disabled={action.disabled?.(row)}
                               title={action.label || action.id}
                               aria-label={action.label || action.id}
@@ -2107,44 +2107,44 @@ export function scrollToColumnProp(prop: string) {
                               }}
                             >
                               {#if action.icon === "Pencil" || action.id === "edit"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                               {:else if action.icon === "Clipboard" || action.id === "duplicate"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                               {:else if action.icon === "Trash2" || action.icon === "Trash" || action.id === "delete"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                               {:else if action.icon === "Eye" || action.id === "preview" || action.id === "view"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                               {:else if action.icon === "Download" || action.id === "download"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
                               {:else if action.icon === "Refresh" || action.id === "restore"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.64 9A8 8 0 0 1 19 7l1 5"/><path d="M4 12l1 5a8 8 0 0 0 13.36-2"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.64 9A8 8 0 0 1 19 7l1 5"/><path d="M4 12l1 5a8 8 0 0 0 13.36-2"/></svg>
                               {:else if action.icon === "ArchiveBox" || action.id === "archive"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
                               {:else if action.icon === "User" || action.icon === "UserCheck" || action.icon === "UserBadgeCheck" || action.id === "profile"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                               {:else if action.icon === "Lock" || action.icon === "LockClosed" || action.id === "reset_password"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                               {:else if action.icon === "ArrowUpRight" || action.id === "open"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
                               {:else if action.icon === "Ban" || action.id === "void"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
                               {:else if action.icon === "Check" || action.icon === "CheckCircle" || action.id === "set_active"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
                               {:else if action.icon === "Building" || action.icon === "BuildingOffice" || action.id === "set_on_leave"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
                               {:else if action.icon === "Shield" || action.icon === "ShieldAlert" || action.icon === "ShieldCheck" || action.id === "set_suspended"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
                               {:else if action.icon === "MoreHorizontal" || action.icon === "Ellipsis"}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                               {:else}
-                                <svg class="orbis-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                <svg class="aqardesk-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                               {/if}
                             </button>
                           {/if}
                         {/each}
                       </div>
                     {:else}
-                      <span class="orbis-text">{getFormattedCell(row, col)}</span>
+                      <span class="aqardesk-text">{getFormattedCell(row, col)}</span>
                     {/if}
                   </div>
                 {/each}
@@ -2153,13 +2153,13 @@ export function scrollToColumnProp(prop: string) {
           {/each}
         </div>
         {#if isLoadingMore || loadMoreError}
-          <div class="orbis-load-status" role={loadMoreError ? "alert" : "status"}>
+          <div class="aqardesk-load-status" role={loadMoreError ? "alert" : "status"}>
             {#if loadMoreError}
               <span>
                 {rtl ? "تعذر تحميل المزيد" : "Couldn't load more"}
                 {loadMoreError instanceof Error ? `: ${loadMoreError.message}` : ""}
               </span>
-              <button type="button" class="orbis-load-retry" onclick={() => requestMoreIfNeeded(true)}>
+              <button type="button" class="aqardesk-load-retry" onclick={() => requestMoreIfNeeded(true)}>
                 {rtl ? "إعادة المحاولة" : "Retry"}
               </button>
             {:else}
@@ -2174,7 +2174,7 @@ export function scrollToColumnProp(prop: string) {
 
 {#if menu}
   <ul
-    class="orbis-menu"
+    class="aqardesk-menu"
     style:left="{menu.x}px"
     style:top="{menu.y}px"
     role="menu"
@@ -2196,7 +2196,7 @@ export function scrollToColumnProp(prop: string) {
 {/if}
 
 <style>
-  .orbis-grid {
+  .aqardesk-grid {
     position: relative;
     display: flex;
     flex-direction: column;
@@ -2213,15 +2213,15 @@ export function scrollToColumnProp(prop: string) {
     line-height: 1.25;
     outline: none;
   }
-  .orbis-grid:focus-visible:not(.has-active-cell) {
+  .aqardesk-grid:focus-visible:not(.has-active-cell) {
     outline: 1px solid var(--ring);
     outline-offset: -2px;
   }
-  .orbis-grid.is-selecting {
+  .aqardesk-grid.is-selecting {
     user-select: none;
     cursor: cell;
   }
-  .orbis-toolbar {
+  .aqardesk-toolbar {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -2233,26 +2233,26 @@ export function scrollToColumnProp(prop: string) {
     border-bottom: 1px solid var(--border);
     background: transparent;
   }
-  .orbis-toolbar-controls {
+  .aqardesk-toolbar-controls {
     display: flex;
     align-items: center;
     gap: 0.375rem;
     flex: 1 1 16rem;
     min-width: 0;
   }
-  .orbis-toolbar-actions {
+  .aqardesk-toolbar-actions {
     display: flex;
     align-items: center;
     gap: 0.375rem;
     flex: 0 0 auto;
   }
-  .orbis-toolbar-actions.has-query-controls {
+  .aqardesk-toolbar-actions.has-query-controls {
     margin-inline-start: 0.25rem;
     padding-inline-start: 0.75rem;
     border-inline-start: 1px solid
       color-mix(in oklab, var(--border) 80%, transparent);
   }
-  .orbis-search {
+  .aqardesk-search {
     display: flex;
     align-items: center;
     gap: 0.375rem;
@@ -2266,17 +2266,17 @@ export function scrollToColumnProp(prop: string) {
     background: var(--card);
     color: var(--muted-foreground);
   }
-  .orbis-search:focus-within {
+  .aqardesk-search:focus-within {
     border-color: var(--ring);
     box-shadow: inset 0 0 0 1px var(--ring);
   }
-  .orbis-search > svg,
-  .orbis-toolbar-button > svg {
+  .aqardesk-search > svg,
+  .aqardesk-toolbar-button > svg {
     flex: 0 0 auto;
     width: 0.875rem;
     height: 0.875rem;
   }
-  .orbis-search input {
+  .aqardesk-search input {
     width: 100%;
     min-width: 0;
     border: 0;
@@ -2290,10 +2290,10 @@ export function scrollToColumnProp(prop: string) {
     font-size: 0.75rem;
     appearance: none;
   }
-  .orbis-search input::placeholder {
+  .aqardesk-search input::placeholder {
     color: var(--muted-foreground);
   }
-  .orbis-toolbar-clear {
+  .aqardesk-toolbar-clear {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2308,11 +2308,11 @@ export function scrollToColumnProp(prop: string) {
     line-height: 1;
     cursor: pointer;
   }
-  .orbis-toolbar-clear:hover {
+  .aqardesk-toolbar-clear:hover {
     background: var(--accent);
     color: var(--foreground);
   }
-  .orbis-toolbar-button {
+  .aqardesk-toolbar-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2328,24 +2328,24 @@ export function scrollToColumnProp(prop: string) {
     white-space: nowrap;
     cursor: pointer;
   }
-  .orbis-toolbar-button:hover,
-  .orbis-toolbar-button.active {
+  .aqardesk-toolbar-button:hover,
+  .aqardesk-toolbar-button.active {
     background: var(--muted);
   }
-  .orbis-toolbar-button:focus-visible {
+  .aqardesk-toolbar-button:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 0;
   }
-  .orbis-toolbar-button:disabled {
+  .aqardesk-toolbar-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .orbis-add-row > span {
+  .aqardesk-add-row > span {
     color: var(--primary);
     font-size: 1rem;
     font-weight: 600;
   }
-  .orbis-paste-banner {
+  .aqardesk-paste-banner {
     display: flex;
     gap: 0.5rem;
     align-items: center;
@@ -2356,10 +2356,10 @@ export function scrollToColumnProp(prop: string) {
     color: var(--secondary-foreground);
     border-bottom: 1px solid var(--border);
   }
-  .orbis-paste-banner .ok {
+  .aqardesk-paste-banner .ok {
     color: var(--brand-lime-dark, var(--foreground));
   }
-  .orbis-paste-banner .rej {
+  .aqardesk-paste-banner .rej {
     color: var(--destructive);
   }
   .banner-dismiss {
@@ -2376,7 +2376,7 @@ export function scrollToColumnProp(prop: string) {
     background: var(--accent);
     color: var(--accent-foreground);
   }
-  .orbis-grid-head {
+  .aqardesk-grid-head {
     display: flex;
     position: sticky;
     top: 0;
@@ -2387,7 +2387,7 @@ export function scrollToColumnProp(prop: string) {
     flex-shrink: 0;
     z-index: 3;
   }
-  .orbis-hcell {
+  .aqardesk-hcell {
     position: relative;
     display: flex;
     align-items: center;
@@ -2400,17 +2400,17 @@ export function scrollToColumnProp(prop: string) {
     min-width: 0;
     cursor: pointer;
   }
-  .orbis-hcell:hover {
+  .aqardesk-hcell:hover {
     color: var(--foreground);
     background: color-mix(in oklab, var(--accent) 80%, var(--muted));
   }
-  .orbis-hcell.align-end {
+  .aqardesk-hcell.align-end {
     justify-content: flex-end;
     padding-inline-end: 0.875rem;
     text-align: end;
     font-variant-numeric: tabular-nums;
   }
-  .orbis-hcell.align-center {
+  .aqardesk-hcell.align-center {
     justify-content: center;
     text-align: center;
   }
@@ -2432,7 +2432,7 @@ export function scrollToColumnProp(prop: string) {
   .resize-handle:hover {
     background: color-mix(in oklab, var(--ring) 45%, transparent);
   }
-  .orbis-grid-body {
+  .aqardesk-grid-body {
     flex: 1;
     min-height: 0;
     min-width: 0;
@@ -2447,25 +2447,25 @@ export function scrollToColumnProp(prop: string) {
     scrollbar-color: var(--border) transparent;
     scroll-behavior: auto;
   }
-  .orbis-grid-body::-webkit-scrollbar {
+  .aqardesk-grid-body::-webkit-scrollbar {
     width: 0.625rem;
     height: 0.625rem;
   }
-  .orbis-grid-body::-webkit-scrollbar-track {
+  .aqardesk-grid-body::-webkit-scrollbar-track {
     background: transparent;
   }
-  .orbis-grid-body::-webkit-scrollbar-thumb {
+  .aqardesk-grid-body::-webkit-scrollbar-thumb {
     border: 2px solid transparent;
     border-radius: var(--radius-sm);
     background: var(--border);
   }
-  .orbis-grid-body::-webkit-scrollbar-thumb:hover {
+  .aqardesk-grid-body::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
-  .orbis-grid-body::-webkit-scrollbar-corner {
+  .aqardesk-grid-body::-webkit-scrollbar-corner {
     background: transparent;
   }
-  .orbis-load-status {
+  .aqardesk-load-status {
     position: sticky;
     bottom: 0;
     z-index: 20;
@@ -2480,7 +2480,7 @@ export function scrollToColumnProp(prop: string) {
     color: var(--muted-foreground);
     font-size: 0.75rem;
   }
-  .orbis-load-retry {
+  .aqardesk-load-retry {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--card);
@@ -2488,29 +2488,29 @@ export function scrollToColumnProp(prop: string) {
     color: var(--foreground);
     cursor: pointer;
   }
-  .orbis-spacer {
+  .aqardesk-spacer {
     position: relative;
     min-width: 100%;
     display: flex;
     flex-direction: column;
   }
-  .orbis-window {
+  .aqardesk-window {
     contain: layout style;
   }
-  .orbis-row {
+  .aqardesk-row {
     display: flex;
     height: var(--row-h);
     border-bottom: 1px solid var(--border);
     background: transparent;
     contain: layout style;
   }
-  .orbis-row:hover {
+  .aqardesk-row:hover {
     background: var(--accent);
   }
-  .orbis-row.selected {
+  .aqardesk-row.selected {
     background: color-mix(in oklab, var(--primary) 8%, transparent);
   }
-  .orbis-cell {
+  .aqardesk-cell {
     display: flex;
     align-items: center;
     height: 100%;
@@ -2521,40 +2521,40 @@ export function scrollToColumnProp(prop: string) {
     flex: 0 0 auto;
     color: var(--foreground);
   }
-  .orbis-cell.align-end {
+  .aqardesk-cell.align-end {
     justify-content: flex-end;
     text-align: end;
     font-variant-numeric: tabular-nums;
   }
-  .orbis-cell.align-center {
+  .aqardesk-cell.align-center {
     justify-content: center;
     text-align: center;
   }
-  .orbis-cell.is-ranged {
+  .aqardesk-cell.is-ranged {
     background: color-mix(in oklab, var(--primary) 14%, transparent);
   }
-  .orbis-grid:focus-visible .orbis-cell.is-active {
+  .aqardesk-grid:focus-visible .aqardesk-cell.is-active {
     box-shadow: inset 0 0 0 1.5px var(--ring);
     z-index: 1;
   }
-  .orbis-cell.is-editing {
+  .aqardesk-cell.is-editing {
     padding: 0;
   }
-  .orbis-cell.is-error {
+  .aqardesk-cell.is-error {
     background: color-mix(in oklab, var(--destructive) 16%, var(--card));
     box-shadow: inset 0 0 0 1px var(--destructive);
   }
-  .orbis-text {
+  .aqardesk-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     width: 100%;
   }
-  .orbis-index-text {
+  .aqardesk-index-text {
     font-family: var(--font-mono, monospace);
     color: var(--muted-foreground);
   }
-  .orbis-editor {
+  .aqardesk-editor {
     width: 100%;
     height: 100%;
     border: 0;
@@ -2566,14 +2566,14 @@ export function scrollToColumnProp(prop: string) {
     border-radius: 0;
     padding: 0 0.625rem;
   }
-  .orbis-editor.invalid {
+  .aqardesk-editor.invalid {
     color: var(--destructive);
   }
-  .orbis-cell.is-editing.is-error {
+  .aqardesk-cell.is-editing.is-error {
     box-shadow: inset 0 0 0 1px var(--destructive);
   }
 
-  .orbis-grid-badge {
+  .aqardesk-grid-badge {
     display: inline-flex;
     align-items: center;
     text-transform: capitalize;
@@ -2585,19 +2585,19 @@ export function scrollToColumnProp(prop: string) {
     background: var(--secondary);
     color: var(--secondary-foreground);
   }
-  .orbis-grid-badge-lime {
+  .aqardesk-grid-badge-lime {
     background: color-mix(in srgb, var(--primary) 16%, transparent);
     color: var(--foreground);
   }
-  .orbis-grid-badge-destructive {
+  .aqardesk-grid-badge-destructive {
     background: color-mix(in srgb, var(--destructive) 12%, transparent);
     color: var(--destructive);
   }
-  .orbis-grid-badge-outline {
+  .aqardesk-grid-badge-outline {
     border-color: var(--border);
     background: transparent;
   }
-  .orbis-tags-group {
+  .aqardesk-tags-group {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -2606,14 +2606,14 @@ export function scrollToColumnProp(prop: string) {
   }
 
   /* Avatar Cell */
-  .orbis-avatar-cell {
+  .aqardesk-avatar-cell {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
     min-width: 0;
   }
-  .orbis-avatar-circle {
+  .aqardesk-avatar-circle {
     width: 1.375rem;
     height: 1.375rem;
     border-radius: 9999px;
@@ -2628,15 +2628,15 @@ export function scrollToColumnProp(prop: string) {
     font-weight: 700;
     border: 1px solid var(--border);
   }
-  .orbis-avatar-img {
+  .aqardesk-avatar-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  .orbis-avatar-fallback {
+  .aqardesk-avatar-fallback {
     text-transform: uppercase;
   }
-  .orbis-avatar-text {
+  .aqardesk-avatar-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2644,7 +2644,7 @@ export function scrollToColumnProp(prop: string) {
     color: var(--foreground);
   }
 
-  .orbis-grid-checkbox {
+  .aqardesk-grid-checkbox {
     cursor: pointer;
     width: 1rem;
     height: 1rem;
@@ -2657,14 +2657,14 @@ export function scrollToColumnProp(prop: string) {
   }
 
   /* Actions Group */
-  .orbis-actions-group {
+  .aqardesk-actions-group {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     width: 100%;
     justify-content: flex-start;
   }
-  .orbis-action-btn {
+  .aqardesk-action-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2679,36 +2679,36 @@ export function scrollToColumnProp(prop: string) {
     font-size: 0.6875rem;
     transition: all 0.15s ease;
   }
-  .orbis-action-btn:hover:not(:disabled) {
+  .aqardesk-action-btn:hover:not(:disabled) {
     background: var(--accent);
     color: var(--accent-foreground);
   }
-  .orbis-action-btn:disabled {
+  .aqardesk-action-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .orbis-action-btn.orbis-action-destructive:hover:not(:disabled) {
+  .aqardesk-action-btn.aqardesk-action-destructive:hover:not(:disabled) {
     background: color-mix(in oklab, var(--destructive) 15%, transparent);
     color: var(--destructive);
   }
-  .orbis-action-btn.orbis-action-lime:hover:not(:disabled) {
+  .aqardesk-action-btn.aqardesk-action-lime:hover:not(:disabled) {
     background: color-mix(in oklab, var(--brand-lime) 18%, transparent);
     color: var(--brand-lime-dark);
   }
-  .orbis-action-icon {
+  .aqardesk-action-icon {
     width: 0.8125rem;
     height: 0.8125rem;
   }
 
   /* Skeleton Loading State */
-  .orbis-skeleton-wrap {
+  .aqardesk-skeleton-wrap {
     display: flex;
     flex-direction: column;
     width: 100%;
     height: 100%;
     overflow: hidden;
   }
-  .orbis-skeleton-row {
+  .aqardesk-skeleton-row {
     display: flex;
     align-items: center;
     height: var(--row-h, 36px);
@@ -2716,20 +2716,20 @@ export function scrollToColumnProp(prop: string) {
     padding: 0 0.75rem;
     gap: 1rem;
   }
-  .orbis-skeleton-bar {
+  .aqardesk-skeleton-bar {
     height: 0.625rem;
     border-radius: var(--radius-sm, 4px);
     background: linear-gradient(90deg, var(--muted) 25%, color-mix(in oklab, var(--accent) 70%, var(--muted)) 50%, var(--muted) 75%);
     background-size: 200% 100%;
-    animation: orbis-shimmer 1.8s infinite;
+    animation: aqardesk-shimmer 1.8s infinite;
   }
-  @keyframes orbis-shimmer {
+  @keyframes aqardesk-shimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
   }
 
   /* Empty State */
-  .orbis-empty-wrap {
+  .aqardesk-empty-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2741,17 +2741,17 @@ export function scrollToColumnProp(prop: string) {
     color: var(--muted-foreground);
     text-align: center;
   }
-  .orbis-empty-title {
+  .aqardesk-empty-title {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--foreground);
   }
-  .orbis-empty-desc {
+  .aqardesk-empty-desc {
     font-size: 0.75rem;
     max-width: 20rem;
   }
 
-  .orbis-menu {
+  .aqardesk-menu {
     position: fixed;
     z-index: 80;
     margin: 0;
@@ -2764,7 +2764,7 @@ export function scrollToColumnProp(prop: string) {
     border-radius: var(--radius-md);
     box-shadow: 0 10px 28px var(--overlay);
   }
-  .orbis-menu button {
+  .aqardesk-menu button {
     display: block;
     width: 100%;
     text-align: start;
@@ -2777,14 +2777,14 @@ export function scrollToColumnProp(prop: string) {
     border-radius: var(--radius-sm);
     cursor: pointer;
   }
-  .orbis-menu button:hover {
+  .aqardesk-menu button:hover {
     background: var(--accent);
     color: var(--accent-foreground);
   }
-  .orbis-menu button.danger {
+  .aqardesk-menu button.danger {
     color: var(--destructive);
   }
-  .orbis-menu button.danger:hover {
+  .aqardesk-menu button.danger:hover {
     background: color-mix(in oklab, var(--destructive) 12%, var(--popover));
   }
 </style>

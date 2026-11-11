@@ -1,4 +1,5 @@
 mod commands;
+mod licensing;
 mod platform_commands;
 mod platform_runtime;
 
@@ -23,10 +24,11 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir().map_err(std::io::Error::other)?;
             std::fs::create_dir_all(&app_data_dir)?;
             app.manage(commands::update_cmds::PendingUpdateState::default());
-            app.manage(
-                platform_runtime::PlatformState::new(app_data_dir)
-                    .map_err(std::io::Error::other)?,
-            );
+            let platform_state = platform_runtime::PlatformState::new(app_data_dir)
+                .map_err(std::io::Error::other)?;
+            let license_runtime = platform_state.license.clone();
+            app.manage(platform_state);
+            licensing::spawn_background_sync(license_runtime);
             Ok(())
         })
         .run(tauri::generate_context!())

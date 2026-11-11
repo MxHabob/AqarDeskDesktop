@@ -1,3 +1,4 @@
+use crate::licensing::LicenseRuntime;
 use aqardesk_backend::infrastructure::Database;
 use keyring::{Entry, Error as KeyringError};
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use url::Url;
 
 const DATABASE_CREDENTIAL_SERVICE: &str = "com.aqardesk.desktop.database";
@@ -117,6 +118,8 @@ pub struct PlatformState {
     pub current_user: RwLock<Option<aqardesk_backend::domain::UserAccount>>,
     pub api_token: RwLock<Option<String>>,
     pub http: reqwest::Client,
+    pub license: Arc<LicenseRuntime>,
+    pub license_quota_lock: Mutex<()>,
 }
 
 impl PlatformState {
@@ -128,6 +131,10 @@ impl PlatformState {
                 tracing::error!(%error, "Could not initialize the desktop HTTP client");
                 "The network client could not be initialized.".to_string()
             })?;
+        let license = Arc::new(LicenseRuntime::new(
+            app_data_dir.clone(),
+            env!("CARGO_PKG_VERSION").to_string(),
+        )?);
         Ok(Self {
             config: RwLock::new(load_config(&app_data_dir)?),
             app_data_dir,
@@ -135,6 +142,8 @@ impl PlatformState {
             current_user: RwLock::new(None),
             api_token: RwLock::new(None),
             http,
+            license,
+            license_quota_lock: Mutex::new(()),
         })
     }
 

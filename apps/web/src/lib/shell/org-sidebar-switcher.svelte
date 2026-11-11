@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Settings2 } from '@lucide/svelte';
+	import { CreditCard, Settings2 } from '@lucide/svelte';
 	import AqarDeskLogo from '#lib/shared/components/aqardesk-logo.svelte';
 	import { Button } from '@aqardesk/ui';
 	import DropdownMenu from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu.svelte';
@@ -11,7 +11,15 @@
 	import * as m from '#lib/paraglide/messages';
 	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 
-	let { organizationId, organizationName }: { organizationId: string; organizationName: string } = $props();
+	let {
+		organizationId,
+		organizationName,
+		canManageBilling
+	}: {
+		organizationId: string;
+		organizationName: string;
+		canManageBilling: boolean;
+	} = $props();
 	const organizationLabel = $derived(organizationName.trim() || m.app_name());
 	const direction = $derived(getHtmlDirection());
 	const menuSide = $derived(getInlineEndSide(direction));
@@ -58,6 +66,15 @@
 				<AqarDeskLogo size={18} class="text-muted-foreground" />
 				{m.nav_overview()}
 			</DropdownMenuItem>
+			{#if canManageBilling}
+				<DropdownMenuItem
+					class="cursor-pointer rounded px-3 py-2 text-xs"
+					onclick={() => void goto(`/${organizationId}/billing`)}
+				>
+					<CreditCard size={15} />
+					{m.billing_nav()}
+				</DropdownMenuItem>
+			{/if}
 			<DropdownMenuSeparator class="my-1" />
 			<DropdownMenuItem
 				class="cursor-pointer rounded px-3 py-2 text-xs"

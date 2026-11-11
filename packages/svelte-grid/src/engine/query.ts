@@ -1,4 +1,4 @@
-import type { GridFilter, GridRow, OrbisColumnDef, SortSpec } from "../types";
+import type { GridFilter, GridRow, AqarDeskColumnDef, SortSpec } from "../types";
 import { applyFilter } from "./filter";
 import { applySort } from "./sort";
 
@@ -10,7 +10,7 @@ export interface ClientQuery {
 
 export function queryClient<T extends GridRow>(
   rows: readonly T[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   query: ClientQuery,
 ): T[] {
   const filter: GridFilter | null = query.filter

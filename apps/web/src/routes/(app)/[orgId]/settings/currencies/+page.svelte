@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { toast } from '@aqardesk/ui';
-	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
+	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 	import type { CurrencySettings, OrganizationSettings } from '@aqardesk/sdk';
 	import { desktopApi, type CurrencyEditorInput } from '#lib/api/desktop';
 	import CurrencySheet from '#lib/features/settings/currency-sheet.svelte';
@@ -27,7 +27,7 @@
 			.filter((currency) => currency.is_active)
 			.toSorted((left, right) => left.code.localeCompare(right.code))
 	);
-	const columns: OrbisColumnDef[] = $derived([
+	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'code', header: m.settings_currency_code(), width: 110 },
 		{
 			id: 'name',
@@ -196,7 +196,7 @@
 </script>
 
 <div class="min-h-0 min-w-0 flex-1">
-	<OrbisGrid
+	<AqarDeskGrid
 		{columns}
 		source={sortedCurrencies}
 		{loading}
@@ -213,7 +213,7 @@
 				<CurrencySheet busy={savingCurrency} onSubmit={(input) => saveCurrency(input)} />
 			{/if}
 		{/snippet}
-	</OrbisGrid>
+	</AqarDeskGrid>
 </div>
 
 {#if selectedCurrency}

@@ -11,9 +11,9 @@
       "svelte": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./OrbisGrid.svelte": {
-      "svelte": "./src/OrbisGrid.svelte",
-      "default": "./src/OrbisGrid.svelte"
+    "./AqarDeskGrid.svelte": {
+      "svelte": "./src/AqarDeskGrid.svelte",
+      "default": "./src/AqarDeskGrid.svelte"
     },
     "./types": {
       "svelte": "./src/types.ts",

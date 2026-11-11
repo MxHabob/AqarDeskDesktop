@@ -1,7 +1,7 @@
 import type {
   ExportOptions,
   GridRow,
-  OrbisColumnDef,
+  AqarDeskColumnDef,
   SelectionSnapshot,
 } from "../types";
 import { columnId, columnHeader, getCellValue } from "../types";
@@ -10,7 +10,7 @@ import { toTsv } from "./clipboard";
 
 export function exportRows(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   options: ExportOptions,
   selection?: SelectionSnapshot,
   visibleIds?: string[],

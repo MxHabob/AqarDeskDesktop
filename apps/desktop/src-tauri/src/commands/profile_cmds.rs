@@ -14,6 +14,10 @@ pub async fn profile_get_settings(
     state: State<'_, PlatformState>,
 ) -> Result<aqardesk_backend::application::ProfileSettings, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
     ProfileService::new(SeaOrmProfileRepository::new(&database))
         .get(actor)
         .await
@@ -26,6 +30,10 @@ pub async fn profile_update_settings(
     input: ProfileSettingsInput,
 ) -> Result<aqardesk_backend::application::ProfileSettings, String> {
     let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
     ProfileService::new(SeaOrmProfileRepository::new(&database))
         .update(actor, input)
         .await

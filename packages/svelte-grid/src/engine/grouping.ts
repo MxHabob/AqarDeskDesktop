@@ -1,4 +1,4 @@
-import type { AggregateFn, GridRow, GroupNode, OrbisColumnDef } from "../types";
+import type { AggregateFn, GridRow, GroupNode, AqarDeskColumnDef } from "../types";
 import { columnId, getCellValue } from "../types";
 
 function aggregate(values: unknown[], fn: AggregateFn): number | string | null {
@@ -24,7 +24,7 @@ function aggregate(values: unknown[], fn: AggregateFn): number | string | null {
 export function groupRows<T extends GridRow>(
   rows: readonly T[],
   groupBy: string,
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
   collapsed = new Set<string>(),
 ): GroupNode<T>[] {
   const col = columns.find((c) => columnId(c) === groupBy);
@@ -73,7 +73,7 @@ export function flattenGroups<T extends GridRow>(nodes: GroupNode<T>[]): T[] {
 
 export function grandTotals(
   rows: GridRow[],
-  columns: OrbisColumnDef[],
+  columns: AqarDeskColumnDef[],
 ): Record<string, number | string | null> {
   const totals: Record<string, number | string | null> = {};
   for (const col of columns) {
