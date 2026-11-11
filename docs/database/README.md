@@ -1,15 +1,33 @@
 # Database foundation
 
-AqarDesk uses PostgreSQL with SQLx and explicit migration versioning.
+AqarDesk uses SeaORM with SeaORM migrations and supports SQLite and PostgreSQL.
+The desktop setup flow lets the user choose and save the connection; the
+application does not require `DATABASE_URL` or `.env` for database selection.
+PostgreSQL passwords are stored in the operating system credential store.
 
 ## Rules
 
-- Use NUMERIC/DECIMAL for financial values; never floating point for money.
-- Keep migration files versioned and reviewable.
-- Validate startup connectivity and database health.
-- Enforce statements within explicit transaction boundaries.
-- Preserve auditability for posted financial records and avoid direct mutation of posted entries.
+- Keep monetary amounts as integer minor units and exchange rates as
+  `NUMERIC`; never use floating point for money.
+- Keep schema changes in ordered, reversible migrations and verify them on
+  SQLite and PostgreSQL.
+- Scope tenant-owned records and foreign keys by organization wherever
+  practical.
+- Preserve posted financial history through audit records and immutable
+  payment allocations.
+- Keep credentials out of the persisted connection configuration.
 
-## Next phase
+## Current schema
 
-The next database implementation should add migration-driven schema for organizations, branches, users, accounting contexts, and audit tables before extending ERP domain tables.
+- Identity: organizations, users, sessions, and audit events.
+- Property management: properties, units, tenants, leases, charges, payments,
+  and allocations.
+- Multi-currency: currency catalog, organization-enabled currencies, dated FX
+  rates, and payment allocations retaining the applied rate and both currency
+  amounts.
+- Contracts: templates, immutable template versions, and generated lease
+  document metadata.
+
+The current schema is a foundation, not a complete accounting ledger or
+document-generation workflow. FX rates are entered manually; storage and
+rendering of contract files still require application services.

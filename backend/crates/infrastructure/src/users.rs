@@ -1,4 +1,4 @@
-use crate::models::{organization, user};
+use crate::models::{organization, organization_currency, user};
 use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -6,8 +6,8 @@ use argon2::{
 use chrono::Utc;
 use rand::rngs::OsRng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    PaginatorTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -84,6 +84,16 @@ pub async fn create_initial_admin(
     .insert(&transaction)
     .await
     .map_err(|error| format!("Failed to create organization: {error}"))?;
+    organization_currency::ActiveModel {
+        organization_id: Set(organization_id.clone()),
+        currency_code: Set("SAR".to_string()),
+        is_enabled: Set(true),
+        created_by: Set(None),
+        created_at: Set(Utc::now()),
+    }
+    .insert(&transaction)
+    .await
+    .map_err(|error| format!("Failed to enable the default currency: {error}"))?;
 
     let password_hash = hash_password(password.to_string())?;
     let model = user::ActiveModel {
@@ -92,7 +102,7 @@ pub async fn create_initial_admin(
         full_name: Set(name.trim().to_string()),
         email: Set(email.trim().to_lowercase()),
         password_hash: Set(password_hash),
-        role: Set("admin".to_string()),
+        access_role: Set("admin".to_string()),
         is_active: Set(true),
         failed_login_attempts: Set(0),
         locked_until: Set(None),
@@ -142,7 +152,7 @@ pub async fn list_users(database: &DatabaseConnection) -> Result<Vec<UserSummary
 
 pub async fn active_admin_count(database: &DatabaseConnection) -> Result<u64, String> {
     user::Entity::find()
-        .filter(user::Column::Role.eq("admin"))
+        .filter(user::Column::AccessRole.eq("admin"))
         .filter(user::Column::IsActive.eq(true))
         .count(database)
         .await
@@ -174,7 +184,7 @@ pub async fn create_user(
         full_name: Set(name.trim().to_string()),
         email: Set(email.trim().to_lowercase()),
         password_hash: Set(hash_password(password.to_string())?),
-        role: Set(role.to_string()),
+        access_role: Set(role.to_string()),
         is_active: Set(true),
         failed_login_attempts: Set(0),
         locked_until: Set(None),
@@ -226,8 +236,67 @@ fn summary(model: user::Model) -> UserSummary {
         id: model.id,
         name: model.full_name,
         email: model.email,
-        role: model.role,
+        role: model.access_role,
         is_active: model.is_active,
         created_at: model.created_at.to_rfc3339(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{organization_currency, user};
+    use sea_orm::{Database, EntityTrait};
+    use sea_orm_migration::MigratorTrait;
+
+    #[tokio::test]
+    async fn initial_setup_enables_default_currency_and_allows_login() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory sqlite");
+        crate::migration::Migrator::up(&database, None)
+            .await
+            .expect("apply migrations");
+
+        assert!(!has_users(&database).await.expect("check initial setup"));
+        let admin = create_initial_admin(
+            &database,
+            "AqarDesk",
+            "Admin",
+            "admin@example.com",
+            "a-secure-password",
+        )
+        .await
+        .expect("create initial administrator");
+        assert_eq!(admin.role, "admin");
+
+        let stored_admin = user::Entity::find_by_id(&admin.id)
+            .one(&database)
+            .await
+            .expect("query administrator")
+            .expect("administrator exists");
+        let enabled_currency_count = organization_currency::Entity::find()
+            .filter(organization_currency::Column::OrganizationId.eq(stored_admin.organization_id))
+            .count(&database)
+            .await
+            .expect("count enabled currencies");
+        assert_eq!(enabled_currency_count, 1);
+
+        let authenticated = authenticate(&database, "ADMIN@example.com", "a-secure-password")
+            .await
+            .expect("authenticate initial administrator");
+        assert_eq!(authenticated.id, admin.id);
+        assert!(
+            create_initial_admin(
+                &database,
+                "Another Organization",
+                "Second Admin",
+                "second@example.com",
+                "a-secure-password",
+            )
+            .await
+            .is_err(),
+            "initial setup must not create another organization administrator"
+        );
     }
 }

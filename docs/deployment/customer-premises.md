@@ -4,8 +4,8 @@ AqarDesk is designed for dedicated single-customer installation on a local serve
 
 ## Current implementation status
 
-- Docker Compose foundation for PostgreSQL and API runtime
-- Local configuration template in `.env.example`
+- Docker Compose service for local PostgreSQL provisioning
+- Desktop-managed connection settings and operating-system credential storage
 - Local reverse proxy foundation using Caddy
 - Persistent volume pattern for PostgreSQL data
 
@@ -13,3 +13,6 @@ AqarDesk is designed for dedicated single-customer installation on a local serve
 
 - No shared control plane or centralized licensing administration is implemented.
 - External licensing checks are isolated behind an adapter and must not block ordinary local ERP workflows.
+- The API process requires the connection configuration created by the desktop
+  app (`--connection-config`); PostgreSQL credentials must be available to the
+  operating-system credential store used by that process.

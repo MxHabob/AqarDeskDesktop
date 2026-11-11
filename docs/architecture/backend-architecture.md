@@ -14,11 +14,12 @@ The backend uses a modular monolith rather than a distributed microservice topol
 
 - Axum API server with `/api/v1/health` and `/api/v1/ready`
 - Rust workspace with dedicated crates
-- Docker-ready API and worker entrypoints
-- startup-ready configuration structure
+- SeaORM repositories and versioned migrations for SQLite and PostgreSQL
+- database selection through the desktop setup flow; API startup reads the
+  saved connection configuration
 
 ## Constraints
 
 - Business logic remains outside HTTP handlers.
-- SQLx models are not exposed as public domain entities.
+- SeaORM models remain in the infrastructure crate.
 - Module-to-module database access is not allowed by design.

@@ -93,7 +93,10 @@ impl ConnectionConfig {
                     .map_err(|_| "PostgreSQL password is invalid.".to_string())?;
                 url.set_path(&format!("/{}", direct.database_name));
                 if let Some(ssl_mode) = direct.ssl_mode.as_deref() {
-                    if !matches!(ssl_mode, "disable" | "prefer" | "require" | "verify-ca" | "verify-full") {
+                    if !matches!(
+                        ssl_mode,
+                        "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
+                    ) {
                         return Err("PostgreSQL SSL mode is invalid.".to_string());
                     }
                     url.query_pairs_mut().append_pair("sslmode", ssl_mode);
@@ -134,6 +137,8 @@ pub fn remove_postgres_password(credential_id: &str) -> Result<(), String> {
         .map_err(|error| format!("Could not access the OS credential store: {error}"))?;
     match entry.delete_credential() {
         Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
-        Err(error) => Err(format!("Could not remove PostgreSQL password securely: {error}")),
+        Err(error) => Err(format!(
+            "Could not remove PostgreSQL password securely: {error}"
+        )),
     }
 }

@@ -5,8 +5,9 @@ Production installation follows a dedicated customer server deployment model. Th
 ## Required steps
 
 1. Provision a dedicated server or VM for the tenant.
-2. Configure environment values from `.env.example`.
-3. Start PostgreSQL via Docker Compose or a managed local instance.
+2. Provision PostgreSQL via Docker Compose or a managed local instance.
+3. Configure the database through the desktop setup flow; the API process
+   reads its saved connection file with `--connection-config`.
 4. Run the backend API and worker.
 5. Deploy the web application or desktop shell behind the reverse proxy.
 6. Validate health checks and database connectivity.
@@ -14,4 +15,5 @@ Production installation follows a dedicated customer server deployment model. Th
 
 ## Current status
 
-The infrastructure foundation is implemented, but production-grade migration and backup validation remain a next-phase task.
+The infrastructure foundation is implemented, but production-grade migration,
+session persistence, and backup validation remain next-phase tasks.

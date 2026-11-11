@@ -26,9 +26,7 @@ pub async fn connect_database(url: &str) -> Result<DatabaseConnection, Infrastru
     Ok(Database::connect(options).await?)
 }
 
-pub async fn run_migrations(
-    database: &DatabaseConnection,
-) -> Result<(), InfrastructureError> {
+pub async fn run_migrations(database: &DatabaseConnection) -> Result<(), InfrastructureError> {
     use sea_orm_migration::MigratorTrait;
     migration::Migrator::up(database, None)
         .await

@@ -1,12 +1,14 @@
 # Domain architecture
 
-The domain layer is intentionally free of HTTP, SQLx, and framework dependencies. It defines entities, value objects, invariants, and module responsibilities.
+The domain layer is intentionally free of HTTP, SeaORM, and framework
+dependencies. It defines entities, value objects, invariants, and module
+responsibilities.
 
 ## Initial domain contracts
 
 - `aqardesk-domain`: shared value objects and identifiers for customers, organizations, branches, users, and money
 - `aqardesk-app`: application service orchestration and validation logic for core ERP concerns
-- `aqardesk-infrastructure`: SQLx and external service implementation details
+- `aqardesk-infrastructure`: SeaORM and external service implementation details
 
 ## Modules
 

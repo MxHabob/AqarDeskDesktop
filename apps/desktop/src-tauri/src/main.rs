@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  aqardesk_desktop_lib::run();
+    aqardesk_desktop_lib::run();
 }

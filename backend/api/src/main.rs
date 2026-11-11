@@ -227,8 +227,7 @@ fn parse_args() -> Result<(PathBuf, SocketAddr), String> {
         match argument.as_str() {
             "--connection-config" => {
                 config_path = Some(PathBuf::from(
-                    args.next()
-                        .ok_or("--connection-config requires a path")?,
+                    args.next().ok_or("--connection-config requires a path")?,
                 ));
             }
             "--bind" => {

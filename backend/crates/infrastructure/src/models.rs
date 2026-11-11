@@ -22,6 +22,76 @@ pub mod organization {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+pub mod currency {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "currencies")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub code: String,
+        pub name: String,
+        pub name_ar: Option<String>,
+        pub symbol: String,
+        pub symbol_position: String,
+        pub decimal_digits: i16,
+        pub is_active: bool,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod organization_currency {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "organization_currencies")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub organization_id: String,
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub currency_code: String,
+        pub is_enabled: bool,
+        pub created_by: Option<String>,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod exchange_rate {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "exchange_rates")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub base_currency_code: String,
+        pub quote_currency_code: String,
+        pub rate: Decimal,
+        pub effective_at: DateTimeUtc,
+        pub source: String,
+        pub source_reference: Option<String>,
+        pub created_by: Option<String>,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 pub mod user {
     use super::*;
 
@@ -242,8 +312,12 @@ pub mod payment_allocation {
         pub payment_id: String,
         pub lease_charge_id: String,
         pub tenant_id: String,
-        pub currency_code: String,
-        pub amount_minor: i64,
+        pub payment_currency_code: String,
+        pub charge_currency_code: String,
+        pub amount_in_payment_minor: i64,
+        pub amount_in_charge_minor: i64,
+        pub fx_rate: Decimal,
+        pub exchange_rate_id: Option<String>,
         pub created_at: DateTimeUtc,
     }
 
@@ -288,6 +362,89 @@ pub mod audit_event {
         pub entity_type: String,
         pub entity_id: String,
         pub details_json: Option<String>,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod contract_template {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_templates")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub template_key: String,
+        pub name: String,
+        pub description: Option<String>,
+        pub lease_type: String,
+        pub locale: String,
+        pub is_active: bool,
+        pub created_by: Option<String>,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+        pub archived_at: Option<DateTimeUtc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod contract_template_version {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_template_versions")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub template_id: String,
+        pub version_number: i32,
+        pub content_format: String,
+        pub content_body: Option<String>,
+        pub source_storage_key: Option<String>,
+        pub placeholders_json: String,
+        pub content_sha256: String,
+        pub change_note: Option<String>,
+        pub created_by: Option<String>,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod lease_contract_document {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "lease_contract_documents")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub lease_id: String,
+        pub template_version_id: Option<String>,
+        pub document_type: String,
+        pub storage_key: String,
+        pub file_name: String,
+        pub mime_type: String,
+        pub content_sha256: String,
+        pub size_bytes: i64,
+        pub is_signed: bool,
+        pub signed_at: Option<DateTimeUtc>,
+        pub created_by: Option<String>,
         pub created_at: DateTimeUtc,
     }
 

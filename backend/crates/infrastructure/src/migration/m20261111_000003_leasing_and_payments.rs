@@ -48,6 +48,9 @@ impl MigrationTrait for Migration {
                         ON UPDATE CASCADE ON DELETE RESTRICT,
                     CONSTRAINT fk_leases_created_by
                         FOREIGN KEY (created_by, organization_id) REFERENCES users(id, organization_id)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_leases_currency
+                        FOREIGN KEY (currency_code) REFERENCES currencies(code)
                         ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 "CREATE INDEX idx_leases_org_status_dates ON leases (organization_id, status, start_on, end_on) WHERE deleted_at IS NULL",
@@ -84,6 +87,9 @@ impl MigrationTrait for Migration {
                     CONSTRAINT fk_lease_charges_tenant
                         FOREIGN KEY (tenant_id, organization_id)
                         REFERENCES tenants(id, organization_id)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_lease_charges_currency
+                        FOREIGN KEY (currency_code) REFERENCES currencies(code)
                         ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 "CREATE INDEX idx_lease_charges_due ON lease_charges (organization_id, status, due_on)",
@@ -110,6 +116,9 @@ impl MigrationTrait for Migration {
                         ON UPDATE CASCADE ON DELETE RESTRICT,
                     CONSTRAINT fk_payments_recorded_by
                         FOREIGN KEY (recorded_by, organization_id) REFERENCES users(id, organization_id)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_payments_currency
+                        FOREIGN KEY (currency_code) REFERENCES currencies(code)
                         ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 "CREATE INDEX idx_payments_tenant_date ON payments (tenant_id, received_at)",
@@ -121,18 +130,32 @@ impl MigrationTrait for Migration {
                     payment_id TEXT NOT NULL,
                     lease_charge_id TEXT NOT NULL,
                     tenant_id TEXT NOT NULL,
-                    currency_code VARCHAR(3) NOT NULL
-                        CHECK (length(currency_code) = 3 AND currency_code = upper(currency_code)),
-                    amount_minor BIGINT NOT NULL CHECK (amount_minor > 0),
+                    payment_currency_code VARCHAR(3) NOT NULL,
+                    charge_currency_code VARCHAR(3) NOT NULL,
+                    amount_in_payment_minor BIGINT NOT NULL CHECK (amount_in_payment_minor > 0),
+                    amount_in_charge_minor BIGINT NOT NULL CHECK (amount_in_charge_minor > 0),
+                    fx_rate NUMERIC(24, 12) NOT NULL CHECK (fx_rate > 0),
                     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (payment_id, lease_charge_id),
+                    CONSTRAINT ck_payment_allocations_exchange CHECK (
+                        (payment_currency_code = charge_currency_code
+                            AND amount_in_payment_minor = amount_in_charge_minor
+                            AND fx_rate = 1) OR
+                        (payment_currency_code <> charge_currency_code AND fx_rate > 0)
+                    ),
                     CONSTRAINT fk_payment_allocations_payment
-                        FOREIGN KEY (payment_id, organization_id, currency_code, tenant_id)
+                        FOREIGN KEY (payment_id, organization_id, payment_currency_code, tenant_id)
                         REFERENCES payments(id, organization_id, currency_code, tenant_id)
                         ON UPDATE CASCADE ON DELETE RESTRICT,
                     CONSTRAINT fk_payment_allocations_charge
-                        FOREIGN KEY (lease_charge_id, organization_id, currency_code, tenant_id)
+                        FOREIGN KEY (lease_charge_id, organization_id, charge_currency_code, tenant_id)
                         REFERENCES lease_charges(id, organization_id, currency_code, tenant_id)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_payment_allocations_payment_currency
+                        FOREIGN KEY (payment_currency_code) REFERENCES currencies(code)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_payment_allocations_charge_currency
+                        FOREIGN KEY (charge_currency_code) REFERENCES currencies(code)
                         ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 "CREATE INDEX idx_payment_allocations_charge ON payment_allocations (lease_charge_id)",

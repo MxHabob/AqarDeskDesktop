@@ -3,10 +3,12 @@
 A desktop application foundation for managing real estate, tenants, and rental
 contracts. It is a separate project based on the architecture and toolchain of
 MULX, with a Tauri desktop shell, a SvelteKit frontend, a Rust backend, and
-PostgreSQL.
+SeaORM persistence for SQLite and PostgreSQL.
 
-This repository is the starting foundation; the property-management workflows
-and data model still need to be implemented.
+The current foundation includes organization setup, user authentication and
+administration, versioned database migrations, property and lease data models,
+multi-currency accounting primitives, and versioned contract templates.
+Property-management screens and workflows are still under development.
 
 ## Architecture
 
@@ -14,7 +16,8 @@ and data model still need to be implemented.
 - Frontend: SvelteKit, TypeScript, and Tailwind CSS
 - Backend: Rust with Axum, organized into domain, application, and infrastructure
   crates
-- Database: PostgreSQL with SQLx migrations
+- Database: SeaORM and SeaORM migrations; SQLite for local use and PostgreSQL
+  for shared deployments
 - Local development services: Docker Compose
 
 ## Workspace
@@ -36,26 +39,38 @@ Install Bun and Rust, then install the JavaScript workspace dependencies:
 bun install
 ```
 
-Copy `.env.example` to `.env` and configure the local PostgreSQL connection.
-Start the frontend and backend in separate terminals:
+Install Bun and Rust, then install the JavaScript workspace dependencies:
+
+```bash
+bun install
+```
+
+Start the frontend or desktop shell:
 
 ```bash
 bun run dev:web
-cargo run --manifest-path backend/api/Cargo.toml
-```
-
-To launch the desktop application:
-
-```bash
 bun run desktop:dev
 ```
 
-The desktop shell loads the web frontend, and its production build uses the
-static SvelteKit adapter.
+The desktop setup flow lets the user choose a local SQLite database,
+PostgreSQL connection, or API server. Connection settings are stored in the
+application data directory; PostgreSQL passwords are kept in the operating
+system credential store, not in `.env`.
+
+The API server reads the connection configuration created by the desktop app:
+
+```powershell
+cargo run --manifest-path backend/api/Cargo.toml -- --connection-config "PATH_TO_CONNECTION_CONFIG"
+```
+
+For local PostgreSQL development, Docker Compose provisions only the database.
+Set its `POSTGRES_PASSWORD` in the shell before starting Compose; then select
+that PostgreSQL connection in the desktop setup flow.
 
 ## Checks
 
 ```bash
 bun run check:web
 cargo check --workspace --manifest-path Cargo.toml
+cargo test -p aqardesk-infrastructure --manifest-path Cargo.toml
 ```

@@ -10,6 +10,20 @@ impl MigrationTrait for Migration {
         execute_statements(
             manager,
             &[
+                r#"CREATE TABLE currencies (
+                    code VARCHAR(3) PRIMARY KEY NOT NULL
+                        CHECK (length(code) = 3 AND code = upper(code)),
+                    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+                    name_ar TEXT,
+                    symbol TEXT NOT NULL,
+                    symbol_position TEXT NOT NULL DEFAULT 'prefix'
+                        CHECK (symbol_position IN ('prefix', 'suffix')),
+                    decimal_digits SMALLINT NOT NULL DEFAULT 2
+                        CHECK (decimal_digits BETWEEN 0 AND 4),
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )"#,
                 r#"CREATE TABLE organizations (
                     id TEXT PRIMARY KEY NOT NULL,
                     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
@@ -20,7 +34,10 @@ impl MigrationTrait for Migration {
                         CHECK (length(trim(timezone)) > 0),
                     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE (id)
+                    UNIQUE (id),
+                    CONSTRAINT fk_organizations_default_currency
+                        FOREIGN KEY (default_currency) REFERENCES currencies(code)
+                        ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 r#"CREATE TABLE users (
                     id TEXT PRIMARY KEY NOT NULL,

@@ -1,6 +1,4 @@
-use crate::connection::{
-    AuthState, ConnectionState, DatabaseState, make_config, save_config,
-};
+use crate::connection::{AuthState, ConnectionState, DatabaseState, make_config, save_config};
 use aqardesk_infrastructure::{
     connect_database, run_migrations,
     settings::{ConnectionConfig, ConnectionMode},

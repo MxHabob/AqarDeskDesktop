@@ -5,8 +5,8 @@ use aqardesk_infrastructure::{
 };
 use reqwest::{Method, StatusCode};
 use sea_orm::EntityTrait;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Debug, Serialize)]
@@ -35,14 +35,8 @@ pub async fn auth_get_setup_status(
     let current_user = auth.current_user.read().await.clone();
     if connection_mode(&connection)? == ConnectionMode::Api {
         let config = get_config(&connection)?;
-        let response: ApiSetupResponse = api_request(
-            &config,
-            Method::GET,
-            "/api/v1/auth/setup",
-            None,
-            None,
-        )
-        .await?;
+        let response: ApiSetupResponse =
+            api_request(&config, Method::GET, "/api/v1/auth/setup", None, None).await?;
         return Ok(AuthSetupStatus {
             needs_admin: response.needs_admin,
             current_user,
@@ -85,14 +79,8 @@ pub async fn auth_bootstrap_admin(
     } else {
         let database = database.get().await?;
         (
-            users::create_initial_admin(
-                &database,
-                &organization_name,
-                &name,
-                &email,
-                &password,
-            )
-            .await?,
+            users::create_initial_admin(&database, &organization_name, &name, &email, &password)
+                .await?,
             None,
         )
     };
@@ -120,7 +108,10 @@ pub async fn auth_login(
         (response.user, Some(response.token))
     } else {
         let database = database.get().await?;
-        (users::authenticate(&database, &email, &password).await?, None)
+        (
+            users::authenticate(&database, &email, &password).await?,
+            None,
+        )
     };
     establish_session(&auth, user, token).await
 }
@@ -142,14 +133,7 @@ pub async fn users_list(
     let config = get_config(&connection)?;
     if config.mode == ConnectionMode::Api {
         let token = auth.api_token.read().await.clone();
-        return api_request(
-            &config,
-            Method::GET,
-            "/api/v1/users",
-            token,
-            None,
-        )
-        .await;
+        return api_request(&config, Method::GET, "/api/v1/users", token, None).await;
     }
     users::list_users(&database.get().await?).await
 }
@@ -212,7 +196,7 @@ pub async fn users_set_active(
             .await
             .map_err(|error| format!("Could not inspect user account: {error}"))?
             .ok_or_else(|| "User was not found.".to_string())?;
-        if target.role == "admin" && users::active_admin_count(&database).await? <= 1 {
+        if target.access_role == "admin" && users::active_admin_count(&database).await? <= 1 {
             return Err("The last active administrator cannot be deactivated.".to_string());
         }
     }
@@ -250,7 +234,9 @@ async fn require_admin(state: &AuthState) -> Result<LoggedInUser, String> {
     Ok(user)
 }
 
-fn get_config(state: &ConnectionState) -> Result<aqardesk_infrastructure::settings::ConnectionConfig, String> {
+fn get_config(
+    state: &ConnectionState,
+) -> Result<aqardesk_infrastructure::settings::ConnectionConfig, String> {
     state
         .config
         .read()
@@ -291,7 +277,12 @@ async fn api_request<T: DeserializeOwned>(
         let text = response.text().await.unwrap_or_default();
         let detail = serde_json::from_str::<serde_json::Value>(&text)
             .ok()
-            .and_then(|value| value.get("error").and_then(|error| error.as_str()).map(str::to_owned))
+            .and_then(|value| {
+                value
+                    .get("error")
+                    .and_then(|error| error.as_str())
+                    .map(str::to_owned)
+            })
             .unwrap_or_else(|| format!("HTTP {status}"));
         return Err(if status == StatusCode::UNAUTHORIZED {
             "The API session has expired. Sign in again.".to_string()

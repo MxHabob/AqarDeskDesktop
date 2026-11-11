@@ -59,7 +59,7 @@ impl MigrationTrait for Migration {
                     bedrooms INTEGER NOT NULL DEFAULT 0 CHECK (bedrooms >= 0),
                     bathrooms NUMERIC(4, 1) NOT NULL DEFAULT 0 CHECK (bathrooms >= 0),
                     market_rent_minor BIGINT CHECK (market_rent_minor IS NULL OR market_rent_minor >= 0),
-                    currency_code CHAR(3),
+                    currency_code VARCHAR(3),
                     status TEXT NOT NULL DEFAULT 'available'
                         CHECK (status IN ('available', 'maintenance', 'inactive')),
                     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -74,6 +74,9 @@ impl MigrationTrait for Migration {
                     ),
                     CONSTRAINT fk_property_units_property
                         FOREIGN KEY (property_id, organization_id) REFERENCES properties(id, organization_id)
+                        ON UPDATE CASCADE ON DELETE RESTRICT,
+                    CONSTRAINT fk_property_units_currency
+                        FOREIGN KEY (currency_code) REFERENCES currencies(code)
                         ON UPDATE CASCADE ON DELETE RESTRICT
                 )"#,
                 "CREATE INDEX idx_property_units_org_status ON property_units (organization_id, status) WHERE deleted_at IS NULL",

@@ -6,7 +6,7 @@ AqarDesk follows a modular monolith design. Domain logic stays in the domain cra
 
 - Domain: entities, value objects, errors, and invariant checks
 - Application: use cases, transactions, authorization checks, service orchestration
-- Infrastructure: SQLx repositories, storage adapters, jobs, telemetry, and external APIs
+- Infrastructure: SeaORM repositories, storage adapters, jobs, telemetry, and external APIs
 - API: HTTP, validation, versioning, and OpenAPI
 
 ## Module roadmap

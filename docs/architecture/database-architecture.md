@@ -1,18 +1,27 @@
 # Database architecture
 
-AqarDesk targets PostgreSQL with SQLx migration versioning and explicit transaction boundaries.
+AqarDesk uses SeaORM and SeaORM migrations over SQLite and PostgreSQL. The
+desktop setup flow selects and stores the database connection without relying
+on `DATABASE_URL` or `.env`.
 
 ## Rules implemented at the foundation level
 
-- Keep money as integer-backed monetary values in the domain model
-- Use database NUMERIC for financial values in future migrations
-- Keep migration versioning and auditability in scope
-- Separate startup health checks from runtime availability
+- Store monetary amounts as integer minor units and FX rates as database
+  `NUMERIC`, never floating point.
+- Keep migrations ordered, reversible, and covered by SQLite tests.
+- Scope organization-owned relationships with composite foreign keys where
+  applicable.
+- Store PostgreSQL passwords in the operating system credential store.
+- Separate startup health checks from runtime availability.
 
-## Planned schema direction
+## Implemented foundation
 
-A future phase will add organizations, branches, users, roles, permissions, accounting contexts, and audit tables before ERP-specific tables are introduced.
+The schema includes organizations, users and sessions, properties and units,
+tenants, leases and charges, payments and allocations, audit events, a
+multi-currency catalog and exchange rates, and versioned contract templates.
 
 ## Notes
 
-The project currently has infrastructure scaffolding but no production accounting chart implementation. That remains explicitly deferred.
+This is not yet a production accounting ledger. Exchange-rate management UI,
+automated rate providers, and contract document rendering/storage services
+remain future work.

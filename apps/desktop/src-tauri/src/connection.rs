@@ -1,8 +1,8 @@
 use aqardesk_infrastructure::settings::{
     ApiConfig, ConnectionConfig, ConnectionMode, DirectConfig, LocalConfig,
 };
-use serde::Serialize;
 use sea_orm::DatabaseConnection;
+use serde::Serialize;
 use std::{path::PathBuf, sync::RwLock};
 use tokio::sync::RwLock as AsyncRwLock;
 
@@ -65,7 +65,10 @@ pub fn load_config(app_data_dir: &std::path::Path) -> Result<Option<ConnectionCo
         .map_err(|error| format!("Database settings are invalid: {error}"))
 }
 
-pub fn save_config(app_data_dir: &std::path::Path, config: &ConnectionConfig) -> Result<(), String> {
+pub fn save_config(
+    app_data_dir: &std::path::Path,
+    config: &ConnectionConfig,
+) -> Result<(), String> {
     std::fs::create_dir_all(app_data_dir)
         .map_err(|error| format!("Could not create application data folder: {error}"))?;
     let path = config_path(app_data_dir);
@@ -118,9 +121,9 @@ pub fn make_config(
                 .and_then(|config| config.direct.as_ref())
                 .map(|config| config.credential_id.clone())
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-            if let Some(password) = password.filter(|value| {
-                !value.is_empty() && value != "••••••••" && value != "********"
-            }) {
+            if let Some(password) = password
+                .filter(|value| !value.is_empty() && value != "••••••••" && value != "********")
+            {
                 aqardesk_infrastructure::settings::store_postgres_password(
                     &credential_id,
                     &password,

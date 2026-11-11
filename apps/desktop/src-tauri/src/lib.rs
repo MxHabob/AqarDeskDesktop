@@ -17,13 +17,9 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .map_err(std::io::Error::other)?;
+            let app_data_dir = app.path().app_data_dir().map_err(std::io::Error::other)?;
             std::fs::create_dir_all(&app_data_dir)?;
-            let config = connection::load_config(&app_data_dir)
-                .map_err(std::io::Error::other)?;
+            let config = connection::load_config(&app_data_dir).map_err(std::io::Error::other)?;
             app.manage(connection::ConnectionState {
                 app_data_dir,
                 config: std::sync::RwLock::new(config),
