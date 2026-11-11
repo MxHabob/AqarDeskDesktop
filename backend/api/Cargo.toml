@@ -12,3 +12,5 @@ tracing = { workspace = true }
 aqardesk-domain = { workspace = true }
 aqardesk-app = { workspace = true }
 aqardesk-infrastructure = { workspace = true }
+sea-orm = { workspace = true }
+uuid = { workspace = true }

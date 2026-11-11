@@ -30,3 +30,5 @@ sea-orm = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 uuid = { workspace = true }
+url = { workspace = true }
+tracing = { workspace = true }

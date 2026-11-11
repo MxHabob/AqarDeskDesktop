@@ -3,6 +3,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
 };
+use chrono::Utc;
 use rand::rngs::OsRng;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
@@ -19,10 +20,6 @@ pub struct UserSummary {
     pub role: String,
     pub is_active: bool,
     pub created_at: String,
-}
-
-fn now() -> String {
-    chrono::Utc::now().to_rfc3339()
 }
 
 fn hash_password(password: String) -> Result<String, String> {
@@ -78,7 +75,11 @@ pub async fn create_initial_admin(
     organization::ActiveModel {
         id: Set(organization_id.clone()),
         name: Set(organization_name.trim().to_string()),
-        created_at: Set(now()),
+        legal_name: Set(None),
+        default_currency: Set("SAR".to_string()),
+        timezone: Set("Asia/Riyadh".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
     }
     .insert(&transaction)
     .await
@@ -88,12 +89,16 @@ pub async fn create_initial_admin(
     let model = user::ActiveModel {
         id: Set(Uuid::new_v4().to_string()),
         organization_id: Set(organization_id),
-        name: Set(name.trim().to_string()),
+        full_name: Set(name.trim().to_string()),
         email: Set(email.trim().to_lowercase()),
         password_hash: Set(password_hash),
         role: Set("admin".to_string()),
         is_active: Set(true),
-        created_at: Set(now()),
+        failed_login_attempts: Set(0),
+        locked_until: Set(None),
+        last_login_at: Set(None),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
     }
     .insert(&transaction)
     .await
@@ -166,12 +171,16 @@ pub async fn create_user(
     user::ActiveModel {
         id: Set(Uuid::new_v4().to_string()),
         organization_id: Set(organization_id),
-        name: Set(name.trim().to_string()),
+        full_name: Set(name.trim().to_string()),
         email: Set(email.trim().to_lowercase()),
         password_hash: Set(hash_password(password.to_string())?),
         role: Set(role.to_string()),
         is_active: Set(true),
-        created_at: Set(now()),
+        failed_login_attempts: Set(0),
+        locked_until: Set(None),
+        last_login_at: Set(None),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
     }
     .insert(database)
     .await
@@ -191,6 +200,7 @@ pub async fn set_user_active(
         .ok_or_else(|| "User was not found.".to_string())?;
     let mut active: user::ActiveModel = model.into();
     active.is_active = Set(is_active);
+    active.updated_at = Set(Utc::now());
     active
         .update(database)
         .await
@@ -214,10 +224,10 @@ fn validate_user_input(name: &str, email: &str, password: &str) -> Result<(), St
 fn summary(model: user::Model) -> UserSummary {
     UserSummary {
         id: model.id,
-        name: model.name,
+        name: model.full_name,
         email: model.email,
         role: model.role,
         is_active: model.is_active,
-        created_at: model.created_at,
+        created_at: model.created_at.to_rfc3339(),
     }
 }

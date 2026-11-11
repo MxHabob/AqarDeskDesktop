@@ -4,6 +4,7 @@ use aqardesk_infrastructure::{
     users::{self, UserSummary},
 };
 use reqwest::{Method, StatusCode};
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use tauri::State;

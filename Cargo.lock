@@ -134,10 +134,12 @@ dependencies = [
  "aqardesk-domain",
  "aqardesk-infrastructure",
  "axum",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -167,6 +169,8 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tokio",
+ "tracing",
+ "url",
  "uuid",
 ]
 

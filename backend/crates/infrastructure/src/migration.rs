@@ -1,385 +1,96 @@
+use sea_orm::{ConnectionTrait, DatabaseConnection};
 use sea_orm_migration::prelude::*;
+
+mod m20261111_000001_core_identity;
+mod m20261111_000002_property_management;
+mod m20261111_000003_leasing_and_payments;
 
 pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(initial::Migration)]
+        vec![
+            Box::new(m20261111_000001_core_identity::Migration),
+            Box::new(m20261111_000002_property_management::Migration),
+            Box::new(m20261111_000003_leasing_and_payments::Migration),
+        ]
     }
 }
 
-mod initial {
-    use sea_orm_migration::prelude::*;
+async fn execute_statements(
+    manager: &SchemaManager<'_>,
+    statements: &[&str],
+) -> Result<(), DbErr> {
+    for statement in statements {
+        manager
+            .get_connection()
+            .execute_unprepared(statement)
+            .await?;
+    }
+    Ok(())
+}
 
-    #[derive(DeriveMigrationName)]
-    pub struct Migration;
-
-    #[async_trait::async_trait]
-    impl MigrationTrait for Migration {
-        async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("organizations"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(ColumnDef::new(Alias::new("name")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("created_at"))
-                                .string()
-                                .not_null(),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("users"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("organization_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("name")).string().not_null())
-                        .col(ColumnDef::new(Alias::new("email")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("password_hash"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("role")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("is_active"))
-                                .boolean()
-                                .not_null()
-                                .default(true),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("created_at"))
-                                .string()
-                                .not_null(),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_users_organization")
-                                .from(Alias::new("users"), Alias::new("organization_id"))
-                                .to(Alias::new("organizations"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Cascade),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-            manager
-                .create_index(
-                    Index::create()
-                        .name("uq_users_email")
-                        .table(Alias::new("users"))
-                        .col(Alias::new("email"))
-                        .unique()
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("properties"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("organization_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("name")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("address"))
-                                .string()
-                                .not_null()
-                                .default(""),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("property_type"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("created_at"))
-                                .string()
-                                .not_null(),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_properties_organization")
-                                .from(Alias::new("properties"), Alias::new("organization_id"))
-                                .to(Alias::new("organizations"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Cascade),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("units"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("property_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("unit_number"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("unit_type"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("bedrooms"))
-                                .integer()
-                                .not_null()
-                                .default(0),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("bathrooms"))
-                                .integer()
-                                .not_null()
-                                .default(0),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("rent_amount"))
-                                .big_integer()
-                                .not_null()
-                                .default(0),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("availability_status"))
-                                .string()
-                                .not_null(),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_units_property")
-                                .from(Alias::new("units"), Alias::new("property_id"))
-                                .to(Alias::new("properties"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Cascade),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-            manager
-                .create_index(
-                    Index::create()
-                        .name("uq_units_property_number")
-                        .table(Alias::new("units"))
-                        .col(Alias::new("property_id"))
-                        .col(Alias::new("unit_number"))
-                        .unique()
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("tenants"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("organization_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("name")).string().not_null())
-                        .col(ColumnDef::new(Alias::new("email")).string().null())
-                        .col(ColumnDef::new(Alias::new("phone")).string().null())
-                        .col(ColumnDef::new(Alias::new("national_id")).string().null())
-                        .col(
-                            ColumnDef::new(Alias::new("created_at"))
-                                .string()
-                                .not_null(),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_tenants_organization")
-                                .from(Alias::new("tenants"), Alias::new("organization_id"))
-                                .to(Alias::new("organizations"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Cascade),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("leases"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("unit_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("tenant_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("start_date"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("end_date"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("rent_amount"))
-                                .big_integer()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("deposit_amount"))
-                                .big_integer()
-                                .not_null()
-                                .default(0),
-                        )
-                        .col(ColumnDef::new(Alias::new("status")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("created_at"))
-                                .string()
-                                .not_null(),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_leases_unit")
-                                .from(Alias::new("leases"), Alias::new("unit_id"))
-                                .to(Alias::new("units"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Restrict),
-                        )
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_leases_tenant")
-                                .from(Alias::new("leases"), Alias::new("tenant_id"))
-                                .to(Alias::new("tenants"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Restrict),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-
-            manager
-                .create_table(
-                    Table::create()
-                        .table(Alias::new("payments"))
-                        .if_not_exists()
-                        .col(
-                            ColumnDef::new(Alias::new("id"))
-                                .string()
-                                .not_null()
-                                .primary_key(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("lease_id"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("amount"))
-                                .big_integer()
-                                .not_null(),
-                        )
-                        .col(
-                            ColumnDef::new(Alias::new("due_date"))
-                                .string()
-                                .not_null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("paid_at")).string().null())
-                        .col(ColumnDef::new(Alias::new("status")).string().not_null())
-                        .col(
-                            ColumnDef::new(Alias::new("payment_method"))
-                                .string()
-                                .null(),
-                        )
-                        .col(ColumnDef::new(Alias::new("reference")).string().null())
-                        .foreign_key(
-                            ForeignKey::create()
-                                .name("fk_payments_lease")
-                                .from(Alias::new("payments"), Alias::new("lease_id"))
-                                .to(Alias::new("leases"), Alias::new("id"))
-                                .on_delete(ForeignKeyAction::Cascade),
-                        )
-                        .to_owned(),
-                )
-                .await?;
-
-            Ok(())
+pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
+    let manager = SchemaManager::new(database);
+    for table in [
+        "organizations",
+        "users",
+        "user_sessions",
+        "properties",
+        "property_units",
+        "tenants",
+        "leases",
+        "lease_charges",
+        "payments",
+        "payment_allocations",
+        "audit_events",
+    ] {
+        if !manager.has_table(table).await? {
+            return Err(DbErr::Custom(format!(
+                "Required AqarDesk table is missing: {table}"
+            )));
         }
+    }
+    Ok(())
+}
 
-        async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-            for table in [
-                "payments",
-                "leases",
-                "tenants",
-                "units",
-                "properties",
-                "users",
-                "organizations",
-            ] {
-                manager
-                    .drop_table(
-                        Table::drop()
-                            .table(Alias::new(table))
-                            .if_exists()
-                            .to_owned(),
-                    )
-                    .await?;
-            }
-            Ok(())
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::{Database, Statement, DbBackend};
+    use sea_orm_migration::MigratorTrait;
+
+    #[tokio::test]
+    async fn sqlite_schema_is_repeatable_and_enforces_core_constraints() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory sqlite");
+        Migrator::up(&database, None)
+            .await
+            .expect("apply migrations");
+        Migrator::up(&database, None)
+            .await
+            .expect("reapply migrations");
+        verify_schema(&database).await.expect("verify tables");
+
+        let invalid_role = database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO users (id, organization_id, full_name, email, password_hash, role) VALUES ('u', 'o', 'User', 'u@example.com', 'hash', 'owner')",
+            ))
+            .await;
+        assert!(invalid_role.is_err(), "invalid user roles must be rejected");
+
+        let missing_tenant = database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO leases (id, organization_id, lease_number, unit_id, tenant_id, start_on, end_on, rent_amount_minor, deposit_amount_minor, currency_code, billing_period, due_day, status) VALUES ('l', 'o', 'L-1', 'unit', 'missing', '2026-01-01', '2027-01-01', 100, 0, 'SAR', 'monthly', 1, 'draft')",
+            ))
+            .await;
+        assert!(
+            missing_tenant.is_err(),
+            "leases must reject missing referenced tenants"
+        );
     }
 }
