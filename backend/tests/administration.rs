@@ -213,6 +213,31 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
     assert_eq!(profile.email, "updated@example.test");
 
     let templates = ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database));
+    let mut blank_input = template_input("Blank residential lease", None);
+    blank_input.template_key = "blank-residential-lease".to_string();
+    blank_input.content_body.clear();
+    let blank_template = templates
+        .create(actor, blank_input)
+        .await
+        .expect("create blank editable template");
+    assert!(
+        templates
+            .set_active(actor, &blank_template.id, true)
+            .await
+            .is_err(),
+        "blank templates must not be activated"
+    );
+    let mut completed_input = template_input("Blank residential lease", Some("Added content"));
+    completed_input.template_key = "blank-residential-lease".to_string();
+    templates
+        .update(actor, &blank_template.id, completed_input)
+        .await
+        .expect("add content to blank template");
+    templates
+        .set_active(actor, &blank_template.id, true)
+        .await
+        .expect("activate completed template");
+
     let created = templates
         .create(actor, template_input("Primary lease", None))
         .await

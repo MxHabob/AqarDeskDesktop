@@ -38,9 +38,9 @@
 		{#snippet child({ props })}
 			<Button
 				{...props}
-				variant="ghost"
+				variant="default"
 				size="icon"
-				class="size-8 rounded-[10px] bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+				class="size-8 rounded-md"
 				aria-label={m.common_user_menu()}
 				title={currentUser.name}
 			>

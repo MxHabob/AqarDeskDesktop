@@ -89,6 +89,108 @@ impl SeaOrmContractTemplateRepository {
     }
 }
 
+pub(super) async fn seed_onboarding_templates(
+    transaction: &DatabaseTransaction,
+    organization_id: &str,
+    actor_id: &str,
+    now: chrono::DateTime<Utc>,
+) -> Result<(), ApplicationError> {
+    const TEMPLATES: [(&str, &str, &str, &str); 6] = [
+        (
+            "residential-lease-ar",
+            "قالب إيجار سكني (فارغ)",
+            "residential",
+            "ar",
+        ),
+        (
+            "commercial-lease-ar",
+            "قالب إيجار تجاري (فارغ)",
+            "commercial",
+            "ar",
+        ),
+        (
+            "short-term-lease-ar",
+            "قالب إيجار قصير الأجل (فارغ)",
+            "short_term",
+            "ar",
+        ),
+        (
+            "residential-lease-en",
+            "Residential lease (blank)",
+            "residential",
+            "en",
+        ),
+        (
+            "commercial-lease-en",
+            "Commercial lease (blank)",
+            "commercial",
+            "en",
+        ),
+        (
+            "short-term-lease-en",
+            "Short-term lease (blank)",
+            "short_term",
+            "en",
+        ),
+    ];
+
+    for (template_key, name, lease_type, locale) in TEMPLATES {
+        let template_id = Uuid::new_v4().to_string();
+        ActiveModel {
+            id: Set(template_id.clone()),
+            organization_id: Set(organization_id.to_string()),
+            template_key: Set(template_key.to_string()),
+            name: Set(name.to_string()),
+            description: Set(None),
+            lease_type: Set(lease_type.to_string()),
+            locale: Set(locale.to_string()),
+            is_active: Set(false),
+            created_by: Set(Some(actor_id.to_string())),
+            updated_by: Set(Some(actor_id.to_string())),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await
+        .map_err(persistence_error)?;
+
+        let content_body = String::new();
+        let content_sha256 = Sha256::digest(content_body.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        version::ActiveModel {
+            id: Set(Uuid::new_v4().to_string()),
+            organization_id: Set(organization_id.to_string()),
+            template_id: Set(template_id.clone()),
+            version_number: Set(1),
+            content_format: Set("markdown".to_string()),
+            content_body: Set(Some(content_body)),
+            placeholders_json: Set("{}".to_string()),
+            content_sha256: Set(content_sha256),
+            change_note: Set(Some("Blank editable onboarding template".to_string())),
+            created_by: Set(Some(actor_id.to_string())),
+            created_at: Set(now),
+        }
+        .insert(transaction)
+        .await
+        .map_err(persistence_error)?;
+
+        audit::record(
+            transaction,
+            organization_id,
+            actor_id,
+            "created",
+            "contract_template",
+            &template_id,
+            serde_json::json!({"template_key": template_key, "onboarding_default": true}),
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
 #[async_trait::async_trait]
 impl ContractTemplateRepository for SeaOrmContractTemplateRepository {
     async fn list(&self, organization_id: &str) -> Result<Vec<ContractTemplate>, ApplicationError> {
@@ -252,6 +354,23 @@ impl ContractTemplateRepository for SeaOrmContractTemplateRepository {
             .await
             .map_err(persistence_error)?
             .ok_or(ApplicationError::NotFound)?;
+        if is_active {
+            let latest_content = version::Entity::find()
+                .filter(version::Column::OrganizationId.eq(organization_id))
+                .filter(version::Column::TemplateId.eq(template_id))
+                .order_by_desc(version::Column::VersionNumber)
+                .one(&transaction)
+                .await
+                .map_err(persistence_error)?
+                .and_then(|item| item.content_body)
+                .unwrap_or_default();
+            if latest_content.trim().is_empty() {
+                return Err(crate::domain::DomainError::Validation(
+                    "Add contract content before activating this template.",
+                )
+                .into());
+            }
+        }
         let mut active = existing.into_active_model();
         active.is_active = Set(is_active);
         active.updated_by = Set(Some(actor_id.to_string()));

@@ -49,9 +49,15 @@
 			header: m.users_status(),
 			type: 'status',
 			width: 120,
-			accessor: (row) => row.is_active ? 'active' : 'archived',
+			accessor: (row) =>
+				row.is_active
+					? 'active'
+					: row.versions instanceof Array && row.versions[0]?.content_body?.trim()
+						? 'archived'
+						: 'draft',
 			options: [
 				{ value: 'active', label: m.settings_template_active() },
+				{ value: 'draft', label: m.settings_template_draft() },
 				{ value: 'archived', label: m.settings_template_archived() }
 			]
 		},
@@ -81,7 +87,14 @@
 						icon: 'Check',
 						label: m.settings_template_enable(),
 						variant: 'outline',
-						visible: (row: Record<string, unknown>) => row.is_active !== true,
+						visible: (row: Record<string, unknown>) => {
+							const latest = row.versions instanceof Array ? row.versions[0] : undefined;
+							return (
+								row.is_active !== true &&
+								typeof latest?.content_body === 'string' &&
+								latest.content_body.trim().length > 0
+							);
+						},
 						disabled: () => busy
 					}
 				]

@@ -5,6 +5,7 @@ use crate::{
     domain::{AccessRole, Organization, OrganizationId, UserAccount, UserId},
     infrastructure::{
         audit,
+        contract_template_repository::seed_onboarding_templates,
         models::{installation, organization, organization_currency, user},
     },
 };
@@ -104,16 +105,35 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             now,
         )
         .await?;
-        organization_currency::ActiveModel {
-            organization_id: Set(organization_id.to_string()),
-            currency_code: Set("SAR".to_string()),
-            is_enabled: Set(true),
-            created_by: Set(Some(user_model.id.clone())),
-            created_at: Set(now),
+        for currency_code in ["SAR", "YER", "USD"] {
+            organization_currency::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                currency_code: Set(currency_code.to_string()),
+                is_enabled: Set(true),
+                created_by: Set(Some(user_model.id.clone())),
+                created_at: Set(now),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(persistence_error)?;
+            audit::record(
+                &transaction,
+                &organization_id.to_string(),
+                &user_model.id,
+                "enabled",
+                "organization_currency",
+                currency_code,
+                serde_json::json!({"currency_code": currency_code, "is_enabled": true}),
+            )
+            .await?;
         }
-        .insert(&transaction)
-        .await
-        .map_err(persistence_error)?;
+        seed_onboarding_templates(
+            &transaction,
+            &organization_id.to_string(),
+            &user_model.id,
+            now,
+        )
+        .await?;
         audit::record(
             &transaction,
             &organization_id.to_string(),
@@ -132,16 +152,6 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             "user",
             &user_model.id,
             serde_json::json!({"role": AccessRole::Admin.as_str()}),
-        )
-        .await?;
-        audit::record(
-            &transaction,
-            &organization_id.to_string(),
-            &user_model.id,
-            "enabled",
-            "organization_currency",
-            "SAR",
-            serde_json::json!({"currency_code": "SAR", "is_enabled": true}),
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
@@ -471,7 +481,7 @@ fn persistence_error(error: sea_orm::DbErr) -> ApplicationError {
 mod tests {
     use super::*;
     use crate::migration;
-    use sea_orm::Database;
+    use sea_orm::{ConnectionTrait, Database};
 
     #[tokio::test]
     async fn bootstrap_login_lockout_and_admin_user_operations_work_end_to_end() {
@@ -495,14 +505,51 @@ mod tests {
             .await
             .expect("bootstrap admin");
         assert_eq!(admin.email, "admin@example.com");
-        let default_currency = organization_currency::Entity::find()
+        assert_eq!(organization.default_currency, "SAR");
+        let enabled_currency_codes = organization_currency::Entity::find()
             .filter(organization_currency::Column::OrganizationId.eq(organization.id.to_string()))
-            .one(&database)
+            .filter(organization_currency::Column::IsEnabled.eq(true))
+            .all(&database)
             .await
-            .expect("load organization currency")
-            .expect("default currency is enabled");
-        assert_eq!(default_currency.currency_code, "SAR");
-        assert!(default_currency.is_enabled);
+            .expect("list default currencies")
+            .into_iter()
+            .map(|currency| currency.currency_code)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            enabled_currency_codes,
+            ["SAR", "USD", "YER"]
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        );
+        let seeded_template_count = database
+            .query_one(sea_orm::Statement::from_string(
+                sea_orm::DbBackend::Sqlite,
+                format!(
+                    "SELECT COUNT(*) AS count FROM contract_templates WHERE organization_id = '{}'",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("count onboarding templates")
+            .expect("template count exists")
+            .try_get_by::<i64, _>("count")
+            .expect("read template count");
+        assert_eq!(seeded_template_count, 6);
+        let empty_template_count = database
+            .query_one(sea_orm::Statement::from_string(
+                sea_orm::DbBackend::Sqlite,
+                format!(
+                    "SELECT COUNT(*) AS count FROM contract_template_versions v JOIN contract_templates t ON t.id = v.template_id WHERE t.organization_id = '{}' AND t.is_active = FALSE AND v.content_body = ''",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("count empty onboarding templates")
+            .expect("empty template count exists")
+            .try_get_by::<i64, _>("count")
+            .expect("read empty template count");
+        assert_eq!(empty_template_count, 6);
         assert!(!service.setup_status().await.expect("setup status"));
         assert!(matches!(
             service

@@ -35,8 +35,7 @@
 	<Popover.Trigger>
 		<Button
 			variant="outline"
-			size="icon"
-			class="size-6 rounded-md"
+			size="icon-xs"
 			aria-label={open ? m.sidebar_clock_close() : m.sidebar_clock_open()}
 			title={timeLabel}
 			aria-expanded={open}

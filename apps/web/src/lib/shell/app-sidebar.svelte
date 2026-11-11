@@ -69,7 +69,7 @@
 							<Button
 								variant={item.active.includes(active) ? 'default' : 'ghost'}
 								size="icon"
-								class={`relative size-9 rounded-[10px] after:absolute after:inset-y-2 after:start-0 after:w-0.5 after:rounded-full after:bg-primary after:content-[''] ${
+								class={`relative size-9 rounded-md after:absolute after:inset-y-2 after:start-0 after:w-0.5 after:rounded-full after:bg-primary after:content-[''] ${
 									item.active.includes(active) ? 'after:opacity-100' : 'after:opacity-0'
 								}`}
 								aria-label={item.label}

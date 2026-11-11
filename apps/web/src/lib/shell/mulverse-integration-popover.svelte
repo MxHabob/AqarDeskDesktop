@@ -29,8 +29,8 @@
 					<Button
 						{...props}
 						variant="outline"
-						size="icon"
-						class="relative size-6 cursor-pointer rounded-md"
+						size="icon-xs"
+						class="relative cursor-pointer"
 						aria-label={m.sidebar_mulverse_title()}
 					>
 						<GitMerge size={13} strokeWidth={1.8} class="text-foreground" />

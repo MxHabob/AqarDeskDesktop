@@ -157,8 +157,8 @@ fn validate(mut input: ContractTemplateInput) -> Result<ContractTemplateInput, A
             "Template key must be 1 to 64 lowercase letters, digits, hyphens, or underscores.",
         ));
     }
-    if input.name.is_empty() || input.name.len() > 160 || input.content_body.is_empty() {
-        return Err(validation("Template name and content are required."));
+    if input.name.is_empty() || input.name.len() > 160 {
+        return Err(validation("Template name is required."));
     }
     if !matches!(
         input.lease_type.as_str(),

@@ -71,8 +71,8 @@
 					<Button
 						{...props}
 						variant="outline"
-						size="icon"
-						class="size-6 cursor-pointer rounded-md"
+						size="icon-xs"
+						class="cursor-pointer"
 						aria-label={m.sidebar_more_actions()}
 					>
 						<MoreHorizontal size={13} strokeWidth={1.8} class="text-foreground" />

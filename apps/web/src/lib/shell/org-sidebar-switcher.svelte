@@ -32,7 +32,7 @@
 				{...props}
 				variant="ghost"
 				size="icon"
-				class="size-8 rounded-[10px] bg-background text-foreground hover:bg-muted"
+				class="size-8 rounded-md"
 				aria-label={organizationLabel}
 				title={organizationLabel}
 			>

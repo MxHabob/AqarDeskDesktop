@@ -3,6 +3,7 @@ use sea_orm_migration::{MigrationTrait, MigratorTrait, SchemaManager, prelude::*
 
 mod m20261111_000001_platform_core;
 mod m20261112_000001_contract_templates;
+mod m20261112_000002_onboarding_defaults;
 
 pub struct PlatformMigrator;
 
@@ -12,6 +13,7 @@ impl MigratorTrait for PlatformMigrator {
         vec![
             Box::new(m20261111_000001_platform_core::Migration),
             Box::new(m20261112_000001_contract_templates::Migration),
+            Box::new(m20261112_000002_onboarding_defaults::Migration),
         ]
     }
 }
@@ -124,5 +126,17 @@ mod tests {
         ] {
             assert!(tables.iter().any(|table| table == expected));
         }
+
+        let currency_count = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT COUNT(*) AS count FROM currencies",
+            ))
+            .await
+            .expect("count default currencies")
+            .expect("currency count exists")
+            .try_get_by::<i64, _>("count")
+            .expect("read currency count");
+        assert_eq!(currency_count, 10);
     }
 }

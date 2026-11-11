@@ -38,7 +38,11 @@
 {/if}
 
 <Sheet bind:open>
-	<SheetContent side="end" class="max-w-2xl">
+	<SheetContent
+		side="end"
+		class="max-w-none"
+		contentClass="!data-[side=end]:w-[min(78rem,calc(100vw-1rem))]"
+	>
 		<SheetHeader class="shrink-0 px-4 py-4">
 			<SheetTitle>{initial ? m.settings_template_edit() : m.settings_template_add()}</SheetTitle>
 		</SheetHeader>
