@@ -1,5 +1,8 @@
 use aqardesk_backend::{
-    application::{CurrencyCatalog, OrganizationSettingsInput, OrganizationSettingsService},
+    application::{
+        CurrencyCatalog, CurrencyInput, NewCurrencyInput, OrganizationSettingsInput,
+        OrganizationSettingsService,
+    },
     infrastructure::{SeaOrmCurrencyRepository, SeaOrmOrganizationSettingsRepository},
 };
 use tauri::State;
@@ -39,6 +42,31 @@ pub async fn currencies_list(
     let (actor, database) = local_business_state(&state).await?;
     CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
         .list(actor)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn currencies_create(
+    state: State<'_, PlatformState>,
+    input: NewCurrencyInput,
+) -> Result<(), String> {
+    let (actor, database) = local_business_state(&state).await?;
+    CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+        .create(actor, input)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn currencies_update(
+    state: State<'_, PlatformState>,
+    currency_code: String,
+    input: CurrencyInput,
+) -> Result<(), String> {
+    let (actor, database) = local_business_state(&state).await?;
+    CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+        .update(actor, &currency_code, input)
         .await
         .map_err(application_error)
 }

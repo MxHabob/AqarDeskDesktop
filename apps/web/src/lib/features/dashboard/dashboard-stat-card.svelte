@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Card } from '@aqardesk/ui';
 	import { Building2 } from '@lucide/svelte';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { formatNumber } from '#lib/core/i18n';
 
 	let {
 		label,
@@ -15,7 +15,7 @@
 		description?: string;
 	} = $props();
 
-	const formattedValue = $derived(new Intl.NumberFormat(getLocale()).format(value));
+	const formattedValue = $derived(formatNumber(value));
 </script>
 
 <Card class="flex h-[182px] min-w-0 flex-col justify-between gap-5 p-3">

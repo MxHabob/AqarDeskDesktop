@@ -2,12 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
-	import { ReceiptText } from '@lucide/svelte';
-	import { Card, CardDescription, CardHeader, CardTitle, toast } from '@aqardesk/ui';
+	import { toast } from '@aqardesk/ui';
 	import type { CurrencySettings, Payment, PaymentInput, Tenant } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { confirmStore } from '#lib/core/confirm.svelte';
+	import {
+		formatCurrency,
+		formatDate as formatLocalizedDate,
+		formatGridCell
+	} from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import PaymentSheet from '#lib/features/payments/payment-sheet.svelte';
 	import * as m from '#lib/paraglide/messages';
@@ -90,18 +94,11 @@
 	function formatMoney(payment: Payment) {
 		const digits =
 			currencies.find((currency) => currency.code === payment.currency_code)?.decimal_digits ?? 2;
-		return new Intl.NumberFormat(locale, {
-			style: 'currency',
-			currency: payment.currency_code,
-			minimumFractionDigits: digits,
-			maximumFractionDigits: digits
-		}).format(payment.amount_minor / 10 ** digits);
+		return formatCurrency(payment.amount_minor, payment.currency_code, digits);
 	}
 
 	function formatDate(value: string) {
-		return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
-			new Date(value)
-		);
+		return formatLocalizedDate(value, 'datetime', undefined, app.organizationTimezone);
 	}
 
 	function methodLabel(method: string) {
@@ -178,42 +175,30 @@
 	}
 </script>
 
-<header class="flex flex-wrap items-start justify-between gap-3">
-	<div class="grid gap-1">
-		<h2 class="text-lg font-semibold">{m.nav_payments()}</h2>
-		<p class="text-sm text-muted-foreground">{m.dashboard_payments_description()}</p>
-	</div>
-	<PaymentSheet
-		{tenants}
-		currencies={enabledCurrencies}
-		{busy}
-		disabled={app.currentUser?.role === 'readonly'}
-		onSubmit={record}
-	/>
-	{#if !loading && tenants.length === 0}
-		<p class="w-full text-xs text-muted-foreground">{m.payments_need_tenant()}</p>
-	{/if}
-</header>
-
-<Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">
-	<CardHeader class="mb-4 flex-row items-center justify-between p-0">
-		<div class="grid gap-1">
-			<CardTitle class="text-base">{m.payments_receipts()}</CardTitle>
-			<CardDescription>{payments.length} {m.payments_receipts()}</CardDescription>
-		</div>
-		<span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground">
-			<ReceiptText size={18} />
-		</span>
-	</CardHeader>
+<div class="min-h-0 min-w-0 flex-1">
 	<OrbisGrid
 		{columns}
 		source={gridRows}
 		{loading}
 		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
-		height="420px"
+		height="100%"
 		emptyTitle={m.payments_empty_title()}
 		emptyDescription={m.payments_empty_description()}
 		onaction={handleGridAction}
-	/>
-</Card>
+	>
+		{#snippet toolbarActions()}
+			<PaymentSheet
+				{tenants}
+				currencies={enabledCurrencies}
+				{busy}
+				disabled={isReadonly || tenants.length === 0}
+				onSubmit={record}
+			/>
+			{#if !loading && tenants.length === 0}
+				<span class="px-2 text-xs text-muted-foreground">{m.payments_need_tenant()}</span>
+			{/if}
+		{/snippet}
+	</OrbisGrid>
+</div>

@@ -12,6 +12,9 @@
 	import type { ViewKey } from '#lib/shell/navigation';
 	import OrgSidebarSwitcher from '#lib/shell/org-sidebar-switcher.svelte';
 	import UserSidebarMenu from '#lib/shell/user-sidebar-menu.svelte';
+	import MulverseIntegrationPopover from '#lib/shell/mulverse-integration-popover.svelte';
+	import MoreActionsDropdown from '#lib/shell/more-actions-dropdown.svelte';
+	import SystemClock from '#lib/shell/system-clock.svelte';
 
 	type Props = {
 		active: ViewKey;
@@ -78,6 +81,16 @@
 			</nav>
 		</div>
 
-		<UserSidebarMenu {currentUser} onLogout={onLogout} />
+		<div class="flex flex-col items-center gap-2">
+			<div class="flex flex-col items-center gap-1">
+				<MulverseIntegrationPopover orgId={currentUser.organization_id} />
+				<MoreActionsDropdown
+					orgId={currentUser.organization_id}
+					isAdmin={currentUser.role === 'admin'}
+				/>
+				<SystemClock />
+			</div>
+			<UserSidebarMenu {currentUser} onLogout={onLogout} />
+		</div>
 	</aside>
 </TooltipProvider>

@@ -1,80 +1,110 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Button, toast } from '@aqardesk/ui';
+	import { toast } from '@aqardesk/ui';
+	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 	import type { AuditEntry } from '@aqardesk/sdk';
+	import SettingsDetailsDialog from '#lib/features/settings/settings-details-dialog.svelte';
+	import { getLocale } from '#lib/paraglide/runtime';
+	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { formatDate, formatGridCell } from '#lib/core/i18n';
 	import { desktopApi } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 
 	const pageSize = 50;
+	const app = getAppContext();
 	let entries = $state<AuditEntry[]>([]);
 	let loading = $state(true);
-	let loadingMore = $state(false);
 	let hasMore = $state(false);
+	let selectedEntry = $state<AuditEntry | null>(null);
+	let detailsOpen = $state(false);
+	const rtl = $derived(getLocale() === 'ar');
+	const detailFields = $derived(
+		selectedEntry
+			? [
+					{
+						label: m.settings_audit_actor(),
+						value: selectedEntry.actor_name ?? selectedEntry.actor_user_id ?? m.settings_audit_actor()
+					},
+					{ label: m.settings_audit_action(), value: selectedEntry.action },
+					{ label: m.settings_audit_entity(), value: selectedEntry.entity_type },
+					{ label: m.settings_audit_entity_id(), value: selectedEntry.entity_id, direction: 'ltr' as const },
+					{ label: m.settings_audit_time(), value: formatTimestamp(selectedEntry.created_at) },
+					...(selectedEntry.details_json
+						? [
+								{
+									label: m.settings_audit_details(),
+									value: selectedEntry.details_json,
+									direction: 'ltr' as const,
+									preformatted: true
+								}
+							]
+						: [])
+				]
+			: []
+	);
+	const columns: OrbisColumnDef[] = $derived([
+		{
+			id: 'actor_name',
+			header: m.settings_audit_actor(),
+			width: 180,
+			accessor: (row) => row.actor_name ?? row.actor_user_id ?? m.settings_audit_actor()
+		},
+		{ id: 'action', header: m.settings_audit_action(), width: 180 },
+		{ id: 'entity_type', header: m.settings_audit_entity(), width: 140 },
+		{ id: 'entity_id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'created_at', header: m.settings_audit_time(), type: 'datetime', width: 200 }
+	]);
 
 	onMount(() => {
 		void load(false);
 	});
 
 	async function load(more: boolean) {
-		if (more) loadingMore = true;
-		else loading = true;
+		if (!more) loading = true;
 		try {
 			const next = await desktopApi.listAuditEvents(pageSize, more ? entries.length : 0);
 			entries = more ? [...entries, ...next] : next;
 			hasMore = next.length === pageSize;
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
+			if (more) throw cause;
 		} finally {
 			loading = false;
-			loadingMore = false;
 		}
 	}
 
 	function formatTimestamp(value: string) {
-		const timestamp = new Date(value);
-		return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
+		return formatDate(value, 'datetime', undefined, app.organizationTimezone) || value;
+	}
+
+	function handleGridAction(event: GridActionEvent) {
+		if (event.actionId !== 'dblclick') return;
+		const entry = entries.find((item) => item.id === String(event.row.id ?? ''));
+		if (!entry) return;
+		selectedEntry = entry;
+		detailsOpen = true;
 	}
 </script>
 
-<header class="grid gap-1">
-	<h2 class="text-lg font-semibold">{m.settings_audit()}</h2>
-	<p class="text-sm text-muted-foreground">{m.settings_audit_description()}</p>
-</header>
+<div class="min-h-0 min-w-0 flex-1">
+	<OrbisGrid
+		{columns}
+		source={entries}
+		{loading}
+		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
+		readonly
+		rowIdKey="id"
+		height="100%"
+		{hasMore}
+		onloadmore={() => load(true)}
+		emptyTitle={m.settings_audit_empty()}
+		onaction={handleGridAction}
+	/>
+</div>
 
-{#if loading}
-	<div class="py-8 text-sm text-muted-foreground" role="status">{m.common_processing()}</div>
-{:else if entries.length === 0}
-	<p class="py-8 text-sm text-muted-foreground">{m.settings_audit_empty()}</p>
-{:else}
-	<div class="grid divide-y divide-border/70 border-y border-border/70">
-		{#each entries as entry (entry.id)}
-			<article class="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-				<div class="grid min-w-0 gap-1">
-					<p class="text-sm font-medium">
-						{entry.actor_name ?? entry.actor_user_id ?? m.settings_audit_actor()}
-						<span class="font-normal text-muted-foreground">· {entry.action}</span>
-					</p>
-					<p class="truncate text-xs text-muted-foreground" dir="ltr">
-						{entry.entity_type} / {entry.entity_id}
-					</p>
-					{#if entry.details_json}
-						<details class="text-xs text-muted-foreground">
-							<summary class="w-fit cursor-pointer">{m.settings_audit_details()}</summary>
-							<pre class="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/50 p-2" dir="ltr">{entry.details_json}</pre>
-						</details>
-					{/if}
-				</div>
-				<time class="text-xs text-muted-foreground" datetime={entry.created_at}>
-					{formatTimestamp(entry.created_at)}
-				</time>
-			</article>
-		{/each}
-	</div>
-	{#if hasMore}
-		<div class="flex justify-center">
-			<Button variant="outline" disabled={loadingMore} onclick={() => void load(true)}>
-				{loadingMore ? m.common_processing() : m.settings_load_more()}
-			</Button>
-		</div>
-	{/if}
-{/if}
+<SettingsDetailsDialog
+	bind:open={detailsOpen}
+	title={m.settings_details_title()}
+	fields={detailFields}
+/>

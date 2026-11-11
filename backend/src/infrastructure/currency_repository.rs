@@ -1,5 +1,7 @@
 use crate::{
-    application::{ApplicationError, CurrencyRepository, CurrencySettings},
+    application::{
+        ApplicationError, CurrencyInput, CurrencyRepository, CurrencySettings, NewCurrencyInput,
+    },
     infrastructure::{audit, models::organization_currency},
 };
 use chrono::Utc;
@@ -71,6 +73,118 @@ impl CurrencyRepository for SeaOrmCurrencyRepository {
                 is_active: currency.is_active,
             })
             .collect())
+    }
+
+    async fn create(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        input: NewCurrencyInput,
+    ) -> Result<(), ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        if Entity::find_by_id(&input.code)
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .is_some()
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "A currency with this code already exists.",
+            )
+            .into());
+        }
+
+        let now = Utc::now();
+        ActiveModel {
+            code: Set(input.code.clone()),
+            name: Set(input.name.clone()),
+            name_ar: Set(input.name_ar.clone()),
+            symbol: Set(input.symbol.clone()),
+            symbol_position: Set(input.symbol_position.clone()),
+            decimal_digits: Set(input.decimal_digits),
+            is_active: Set(true),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(&transaction)
+        .await
+        .map_err(persistence_error)?;
+
+        if input.enable_for_organization {
+            organization_currency::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                currency_code: Set(input.code.clone()),
+                is_enabled: Set(true),
+                created_by: Set(Some(actor_id.to_string())),
+                created_at: Set(now),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        }
+
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            "currency_created",
+            "currency",
+            &input.code,
+            serde_json::json!({
+                "name": input.name,
+                "name_ar": input.name_ar,
+                "symbol": input.symbol,
+                "symbol_position": input.symbol_position,
+                "decimal_digits": input.decimal_digits,
+                "is_enabled_for_organization": input.enable_for_organization,
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)
+    }
+
+    async fn update(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        code: &str,
+        input: CurrencyInput,
+    ) -> Result<(), ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let currency = Entity::find_by_id(code)
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let mut active = currency.into_active_model();
+        active.name = Set(input.name.clone());
+        active.name_ar = Set(input.name_ar.clone());
+        active.symbol = Set(input.symbol.clone());
+        active.symbol_position = Set(input.symbol_position.clone());
+        active.decimal_digits = Set(input.decimal_digits);
+        active.updated_at = Set(Utc::now());
+        active
+            .update(&transaction)
+            .await
+            .map_err(persistence_error)?;
+
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            "currency_updated",
+            "currency",
+            code,
+            serde_json::json!({
+                "name": input.name,
+                "name_ar": input.name_ar,
+                "symbol": input.symbol,
+                "symbol_position": input.symbol_position,
+                "decimal_digits": input.decimal_digits,
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)
     }
 
     async fn set_enabled(

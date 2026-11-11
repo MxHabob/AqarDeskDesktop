@@ -57,7 +57,7 @@ function apply() {
     {/if}
   </Button>
 
-  <DialogContent class="max-h-[80vh] max-w-3xl gap-0 overflow-hidden p-0 sm:max-w-3xl">
+  <DialogContent class="max-h-[80vh] max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-2xl">
     <DialogHeader class="gap-1 border-b border-border/60 px-5 py-4 pe-10">
       <DialogTitle class="text-sm font-semibold">{title}</DialogTitle>
     </DialogHeader>

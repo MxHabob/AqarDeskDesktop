@@ -104,6 +104,7 @@ interface Props {
   onpasteResult?: (result: BulkResult) => void;
   onselection?: (sel: SelectionSnapshot) => void;
   cellStyle?: (row: GridRow, col: OrbisColumnDef) => string;
+  formatCellValue?: (row: GridRow, col: OrbisColumnDef) => string;
   createEmptyRow?: () => GridRow;
   hasMore?: boolean;
   onloadmore?: () => void | Promise<unknown>;
@@ -146,14 +147,15 @@ let {
   onpasteResult,
   onselection,
   cellStyle,
+  formatCellValue,
   createEmptyRow,
   hasMore = false,
   onloadmore,
 }: Props = $props();
 
 const HEADER_H = 40;
-let root: HTMLDivElement | null = $state(null);
-let bodyEl: HTMLDivElement | null = $state(null);
+let root: HTMLDivElement | null = null;
+let bodyEl: HTMLDivElement | null = null;
 let scrollTop = $state(0);
 let scrollLeft = $state(0);
 let viewportH = $state(400);
@@ -198,6 +200,10 @@ setContext("orbis-grid-onaction", (event: GridActionEvent) => {
 });
 
 const usesServerQuery = $derived(serverQuery || Boolean(onquerychange));
+
+function getFormattedCell(row: GridRow, column: OrbisColumnDef): string {
+  return formatCellValue?.(row, column) ?? formatCell(row, column, rtl ? "ar" : "en");
+}
 const shouldRunClientQuery = $derived(
   clientQuery ||
     (!usesServerQuery &&
@@ -262,7 +268,7 @@ const autoSizeWidths = $derived.by<Record<string, number>>(() => {
   for (const col of visibleCols) {
     let max = columnHeader(col).length * 8 + 24;
     for (let index = 0; index < Math.min(displayRows.length, 80); index++) {
-      max = Math.max(max, formatCell(displayRows[index]!, col).length * 7 + 24);
+      max = Math.max(max, getFormattedCell(displayRows[index]!, col).length * 7 + 24);
     }
     widths[columnId(col)] = Math.min(420, Math.max(64, max));
     if (!isUtilityColumn(col)) {
@@ -2073,7 +2079,7 @@ export function scrollToColumnProp(prop: string) {
                       </div>
                     {:else if isBadgeColumn(col, row)}
                       {@const val = getCellValue(row, col)}
-                      {@const formatted = formatCell(row, col, rtl ? "ar" : "en")}
+                      {@const formatted = getFormattedCell(row, col)}
                       <span class="orbis-grid-badge orbis-grid-badge-{getBadgeVariant(val)}">
                         {formatted || "—"}
                       </span>
@@ -2138,7 +2144,7 @@ export function scrollToColumnProp(prop: string) {
                         {/each}
                       </div>
                     {:else}
-                      <span class="orbis-text">{formatCell(row, col, rtl ? "ar" : "en")}</span>
+                      <span class="orbis-text">{getFormattedCell(row, col)}</span>
                     {/if}
                   </div>
                 {/each}

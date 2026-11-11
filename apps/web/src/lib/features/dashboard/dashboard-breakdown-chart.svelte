@@ -4,7 +4,10 @@
 	import * as m from '#lib/paraglide/messages';
 
 	let { summary }: { summary: DashboardSummary } = $props();
-	const statuses = $derived(summary.unit_status_counts);
+	let selectedBreakdown = $state<'units' | 'payments'>('units');
+	const statuses = $derived(
+		selectedBreakdown === 'units' ? summary.unit_status_counts : summary.payment_status_counts
+	);
 	const maxCount = $derived(Math.max(0, ...statuses.map((status) => status.count)));
 
 	function statusLabel(status: string) {
@@ -18,6 +21,7 @@
 			case 'expired': return m.dashboard_status_expired();
 			case 'terminated': return m.dashboard_status_terminated();
 			case 'void': return m.dashboard_status_void();
+			case 'posted': return m.payments_status_posted();
 			default: return status;
 		}
 	}
@@ -26,7 +30,24 @@
 <Card class="flex h-[182px] min-w-0 flex-col p-3">
 	<div class="mb-2 flex items-center justify-between gap-3">
 		<h3 class="text-xs font-medium text-muted-foreground">{m.dashboard_status_breakdown()}</h3>
-		<span class="text-[11px] text-muted-foreground">{m.dashboard_unit_statuses()}</span>
+		<div class="flex border border-border/70">
+			<button
+				type="button"
+				class={`px-2 py-1 text-[11px] ${selectedBreakdown === 'units' ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
+				aria-pressed={selectedBreakdown === 'units'}
+				onclick={() => (selectedBreakdown = 'units')}
+			>
+				{m.dashboard_unit_statuses()}
+			</button>
+			<button
+				type="button"
+				class={`border-s border-border/70 px-2 py-1 text-[11px] ${selectedBreakdown === 'payments' ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
+				aria-pressed={selectedBreakdown === 'payments'}
+				onclick={() => (selectedBreakdown = 'payments')}
+			>
+				{m.dashboard_payment_statuses()}
+			</button>
+		</div>
 	</div>
 
 	<div class="grid min-h-0 flex-1 content-center gap-2 overflow-y-auto scrollbar-none">
@@ -38,7 +59,7 @@
 					<span class="truncate text-muted-foreground">{statusLabel(item.status)}</span>
 					<div class="h-1.5 bg-muted">
 						<div
-							class="h-full bg-foreground/80"
+							class="h-full bg-foreground/80 transition-[width] duration-300 ease-out"
 							style={`width: ${maxCount === 0 ? 0 : (item.count / maxCount) * 100}%`}
 						></div>
 					</div>

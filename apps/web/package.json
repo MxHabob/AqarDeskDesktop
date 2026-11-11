@@ -18,12 +18,14 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"dependencies": {
-		"@aqardesk/ui": "workspace:*",
 		"@aqardesk/sdk": "workspace:*",
 		"@aqardesk/svelte-grid": "workspace:*",
+		"@aqardesk/ui": "workspace:*",
 		"@tanstack/svelte-form": "^1.33.5",
 		"@tanstack/svelte-query": "^6.4.1",
 		"@tauri-apps/api": "^2.9.1",
+		"@tauri-apps/plugin-dialog": "^2.8.4",
+		"@tauri-apps/plugin-opener": "^2.5.0",
 		"zod": "^4.6.7"
 	},
 	"devDependencies": {

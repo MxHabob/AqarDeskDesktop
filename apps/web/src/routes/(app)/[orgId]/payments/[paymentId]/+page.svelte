@@ -7,11 +7,10 @@
 	import { Button, Card, CardContent, toast } from '@aqardesk/ui';
 	import type { CurrencySettings, OrganizationSettings, Payment } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { formatCurrency, formatDate } from '#lib/core/i18n';
 	import * as m from '#lib/paraglide/messages';
 
 	let { data }: PageProps = $props();
-	const locale = $derived(getLocale());
 	let payment = $state<Payment | null>(null);
 	let organization = $state<OrganizationSettings | null>(null);
 	let currencies = $state<CurrencySettings[]>([]);
@@ -42,12 +41,7 @@
 	function formatMoney(item: Payment) {
 		const digits =
 			currencies.find((currency) => currency.code === item.currency_code)?.decimal_digits ?? 2;
-		return new Intl.NumberFormat(locale, {
-			style: 'currency',
-			currency: item.currency_code,
-			minimumFractionDigits: digits,
-			maximumFractionDigits: digits
-		}).format(item.amount_minor / 10 ** digits);
+		return formatCurrency(item.amount_minor, item.currency_code, digits);
 	}
 
 	function methodLabel(method: string) {
@@ -100,7 +94,9 @@
 				</div>
 				<div class="grid gap-1">
 					<p class="text-xs text-muted-foreground">{m.payments_received_at()}</p>
-					<p class="text-sm">{new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(payment.received_at))}</p>
+					<p class="text-sm">
+						{formatDate(payment.received_at, 'datetime', undefined, organization?.timezone)}
+					</p>
 				</div>
 				<div class="grid gap-1">
 					<p class="text-xs text-muted-foreground">{m.payments_tenant()}</p>

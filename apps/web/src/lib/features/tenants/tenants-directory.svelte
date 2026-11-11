@@ -1,18 +1,22 @@
 <script lang="ts">
-	import { UsersRound } from '@lucide/svelte';
+	import { Plus } from '@lucide/svelte';
+	import { Button } from '@aqardesk/ui';
 	import type { Tenant } from '@aqardesk/sdk';
-	import { Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
 	import { getLocale } from '#lib/paraglide/runtime';
+	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { formatGridCell } from '#lib/core/i18n';
 	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 	type Props = {
 		tenants: Tenant[];
 		loading: boolean;
 		readonly: boolean;
+		onAdd: () => void;
 		onEdit: (tenant: Tenant) => void;
 		onArchive: (tenant: Tenant) => void;
 	};
-	let { tenants, loading, readonly, onEdit, onArchive }: Props = $props();
+	let { tenants, loading, readonly, onAdd, onEdit, onArchive }: Props = $props();
+	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: OrbisColumnDef[] = $derived([
 		{ id: 'full_name', header: m.tenants_name(), width: 180 },
@@ -38,17 +42,23 @@
 		if (event.actionId === 'archive') onArchive(tenant);
 	}
 </script>
-<Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">
-	<CardHeader class="mb-4 flex-row items-center justify-between p-0"><div class="grid gap-1"><CardTitle class="text-base">{m.nav_tenants()}</CardTitle><CardDescription>{tenants.length} {m.nav_tenants()}</CardDescription></div><span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><UsersRound size={18} /></span></CardHeader>
+<div class="min-h-0 min-w-0 flex-1">
 	<OrbisGrid
 		{columns}
 		source={tenants}
 		{loading}
 		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
-		height="360px"
+		height="100%"
 		emptyTitle={m.tenants_empty()}
 		emptyDescription={m.dashboard_tenants_description()}
 		onaction={handleGridAction}
-	/>
-</Card>
+	>
+		{#snippet toolbarActions()}
+			<Button class="rounded-md" disabled={readonly} onclick={onAdd}>
+				<Plus size={16} />{m.tenants_add()}
+			</Button>
+		{/snippet}
+	</OrbisGrid>
+</div>

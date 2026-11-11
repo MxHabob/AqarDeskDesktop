@@ -1,4 +1,4 @@
-import { desktopApi, type ConnectionConfig, type ConnectionMode, type UpdateProgress, type UpdateResult } from '#lib/api/desktop';
+import { desktopApi, type ConnectionConfig, type ConnectionMode, type UpdateProgress, type UpdateResult, type UserEditorInput } from '#lib/api/desktop';
 import { confirmStore } from '#lib/core/confirm.svelte';
 import { changeAppLocale, localeState, type AppLocale } from '#lib/core/i18n';
 import { queryClient } from '#lib/core/query-client';
@@ -32,13 +32,20 @@ export function createAppContext() {
 	let busy = $state(false);
 	let booting = $state(true);
 	let organizationName = $state('');
+	let organizationTimezone = $state(Intl.DateTimeFormat().resolvedOptions().timeZone);
 	let fullName = $state('');
 	let email = $state('');
 	let accountPassword = $state('');
 	let updateResult = $state<UpdateResult | null>(null);
 	let updateProgress = $state<UpdateProgress | null>(null);
+	let updateError = $state<string | null>(null);
+	let isCheckingUpdates = $state(false);
+	let isDownloadingUpdate = $state(false);
+	let isInstallingUpdate = $state(false);
+	let isUpdateReady = $state(false);
 	let theme = $state<AppTheme>('dark');
 	let initialization: Promise<void> | undefined;
+	let updateInitialization: Promise<void> | undefined;
 
 	const locale = $derived.by(() => {
 		localeState.revision;
@@ -48,6 +55,9 @@ export function createAppContext() {
 		updateProgress?.total_bytes
 			? Math.min(100, Math.round((updateProgress.downloaded_bytes / updateProgress.total_bytes) * 100))
 			: null
+	);
+	const updateBusy = $derived(
+		isCheckingUpdates || isDownloadingUpdate || isInstallingUpdate
 	);
 
 	async function initialize() {
@@ -125,7 +135,12 @@ export function createAppContext() {
 			organizationName = '';
 			return;
 		}
-		organizationName = await desktopApi.getOrganizationName();
+		const [name, settings] = await Promise.all([
+			desktopApi.getOrganizationName(),
+			desktopApi.getOrganizationSettings()
+		]);
+		organizationName = name;
+		organizationTimezone = settings.timezone;
 	}
 
 	async function checkApi() {
@@ -196,6 +211,24 @@ export function createAppContext() {
 		}
 	}
 
+	async function updateUser(userId: string, input: UserEditorInput) {
+		busy = true;
+		clearMessages();
+		try {
+			await desktopApi.updateUser(userId, input);
+			await queryClient.invalidateQueries({
+				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
+			});
+			setNotice(m.notification_user_updated());
+			return true;
+		} catch (cause) {
+			setError(cause);
+			return false;
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function setUserActive(user: User) {
 		busy = true;
 		clearMessages();
@@ -231,6 +264,7 @@ export function createAppContext() {
 			await desktopApi.signOut();
 			currentUser = null;
 			organizationName = '';
+			organizationTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			return true;
 		} catch (cause) {
 			setError(cause);
@@ -240,42 +274,77 @@ export function createAppContext() {
 		}
 	}
 
-	async function checkForUpdates() {
-		busy = true;
-		clearMessages();
+	async function initializeUpdates() {
+		if (!updateInitialization) {
+			updateInitialization = checkForUpdates(true).then(() => undefined);
+		}
+		return updateInitialization;
+	}
+
+	async function checkForUpdates(silent = false): Promise<UpdateResult | null> {
+		if (updateBusy) return null;
+		if (!silent) clearMessages();
+		updateError = null;
+		isCheckingUpdates = true;
 		updateProgress = null;
 		try {
 			updateResult = await desktopApi.checkForUpdates();
-			setNotice(updateResult.has_update ? m.settings_update_available() : m.settings_up_to_date());
+			isUpdateReady = false;
+			if (!silent) {
+				setNotice(updateResult.has_update ? m.settings_update_available() : m.settings_up_to_date());
+			}
+			return updateResult;
 		} catch (cause) {
-			setError(cause);
+			updateError = cause instanceof Error ? cause.message : String(cause);
+			if (!silent) setError(cause);
+			return null;
 		} finally {
-			busy = false;
+			isCheckingUpdates = false;
 		}
 	}
 
 	async function downloadUpdate() {
-		busy = true;
+		if (updateBusy) return;
+		if (!updateResult?.has_update) await checkForUpdates(true);
+		if (!updateResult?.has_update || updateBusy) return;
 		clearMessages();
+		updateError = null;
+		isDownloadingUpdate = true;
+		isUpdateReady = false;
 		updateProgress = null;
 		try {
 			await desktopApi.downloadUpdate();
 			setNotice(m.notification_update_ready());
+			isUpdateReady = true;
 		} catch (cause) {
+			updateError = cause instanceof Error ? cause.message : String(cause);
 			setError(cause);
 		} finally {
-			busy = false;
+			isDownloadingUpdate = false;
 		}
 	}
 
 	async function installUpdate() {
-		busy = true;
+		if (!isUpdateReady || updateBusy) return;
 		clearMessages();
+		updateError = null;
+		isInstallingUpdate = true;
 		try {
 			await desktopApi.installUpdate();
 		} catch (cause) {
+			updateError = cause instanceof Error ? cause.message : String(cause);
 			setError(cause);
-			busy = false;
+			isInstallingUpdate = false;
+		}
+	}
+
+	async function retryUpdate() {
+		if (isUpdateReady) {
+			await installUpdate();
+		} else if (updateResult?.has_update) {
+			await downloadUpdate();
+		} else {
+			await checkForUpdates();
 		}
 	}
 
@@ -361,6 +430,8 @@ export function createAppContext() {
 		get theme() { return theme; },
 		get organizationName() { return organizationName; },
 		set organizationName(value: string) { organizationName = value; },
+		get organizationTimezone() { return organizationTimezone; },
+		set organizationTimezone(value: string) { organizationTimezone = value; },
 		get fullName() { return fullName; },
 		set fullName(value: string) { fullName = value; },
 		get email() { return email; },
@@ -370,18 +441,27 @@ export function createAppContext() {
 		get updateResult() { return updateResult; },
 		get updateProgress() { return updateProgress; },
 		get progressPercent() { return progressPercent; },
+		get updateError() { return updateError; },
+		get isCheckingUpdates() { return isCheckingUpdates; },
+		get isDownloadingUpdate() { return isDownloadingUpdate; },
+		get isInstallingUpdate() { return isInstallingUpdate; },
+		get isUpdateReady() { return isUpdateReady; },
+		get updateBusy() { return updateBusy; },
 		set updateProgress(value: UpdateProgress | null) { updateProgress = value; },
 		initialize,
+		initializeUpdates,
 		saveAndConnect,
 		checkApi,
 		createInitialAdmin,
 		signIn,
 		addUser,
+		updateUser,
 		setUserActive,
 		signOut,
 		checkForUpdates,
 		downloadUpdate,
 		installUpdate,
+		retryUpdate,
 		changeLanguage,
 		initializeTheme,
 		changeTheme,

@@ -8,6 +8,7 @@
 	import type { User } from '#lib/features/auth/types';
 	import * as m from '#lib/paraglide/messages';
 	import TitleBreadcrumbs from './title-breadcrumbs.svelte';
+	import DownloadManager from './download-manager.svelte';
 
 	let {
 		title,
@@ -84,7 +85,11 @@
 	class="z-50 flex h-14 shrink-0 select-none items-center justify-between gap-3 border-b border-border/70 bg-card px-3 text-xs"
 >
 	<div class="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>
-		<TitleBreadcrumbs {title} {organizationName} />
+		<TitleBreadcrumbs
+			{title}
+			{organizationName}
+			organizationId={currentUser?.organization_id ?? null}
+		/>
 		{#if currentUser}
 			<span
 				class="hidden items-center gap-1.5 rounded-full border border-border/70 bg-background px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"
@@ -96,6 +101,8 @@
 	</div>
 
 	<div class="flex shrink-0 items-center gap-1.5">
+		<DownloadManager />
+
 		{#if currentUser}
 			<Button
 				variant="outline"

@@ -1,19 +1,24 @@
 <script lang="ts">
-	import { Building2 } from '@lucide/svelte';
+	import { Plus } from '@lucide/svelte';
+	import type { Snippet } from 'svelte';
 	import type { Property } from '@aqardesk/sdk';
-	import { Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
+	import { Button } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
 	import { getLocale } from '#lib/paraglide/runtime';
+	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { formatGridCell } from '#lib/core/i18n';
 	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 
 	type Props = {
 		properties: Property[];
 		loading: boolean;
 		readonly: boolean;
+		onAdd: () => void;
 		onEdit: (property: Property) => void;
 		onArchive: (property: Property) => void;
 	};
-	let { properties, loading, readonly, onEdit, onArchive }: Props = $props();
+	let { properties, loading, readonly, onAdd, onEdit, onArchive }: Props = $props();
+	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 
 	const columns: OrbisColumnDef[] = $derived([
@@ -79,23 +84,23 @@
 	}
 </script>
 
-<Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">
-	<CardHeader class="mb-4 flex-row items-center justify-between p-0">
-		<div class="grid gap-1">
-			<CardTitle class="text-base">{m.nav_properties()}</CardTitle>
-			<CardDescription>{properties.length} {m.nav_properties()}</CardDescription>
-		</div>
-		<span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><Building2 size={18} /></span>
-	</CardHeader>
+<div class="min-h-0 min-w-0 flex-1">
 	<OrbisGrid
 		{columns}
 		source={properties}
 		{loading}
 		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
-		height="360px"
+		height="100%"
 		emptyTitle={m.properties_empty()}
 		emptyDescription={m.dashboard_properties_description()}
 		onaction={handleGridAction}
-	/>
-</Card>
+	>
+		{#snippet toolbarActions()}
+			<Button class="rounded-md" disabled={readonly} onclick={onAdd}>
+				<Plus size={16} />{m.properties_add()}
+			</Button>
+		{/snippet}
+	</OrbisGrid>
+</div>

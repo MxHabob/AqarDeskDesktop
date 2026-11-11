@@ -197,6 +197,22 @@ async fn dashboard_reports_organization_scoped_live_counts_and_posted_monthly_to
     assert_eq!(summary.monthly_payments.len(), 1);
     assert_eq!(summary.monthly_payments[0].amount_minor, 12_500);
     assert_eq!(summary.monthly_payments[0].payment_count, 1);
+    assert_eq!(summary.payments_by_currency.len(), 1);
+    assert_eq!(summary.payments_by_currency[0].amount_minor, 12_500);
+    assert_eq!(summary.payments_by_currency[0].payment_count, 1);
+    assert_eq!(
+        summary.payment_status_counts,
+        vec![
+            StatusCount {
+                status: "posted".to_string(),
+                count: 2
+            },
+            StatusCount {
+                status: "void".to_string(),
+                count: 1
+            }
+        ]
+    );
 }
 
 async fn insert_property(

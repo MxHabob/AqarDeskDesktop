@@ -5,7 +5,7 @@ use crate::platform_runtime::{
 use aqardesk_backend::{
     application::{
         IdentityService, NewUser, OrganizationBootstrap, PaymentLedger, PropertyCatalog,
-        TenantDirectory, UnitCatalog,
+        TenantDirectory, UnitCatalog, UserUpdate,
     },
     domain::{
         AccessRole, ActorContext, Payment, PaymentInput, Property, PropertyId, PropertyInput,
@@ -221,11 +221,26 @@ pub(crate) async fn local_business_state(
     Ok((actor, database.connection().clone()))
 }
 
-fn config_key(config: &ConnectionConfig) -> Result<String, String> {
+pub(crate) fn config_key(config: &ConnectionConfig) -> Result<String, String> {
     serde_json::to_string(config).map_err(|error| {
         tracing::error!(%error, "Could not identify active connection");
         "Could not validate the saved session.".to_string()
     })
+}
+
+pub(crate) async fn rebind_current_session(
+    state: &PlatformState,
+    config: &ConnectionConfig,
+) -> Result<(), String> {
+    let Some(user) = state.current_user.read().await.clone() else {
+        return Ok(());
+    };
+    let Some(mut session) = platform_runtime::load_session()? else {
+        return Ok(());
+    };
+    session.user_id = user.id.to_string();
+    session.connection_key = config_key(config)?;
+    platform_runtime::save_session(&session)
 }
 
 pub(crate) async fn active_actor(state: &PlatformState) -> Result<ActorContext, String> {
@@ -509,6 +524,36 @@ pub async fn platform_users_create(
                 name: &name,
                 email: &email,
                 password: &password,
+                role,
+            },
+        )
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_users_update(
+    state: State<'_, PlatformState>,
+    user_id: String,
+    name: String,
+    email: String,
+    role: String,
+    password: Option<String>,
+) -> Result<UserAccount, String> {
+    let actor = active_actor(&state).await?;
+    let user_id = UserId::parse(&user_id)
+        .map_err(|_| "The selected user identifier is invalid.".to_string())?;
+    let role = AccessRole::parse(&role)
+        .ok_or_else(|| "The selected user role is not supported.".to_string())?;
+    local_identity(&state)
+        .await?
+        .update_user(
+            actor,
+            user_id,
+            UserUpdate {
+                name: &name,
+                email: &email,
+                password: password.as_deref(),
                 role,
             },
         )

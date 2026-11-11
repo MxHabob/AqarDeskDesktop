@@ -10,6 +10,13 @@ pub struct NewUser<'a> {
     pub role: crate::domain::AccessRole,
 }
 
+pub struct UserUpdate<'a> {
+    pub name: &'a str,
+    pub email: &'a str,
+    pub password: Option<&'a str>,
+    pub role: crate::domain::AccessRole,
+}
+
 pub struct OrganizationBootstrap<'a> {
     pub organization_name: &'a str,
     pub name: &'a str,
@@ -52,6 +59,14 @@ pub trait IdentityRepository: Send + Sync {
         organization_id: OrganizationId,
         actor_id: UserId,
         input: NewUser<'_>,
+    ) -> Result<UserAccount, ApplicationError>;
+
+    async fn update_user(
+        &self,
+        organization_id: OrganizationId,
+        user_id: UserId,
+        actor_id: UserId,
+        input: UserUpdate<'_>,
     ) -> Result<UserAccount, ApplicationError>;
 
     async fn set_user_active(

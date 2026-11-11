@@ -177,7 +177,7 @@ impl PlatformState {
 }
 
 impl ConnectionConfig {
-    fn local_database_path(&self, app_data_dir: &Path) -> Result<PathBuf, String> {
+    pub fn local_database_path(&self, app_data_dir: &Path) -> Result<PathBuf, String> {
         let local = self
             .local
             .as_ref()

@@ -1,19 +1,23 @@
 <script lang="ts">
-	import { UsersRound } from '@lucide/svelte';
-	import { Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
+	import type { Snippet } from 'svelte';
 	import type { User } from '#lib/features/auth/types';
 	import * as m from '#lib/paraglide/messages';
 	import { getLocale } from '#lib/paraglide/runtime';
+	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { formatGridCell } from '#lib/core/i18n';
 	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 
 	type Props = {
 		users: User[];
 		loading: boolean;
 		busy: boolean;
+		toolbarActions?: Snippet;
 		onToggle: (user: User) => void;
+		onEdit: (user: User) => void;
 	};
 
-	let { users, loading, busy, onToggle }: Props = $props();
+	let { users, loading, busy, toolbarActions, onToggle, onEdit }: Props = $props();
+	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: OrbisColumnDef[] = $derived([
 		{ id: 'name', header: m.users_name(), width: 180 },
@@ -24,7 +28,8 @@
 			type: 'enum',
 			options: [
 				{ value: 'admin', label: m.users_role_admin() },
-				{ value: 'staff', label: m.users_role_staff() }
+				{ value: 'staff', label: m.users_role_staff() },
+				{ value: 'readonly', label: m.users_role_readonly() }
 			]
 		},
 		{
@@ -43,6 +48,13 @@
 			type: 'action',
 			meta: {
 				items: [
+					{
+						id: 'edit',
+						icon: 'Pencil',
+						label: m.users_edit(),
+						variant: 'outline',
+						disabled: () => busy
+					},
 					{
 						id: 'deactivate',
 						icon: 'Shield',
@@ -65,31 +77,31 @@
 	]);
 
 	function handleGridAction(event: GridActionEvent) {
-		if (event.actionId !== 'activate' && event.actionId !== 'deactivate') return;
 		const user = users.find((item) => item.id === String(event.row.id ?? ''));
-		if (user) onToggle(user);
+		if (!user) return;
+		if (event.actionId === 'dblclick') {
+			onEdit(user);
+		} else if (event.actionId === 'edit') {
+			onEdit(user);
+		} else if (event.actionId === 'activate' || event.actionId === 'deactivate') {
+			onToggle(user);
+		}
 	}
+
 </script>
 
-<Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">
-	<CardHeader class="mb-4 flex-row items-center justify-between p-0">
-		<div class="grid gap-1">
-			<CardTitle class="text-base">{m.nav_users()}</CardTitle>
-			<CardDescription>{users.length} {m.nav_users()}</CardDescription>
-		</div>
-		<span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground">
-			<UsersRound size={18} />
-		</span>
-	</CardHeader>
+<div class="min-h-0 min-w-0 flex-1">
 	<OrbisGrid
 		{columns}
 		source={users}
 		{loading}
 		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
-		height="360px"
+		height="100%"
 		emptyTitle={m.users_empty()}
 		emptyDescription={m.users_description()}
 		onaction={handleGridAction}
+		{toolbarActions}
 	/>
-</Card>
+</div>

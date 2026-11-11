@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        ApplicationError, DashboardRepository, DashboardSummary, MonthlyPayment, StatusCount,
+        ApplicationError, DashboardRepository, DashboardSummary, MonthlyPayment,
+        PaymentCurrencyTotal, StatusCount,
     },
     infrastructure::{
         currency_repository::Entity as CurrencyEntity,
@@ -109,6 +110,27 @@ impl DashboardRepository for SeaOrmDashboardRepository {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let payment_statuses = payment::Entity::find()
+            .select_only()
+            .column(payment::Column::Status)
+            .column_as(Expr::col(payment::Column::Id).count(), "count")
+            .filter(payment::Column::OrganizationId.eq(organization_id))
+            .group_by(payment::Column::Status)
+            .order_by_asc(payment::Column::Status)
+            .into_tuple::<(String, i64)>()
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?
+            .into_iter()
+            .map(|(status, count)| {
+                u64::try_from(count)
+                    .map(|count| StatusCount { status, count })
+                    .map_err(|error| {
+                        tracing::error!(%error, "Dashboard payment status count is negative");
+                        ApplicationError::Persistence
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let payment_rows = payment::Entity::find()
             .filter(payment::Column::OrganizationId.eq(organization_id))
@@ -164,6 +186,36 @@ impl DashboardRepository for SeaOrmDashboardRepository {
                 })
             })
             .collect::<Result<Vec<_>, ApplicationError>>()?;
+        let mut currency_totals = BTreeMap::<String, (i64, u64, i16)>::new();
+        for payment in &monthly_payments {
+            let total = currency_totals
+                .entry(payment.currency_code.clone())
+                .or_insert((0, 0, payment.currency_decimal_digits));
+            total.0 = total.0.checked_add(payment.amount_minor).ok_or_else(|| {
+                tracing::error!(
+                    currency_code = %payment.currency_code,
+                    "Dashboard currency total exceeds the supported integer range"
+                );
+                ApplicationError::Persistence
+            })?;
+            total.1 = total
+                .1
+                .checked_add(payment.payment_count)
+                .ok_or(ApplicationError::Persistence)?;
+        }
+        let payments_by_currency = currency_totals
+            .into_iter()
+            .map(
+                |(currency_code, (amount_minor, payment_count, currency_decimal_digits))| {
+                    PaymentCurrencyTotal {
+                        currency_code,
+                        currency_decimal_digits,
+                        amount_minor,
+                        payment_count,
+                    }
+                },
+            )
+            .collect();
 
         Ok(DashboardSummary {
             active_properties_count,
@@ -173,7 +225,9 @@ impl DashboardRepository for SeaOrmDashboardRepository {
             posted_payments_count,
             payment_months: month_ranges.into_iter().map(|month| month.label).collect(),
             monthly_payments,
+            payments_by_currency,
             unit_status_counts: statuses,
+            payment_status_counts: payment_statuses,
         })
     }
 }

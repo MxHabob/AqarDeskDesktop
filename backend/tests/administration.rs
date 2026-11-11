@@ -1,7 +1,7 @@
 use aqardesk_backend::{
     application::{
-        AuditLog, ContractTemplateInput, ContractTemplateService, CurrencyCatalog,
-        OrganizationSettingsInput, OrganizationSettingsService, ProfileService,
+        AuditLog, ContractTemplateInput, ContractTemplateService, CurrencyCatalog, CurrencyInput,
+        NewCurrencyInput, OrganizationSettingsInput, OrganizationSettingsService, ProfileService,
         ProfileSettingsInput,
     },
     domain::{AccessRole, ActorContext, OrganizationId, UserId},
@@ -83,6 +83,101 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
         .set_enabled(actor, "usd", true)
         .await
         .expect("enable USD for organization");
+    currencies
+        .create(
+            actor,
+            NewCurrencyInput {
+                code: "jod".to_string(),
+                name: "Jordanian Dinar".to_string(),
+                name_ar: Some("دينار أردني".to_string()),
+                symbol: "د.أ".to_string(),
+                symbol_position: "suffix".to_string(),
+                decimal_digits: 3,
+                enable_for_organization: true,
+            },
+        )
+        .await
+        .expect("create and enable a custom currency");
+    currencies
+        .update(
+            actor,
+            "jod",
+            CurrencyInput {
+                name: " Jordanian Dinar ".to_string(),
+                name_ar: Some(" دينار أردني ".to_string()),
+                symbol: " د.أ ".to_string(),
+                symbol_position: "prefix".to_string(),
+                decimal_digits: 3,
+            },
+        )
+        .await
+        .expect("update currency details");
+    let custom_currency = currencies
+        .list(actor)
+        .await
+        .expect("list updated currencies")
+        .into_iter()
+        .find(|currency| currency.code == "JOD")
+        .expect("custom currency exists");
+    assert_eq!(custom_currency.name, "Jordanian Dinar");
+    assert_eq!(custom_currency.name_ar.as_deref(), Some("دينار أردني"));
+    assert_eq!(custom_currency.symbol_position, "prefix");
+    assert!(custom_currency.is_enabled_for_organization);
+    assert!(
+        currencies
+            .create(
+                actor,
+                NewCurrencyInput {
+                    code: "JOD".to_string(),
+                    name: "Duplicate".to_string(),
+                    name_ar: None,
+                    symbol: "D".to_string(),
+                    symbol_position: "prefix".to_string(),
+                    decimal_digits: 2,
+                    enable_for_organization: false,
+                }
+            )
+            .await
+            .is_err(),
+        "currency codes must be unique"
+    );
+    assert!(
+        currencies
+            .create(
+                actor,
+                NewCurrencyInput {
+                    code: "BAD".to_string(),
+                    name: "Bad".to_string(),
+                    name_ar: None,
+                    symbol: "B".to_string(),
+                    symbol_position: "middle".to_string(),
+                    decimal_digits: 2,
+                    enable_for_organization: false,
+                }
+            )
+            .await
+            .is_err(),
+        "currency symbol position must be validated"
+    );
+    let staff_actor = ActorContext::new(user, organization, AccessRole::Staff);
+    assert!(
+        currencies
+            .create(
+                staff_actor,
+                NewCurrencyInput {
+                    code: "AED".to_string(),
+                    name: "UAE Dirham".to_string(),
+                    name_ar: None,
+                    symbol: "د.إ".to_string(),
+                    symbol_position: "suffix".to_string(),
+                    decimal_digits: 2,
+                    enable_for_organization: false,
+                }
+            )
+            .await
+            .is_err(),
+        "only administrators may create currencies"
+    );
 
     let settings =
         OrganizationSettingsService::new(SeaOrmOrganizationSettingsRepository::new(&database));
@@ -160,11 +255,21 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
         .list(actor, 100, 0)
         .await
         .expect("read organization audit log");
-    assert!(audit.len() >= 5);
+    assert!(audit.len() >= 7);
     assert!(audit.iter().any(|entry| {
         entry.entity_type == "contract_template"
             && entry.actor_name.as_deref() == Some("Updated Admin")
     }));
+    assert!(
+        audit
+            .iter()
+            .any(|entry| { entry.action == "currency_created" && entry.entity_id == "JOD" })
+    );
+    assert!(
+        audit
+            .iter()
+            .any(|entry| { entry.action == "currency_updated" && entry.entity_id == "JOD" })
+    );
 
     assert!(
         currencies.set_enabled(actor, "USD", false).await.is_err(),

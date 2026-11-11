@@ -31,19 +31,36 @@
 	);
 	const settingsPath = $derived(`/${currentUser.organization_id}/settings`);
 	const routePath = $derived(deLocalizeUrl(page.url).pathname);
+	const gridWorkspace = $derived(
+		[
+			`/${currentUser.organization_id}/properties`,
+			`/${currentUser.organization_id}/units`,
+			`/${currentUser.organization_id}/tenants`,
+			`/${currentUser.organization_id}/payments`,
+			`/${currentUser.organization_id}/settings/users`,
+			`/${currentUser.organization_id}/settings/currencies`,
+			`/${currentUser.organization_id}/settings/audit`,
+			`/${currentUser.organization_id}/settings/contract-templates`
+		].includes(routePath)
+	);
 	const settingsSection = $derived(routePath.slice(settingsPath.length).replace(/^\/+/, ''));
 	const settingsNavigation = $derived(
 		active === 'settings'
 			? {
 					title: m.nav_settings(),
-					activeKey: settingsSection || 'organization',
+					activeKey:
+						settingsSection || (currentUser.role === 'admin' ? 'organization' : 'general'),
 					items: [
-						...(currentUser.role === 'admin'
-							? [{ key: 'organization', label: m.settings_organization() }]
-							: []),
-						{ key: 'general', label: m.settings_general() },
+						{
+							key: currentUser.role === 'admin' ? 'organization' : 'general',
+							label:
+								currentUser.role === 'admin'
+									? m.settings_organization()
+									: m.settings_general()
+						},
 						...(currentUser.role === 'admin'
 							? [
+									{ key: 'databases', label: m.nav_database_management() },
 									{ key: 'users', label: m.settings_user_management() },
 									{ key: 'audit', label: m.settings_audit() },
 									{ key: 'currencies', label: m.settings_currencies() },
@@ -56,7 +73,9 @@
 	);
 
 	function navigateSettings(key: string) {
-		void goto(`${settingsPath}${key === 'organization' ? '' : `/${key}`}`);
+		void goto(
+			key === 'organization' || key === 'general' ? settingsPath : `${settingsPath}/${key}`
+		);
 	}
 
 	onMount(() => {
@@ -99,8 +118,16 @@
 						</div>
 					</header>
 				{/if}
-				<main class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6">
-					<div class="grid min-h-full w-full content-start gap-4">
+				<main
+					class={gridWorkspace
+						? 'flex min-h-0 flex-1 flex-col overflow-hidden p-3 scrollbar-none sm:p-4'
+						: 'min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6'}
+				>
+					<div
+						class={gridWorkspace
+							? 'flex min-h-0 w-full flex-1 flex-col gap-3'
+							: 'grid min-h-full w-full content-start gap-4'}
+					>
 						{@render children()}
 					</div>
 				</main>

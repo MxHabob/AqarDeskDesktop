@@ -1,6 +1,7 @@
 pub mod audit_cmds;
 pub mod contract_template_cmds;
 pub mod dashboard_cmds;
+pub mod database_admin_cmds;
 pub mod organization_settings_cmds;
 pub mod profile_cmds;
 pub mod update_cmds;
@@ -12,10 +13,18 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         contract_template_cmds::contract_templates_create,
         contract_template_cmds::contract_templates_update,
         contract_template_cmds::contract_templates_set_active,
+        database_admin_cmds::database_admin_get_status,
+        database_admin_cmds::database_admin_list_backups,
+        database_admin_cmds::database_admin_backup,
+        database_admin_cmds::database_admin_restore,
+        database_admin_cmds::database_admin_check_integrity,
+        database_admin_cmds::database_admin_change_location,
         dashboard_cmds::dashboard_get_summary,
         organization_settings_cmds::organization_get_settings,
         organization_settings_cmds::organization_update_settings,
         organization_settings_cmds::currencies_list,
+        organization_settings_cmds::currencies_create,
+        organization_settings_cmds::currencies_update,
         organization_settings_cmds::currencies_set_organization_enabled,
         profile_cmds::profile_get_settings,
         profile_cmds::profile_update_settings,
@@ -33,6 +42,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::platform_commands::platform_auth_logout,
         crate::platform_commands::platform_users_list,
         crate::platform_commands::platform_users_create,
+        crate::platform_commands::platform_users_update,
         crate::platform_commands::platform_users_set_active,
         crate::platform_commands::platform_properties_list,
         crate::platform_commands::platform_properties_create,

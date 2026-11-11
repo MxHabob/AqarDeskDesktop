@@ -9,30 +9,33 @@
 		initial?: ContractTemplate;
 		busy: boolean;
 		onSubmit: (input: ContractTemplateInput) => Promise<boolean>;
+		open?: boolean;
+		showTrigger?: boolean;
 	};
 
-	let { initial, busy, onSubmit }: Props = $props();
-	let open = $state(false);
+	let { initial, busy, onSubmit, open = $bindable(false), showTrigger = true }: Props = $props();
 
 	function submit(input: ContractTemplateInput) {
 		return onSubmit(input);
 	}
 </script>
 
-<Button
-	variant={initial ? 'ghost' : 'default'}
-	size={initial ? 'icon' : 'default'}
-	class={initial ? 'size-8' : 'shrink-0'}
-	aria-label={initial ? m.settings_template_edit() : m.settings_template_add()}
-	onclick={() => (open = true)}
->
-	{#if initial}
-		<Pencil size={15} />
-	{:else}
-		<FilePlus2 size={16} />
-		{m.settings_template_add()}
-	{/if}
-</Button>
+{#if showTrigger}
+	<Button
+		variant={initial ? 'ghost' : 'default'}
+		size={initial ? 'icon' : 'default'}
+		class={initial ? 'size-8' : 'shrink-0'}
+		aria-label={initial ? m.settings_template_edit() : m.settings_template_add()}
+		onclick={() => (open = true)}
+	>
+		{#if initial}
+			<Pencil size={15} />
+		{:else}
+			<FilePlus2 size={16} />
+			{m.settings_template_add()}
+		{/if}
+	</Button>
+{/if}
 
 <Sheet bind:open>
 	<SheetContent side="end" class="max-w-2xl">

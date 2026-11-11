@@ -1,16 +1,93 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Check, ChevronDown, FileText } from '@lucide/svelte';
-	import { Button, toast } from '@aqardesk/ui';
+	import { toast } from '@aqardesk/ui';
+	import {
+		OrbisGrid,
+		type GridActionEvent,
+		type OrbisColumnDef
+	} from '@aqardesk/svelte-grid';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { confirmStore } from '#lib/core/confirm.svelte';
+	import { getLocale } from '#lib/paraglide/runtime';
+	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { formatGridCell } from '#lib/core/i18n';
 	import ContractTemplateSheet from '#lib/features/settings/contract-template-sheet.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	let templates = $state<ContractTemplate[]>([]);
+	const app = getAppContext();
 	let loading = $state(true);
 	let busy = $state(false);
+	let selectedTemplate = $state<ContractTemplate | null>(null);
+	let editSheetOpen = $state(false);
+	const rtl = $derived(getLocale() === 'ar');
+	const columns: OrbisColumnDef[] = $derived([
+		{ id: 'name', header: m.settings_template_name(), width: 200 },
+		{ id: 'template_key', header: m.settings_template_key(), width: 200 },
+		{
+			id: 'lease_type',
+			header: m.settings_template_lease_type(),
+			type: 'enum',
+			width: 150,
+			options: [
+				{ value: 'residential', label: m.properties_type_residential() },
+				{ value: 'commercial', label: m.properties_type_commercial() },
+				{ value: 'short_term', label: m.settings_template_short_term() },
+				{ value: 'other', label: m.common_other() }
+			]
+		},
+		{ id: 'locale', header: m.settings_template_locale(), width: 100 },
+		{
+			id: 'version',
+			header: m.settings_template_version(),
+			width: 100,
+			accessor: (row) => row.versions instanceof Array ? row.versions[0]?.version_number ?? '' : ''
+		},
+		{
+			id: 'status',
+			header: m.users_status(),
+			type: 'status',
+			width: 120,
+			accessor: (row) => row.is_active ? 'active' : 'archived',
+			options: [
+				{ value: 'active', label: m.settings_template_active() },
+				{ value: 'archived', label: m.settings_template_archived() }
+			]
+		},
+		{
+			id: 'actions',
+			header: m.users_action(),
+			type: 'action',
+			meta: {
+				items: [
+					{
+						id: 'edit',
+						icon: 'Pencil',
+						label: m.settings_template_edit(),
+						variant: 'outline',
+						disabled: () => busy
+					},
+					{
+						id: 'disable',
+						icon: 'ArchiveBox',
+						label: m.settings_template_disable(),
+						variant: 'outline',
+						visible: (row: Record<string, unknown>) => row.is_active === true,
+						disabled: () => busy
+					},
+					{
+						id: 'enable',
+						icon: 'Check',
+						label: m.settings_template_enable(),
+						variant: 'outline',
+						visible: (row: Record<string, unknown>) => row.is_active !== true,
+						disabled: () => busy
+					}
+				]
+			}
+		}
+	]);
 
 	onMount(() => {
 		void load();
@@ -64,76 +141,50 @@
 			busy = false;
 		}
 	}
+
+	function handleGridAction(event: GridActionEvent) {
+		const template = templates.find((item) => item.id === String(event.row.id ?? ''));
+		if (!template) return;
+		if (event.actionId === 'dblclick') {
+			selectedTemplate = template;
+			editSheetOpen = true;
+		} else if (event.actionId === 'edit') {
+			selectedTemplate = template;
+			editSheetOpen = true;
+		} else if (event.actionId === 'enable' || event.actionId === 'disable') {
+			void changeActive(template);
+		}
+	}
 </script>
 
-<header class="flex items-start justify-between gap-4">
-	<div class="grid gap-1">
-		<h2 class="text-lg font-semibold">{m.settings_contract_templates()}</h2>
-		<p class="text-sm text-muted-foreground">{m.settings_contract_templates_description()}</p>
-	</div>
-	<ContractTemplateSheet busy={busy} onSubmit={(input) => save(input)} />
-</header>
+<div class="min-h-0 min-w-0 flex-1">
+	<OrbisGrid
+		{columns}
+		source={templates}
+		{loading}
+		{rtl}
+		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
+		readonly
+		rowIdKey="id"
+		height="100%"
+		emptyTitle={m.settings_template_empty()}
+		onaction={handleGridAction}
+	>
+		{#snippet toolbarActions()}
+			<ContractTemplateSheet
+				busy={busy}
+				onSubmit={(input) => save(input)}
+			/>
+		{/snippet}
+	</OrbisGrid>
+</div>
 
-{#if loading}
-	<div class="py-8 text-sm text-muted-foreground" role="status">{m.common_processing()}</div>
-{:else if templates.length === 0}
-	<p class="py-8 text-sm text-muted-foreground">{m.settings_template_empty()}</p>
-{:else}
-	<div class="grid divide-y divide-border/70 border-y border-border/70">
-		{#each templates as template (template.id)}
-			{@const latest = template.versions[0]}
-			<article class="grid gap-3 py-4">
-				<div class="flex min-w-0 items-start gap-3">
-					<span class="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-						<FileText size={17} />
-					</span>
-					<div class="grid min-w-0 flex-1 gap-1">
-						<div class="flex flex-wrap items-center gap-2">
-							<h3 class="text-sm font-semibold">{template.name}</h3>
-							<span class="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-								{template.is_active ? m.settings_template_active() : m.settings_template_archived()}
-							</span>
-						</div>
-						<p class="truncate text-xs text-muted-foreground" dir="ltr">
-							{template.template_key} · {template.locale} · {template.lease_type}
-						</p>
-						{#if template.description}
-							<p class="text-xs text-muted-foreground">{template.description}</p>
-						{/if}
-					</div>
-					{#if template.is_active}
-						<ContractTemplateSheet
-							initial={template}
-							{busy}
-							onSubmit={(input) => save(input, template)}
-						/>
-					{/if}
-					<Button
-						variant="ghost"
-						size="icon"
-						class="size-8"
-						aria-label={template.is_active ? m.settings_template_disable() : m.settings_template_enable()}
-						disabled={busy}
-						onclick={() => void changeActive(template)}
-					>
-						{#if template.is_active}<Check size={15} />{:else}<ChevronDown size={15} />{/if}
-					</Button>
-				</div>
-				{#if latest}
-					<details class="ms-12 rounded-md border border-border/70 px-3 py-2">
-						<summary class="cursor-pointer text-xs font-medium text-muted-foreground">
-							{m.settings_template_version()} {latest.version_number} · {latest.content_format}
-						</summary>
-						<div class="mt-3 grid gap-2">
-							<p class="text-xs text-muted-foreground" dir="ltr">{latest.content_sha256}</p>
-							{#if latest.change_note}
-								<p class="text-xs">{latest.change_note}</p>
-							{/if}
-							<pre class="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs" dir="auto">{latest.content_body}</pre>
-						</div>
-					</details>
-				{/if}
-			</article>
-		{/each}
-	</div>
+{#if selectedTemplate}
+	<ContractTemplateSheet
+		initial={selectedTemplate}
+		bind:open={editSheetOpen}
+		showTrigger={false}
+		{busy}
+		onSubmit={(input) => save(input, selectedTemplate ?? undefined)}
+	/>
 {/if}

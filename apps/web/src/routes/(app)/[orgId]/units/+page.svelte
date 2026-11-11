@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { createQuery } from '@tanstack/svelte-query';
-	import { Plus } from '@lucide/svelte';
-	import { Button, toast } from '@aqardesk/ui';
+	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { desktopApi } from '#lib/api/desktop';
@@ -72,13 +71,14 @@
 </script>
 
 {#if app.currentUser}
-	<div class="grid gap-4">
-		<div class="flex justify-end"><Button class="rounded-md" disabled={app.currentUser.role === 'readonly' || properties.length === 0} onclick={() => { selectedUnit = undefined; open = true; }}><Plus size={16} />{m.units_add()}</Button></div>
+	<div class="flex min-h-0 flex-1 flex-col">
 		<UnitsDirectory
 			{units}
 			{properties}
 			loading={unitsQuery.isLoading || propertiesQuery.isLoading}
 			readonly={app.currentUser.role === 'readonly'}
+			canAdd={properties.length > 0}
+			onAdd={() => { selectedUnit = undefined; open = true; }}
 			onEdit={(unit) => { selectedUnit = unit; open = true; }}
 			onArchive={(unit) => void archiveUnit(unit)}
 		/>

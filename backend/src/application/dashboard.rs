@@ -10,12 +10,22 @@ pub struct DashboardSummary {
     pub posted_payments_count: u64,
     pub payment_months: Vec<String>,
     pub monthly_payments: Vec<MonthlyPayment>,
+    pub payments_by_currency: Vec<PaymentCurrencyTotal>,
     pub unit_status_counts: Vec<StatusCount>,
+    pub payment_status_counts: Vec<StatusCount>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MonthlyPayment {
     pub month: String,
+    pub currency_code: String,
+    pub currency_decimal_digits: i16,
+    pub amount_minor: i64,
+    pub payment_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PaymentCurrencyTotal {
     pub currency_code: String,
     pub currency_decimal_digits: i16,
     pub amount_minor: i64,
@@ -83,9 +93,19 @@ mod tests {
                 amount_minor: 120_000,
                 payment_count: 2,
             }],
+            payments_by_currency: vec![PaymentCurrencyTotal {
+                currency_code: "SAR".to_string(),
+                currency_decimal_digits: 2,
+                amount_minor: 120_000,
+                payment_count: 2,
+            }],
             unit_status_counts: vec![StatusCount {
                 status: "available".to_string(),
                 count: 3,
+            }],
+            payment_status_counts: vec![StatusCount {
+                status: "posted".to_string(),
+                count: 2,
             }],
         };
         assert_eq!(summary.monthly_payments[0].amount_minor, 120_000);

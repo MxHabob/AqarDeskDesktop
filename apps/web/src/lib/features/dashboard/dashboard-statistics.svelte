@@ -7,6 +7,8 @@
 	import DashboardBreakdownChart from '#lib/features/dashboard/dashboard-breakdown-chart.svelte';
 	import DashboardMonthlyPaymentsChart from '#lib/features/dashboard/dashboard-monthly-payments-chart.svelte';
 	import DashboardStatCard from '#lib/features/dashboard/dashboard-stat-card.svelte';
+	import DashboardStackedSummary from '#lib/features/dashboard/dashboard-stacked-summary.svelte';
+	import DashboardPaymentsByCurrencyCard from '#lib/features/dashboard/dashboard-payments-by-currency-card.svelte';
 	import * as m from '#lib/paraglide/messages';
 	import { toast } from '@aqardesk/ui';
 
@@ -80,14 +82,17 @@
 	{:else if summaryQuery.data && cards}
 		{#if view === 'overview'}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+				<DashboardStackedSummary summary={summaryQuery.data} />
 				{#each cards.primary as card (card.label)}
 					<DashboardStatCard {...card} />
 				{/each}
 				<DashboardMonthlyPaymentsChart summary={summaryQuery.data} />
 				<DashboardBreakdownChart summary={summaryQuery.data} />
+				<DashboardPaymentsByCurrencyCard summary={summaryQuery.data} />
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+				<DashboardStackedSummary summary={summaryQuery.data} />
 				<div class="lg:col-span-2">
 					<DashboardMonthlyPaymentsChart summary={summaryQuery.data} />
 				</div>
@@ -95,6 +100,9 @@
 				{#each cards.primary as card (card.label)}
 					<DashboardStatCard {...card} />
 				{/each}
+				<div class="lg:col-span-2">
+					<DashboardPaymentsByCurrencyCard summary={summaryQuery.data} />
+				</div>
 			</div>
 		{/if}
 	{/if}

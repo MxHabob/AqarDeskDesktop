@@ -1,5 +1,7 @@
 use crate::{
-    application::{ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap},
+    application::{
+        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+    },
     domain::{AccessRole, Organization, OrganizationId, UserAccount, UserId},
     infrastructure::{
         audit,
@@ -307,6 +309,66 @@ impl IdentityRepository for SeaOrmIdentityRepository {
         transaction.commit().await.map_err(persistence_error)?;
         restore_user(model)
     }
+
+    async fn update_user(
+        &self,
+        organization_id: OrganizationId,
+        user_id: UserId,
+        actor_id: UserId,
+        input: UserUpdate<'_>,
+    ) -> Result<UserAccount, ApplicationError> {
+        let email = input.email.trim().to_ascii_lowercase();
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let model = user::Entity::find_by_id(user_id.to_string())
+            .filter(user::Column::OrganizationId.eq(organization_id.to_string()))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        if user::Entity::find()
+            .filter(user::Column::Email.eq(&email))
+            .filter(user::Column::Id.ne(user_id.to_string()))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .is_some()
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "A user with this email address already exists.",
+            )
+            .into());
+        }
+
+        let mut active = model.into_active_model();
+        active.full_name = Set(input.name.trim().to_string());
+        active.email = Set(email);
+        active.access_role = Set(input.role.as_str().to_string());
+        active.updated_at = Set(Utc::now());
+        if let Some(password) = input.password {
+            active.password_hash = Set(hash_password(password)?);
+            active.failed_login_attempts = Set(0);
+            active.locked_until = Set(None);
+        }
+        let model = active
+            .update(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        audit::record(
+            &transaction,
+            &organization_id.to_string(),
+            &actor_id.to_string(),
+            "updated",
+            "user",
+            &user_id.to_string(),
+            serde_json::json!({
+                "role": input.role.as_str(),
+                "password_changed": input.password.is_some()
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)?;
+        restore_user(model)
+    }
 }
 
 async fn insert_user(
@@ -476,6 +538,46 @@ mod tests {
             .await
             .expect("create read-only user");
         assert_eq!(created.role, AccessRole::Readonly);
+        let updated = service
+            .update_user(
+                actor,
+                created.id,
+                crate::application::UserUpdate {
+                    name: "Updated Read Only",
+                    email: "updated-readonly@example.com",
+                    password: Some("updated-secure-password"),
+                    role: AccessRole::Staff,
+                },
+            )
+            .await
+            .expect("update user");
+        assert_eq!(updated.name, "Updated Read Only");
+        assert_eq!(updated.email, "updated-readonly@example.com");
+        assert_eq!(updated.role, AccessRole::Staff);
+        assert_eq!(
+            service
+                .login("updated-readonly@example.com", "updated-secure-password")
+                .await
+                .expect("login with the reset password")
+                .id,
+            updated.id
+        );
+        assert!(
+            service
+                .update_user(
+                    actor,
+                    updated.id,
+                    crate::application::UserUpdate {
+                        name: "Duplicate",
+                        email: "admin@example.com",
+                        password: None,
+                        role: AccessRole::Staff,
+                    },
+                )
+                .await
+                .is_err(),
+            "user emails must remain unique"
+        );
         assert_eq!(
             service.list_users(actor).await.expect("list users").len(),
             2

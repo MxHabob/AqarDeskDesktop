@@ -7,7 +7,7 @@
 		SelectTrigger,
 		SelectValue
 	} from '@aqardesk/ui';
-	import { getLocale } from '#lib/paraglide/runtime';
+	import { formatCurrency, formatMonthLabel, formatNumber } from '#lib/core/i18n';
 	import type { DashboardSummary } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 
@@ -33,20 +33,6 @@
 	);
 	const maxAmount = $derived(Math.max(0, ...values.map((entry) => entry.amount)));
 
-	function formatAmount(amountMinor: number) {
-		if (!activeCurrency) return '';
-		return new Intl.NumberFormat(getLocale(), {
-			style: 'currency',
-			currency: activeCurrency,
-			maximumFractionDigits: currencyDigits
-		}).format(amountMinor / 10 ** currencyDigits);
-	}
-
-	function formatMonth(month: string) {
-		return new Intl.DateTimeFormat(getLocale(), { month: 'short' }).format(
-			new Date(`${month}-01T00:00:00`)
-		);
-	}
 </script>
 
 <Card class="flex h-[182px] min-w-0 flex-col p-3">
@@ -85,11 +71,11 @@
 						<div
 							class="w-full max-w-8 bg-foreground/80 transition-[height]"
 							style={`height: ${height}%`}
-							title={`${formatMonth(entry.month)}: ${formatAmount(entry.amount)}`}
+							title={`${formatMonthLabel(entry.month)}: ${formatCurrency(entry.amount, activeCurrency, currencyDigits)}`}
 						></div>
 					</div>
 					<span class="truncate text-[10px] text-muted-foreground" title={entry.month}>
-						{formatMonth(entry.month)}
+						{formatMonthLabel(entry.month)}
 					</span>
 				</div>
 			{/each}
@@ -97,18 +83,21 @@
 		<div class="mt-2 flex items-center justify-between gap-3 text-xs">
 			<span class="text-muted-foreground">
 				{m.dashboard_payments_in_period({
-					count: values.reduce(
-						(total, entry) =>
-							total +
-							(summary.monthly_payments.find(
-								(payment) => payment.month === entry.month && payment.currency_code === activeCurrency
-							)?.payment_count ?? 0),
-						0
+					count: formatNumber(
+						values.reduce(
+							(total, entry) =>
+								total +
+								(summary.monthly_payments.find(
+									(payment) => payment.month === entry.month && payment.currency_code === activeCurrency
+								)?.payment_count ?? 0),
+							0
+						),
+						{ maximumFractionDigits: 0 }
 					)
 				})}
 			</span>
 			<strong class="font-medium text-foreground">
-				{formatAmount(values.reduce((total, entry) => total + entry.amount, 0))}
+				{formatCurrency(values.reduce((total, entry) => total + entry.amount, 0), activeCurrency, currencyDigits)}
 			</strong>
 		</div>
 	{/if}

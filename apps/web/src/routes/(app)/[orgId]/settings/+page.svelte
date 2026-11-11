@@ -1,15 +1,21 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { z } from 'zod';
-	import { Input, Label, toast } from '@aqardesk/ui';
+	import { Button, Input, toast } from '@aqardesk/ui';
 	import type { CurrencySettings, OrganizationSettings, OrganizationSettingsInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import CurrencySelector from '#lib/features/settings/currency-selector.svelte';
+	import ConnectionSettingsCard from '#lib/features/settings/connection-settings-card.svelte';
+	import LanguageSettingsCard from '#lib/features/settings/language-settings-card.svelte';
+	import UpdateSettingsCard from '#lib/features/settings/update-settings-card.svelte';
 	import SettingsBottomBar from '#lib/shared/components/settings-bottom-bar.svelte';
+	import SettingsFieldRow from '#lib/shared/components/settings-field-row.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	const app = getAppContext();
+	const canEditOrganization = $derived(app.currentUser?.role === 'admin');
 	let saved = $state<OrganizationSettings | null>(null);
 	let currencies = $state<CurrencySettings[]>([]);
 	let draft = $state<OrganizationSettingsInput>({
@@ -18,15 +24,19 @@
 		default_currency: '',
 		timezone: ''
 	});
+	let draftLocale = $state(app.locale);
 	let loading = $state(true);
 	let saving = $state(false);
-	const dirty = $derived(
-		saved !== null &&
+	const organizationDirty = $derived(
+		canEditOrganization &&
+			saved !== null &&
 			(draft.name !== saved.name ||
 				(draft.legal_name ?? '') !== (saved.legal_name ?? '') ||
 				draft.default_currency !== saved.default_currency ||
 				draft.timezone !== saved.timezone)
 	);
+	const localeDirty = $derived(draftLocale !== app.locale);
+	const dirty = $derived(organizationDirty || localeDirty);
 	const schema = z.object({
 		name: z.string().trim().min(1, m.settings_organization_name()),
 		legal_name: z.string().nullable(),
@@ -70,27 +80,41 @@
 	}
 
 	async function save() {
-		const parsed = schema.safeParse({
-			...draft,
-			legal_name: draft.legal_name?.trim() || null
-		});
-		if (!parsed.success) {
-			toast.error(parsed.error.issues[0]?.message ?? m.error_unexpected_description());
-			return;
+		let organizationInput: OrganizationSettingsInput | null = null;
+		if (organizationDirty) {
+			const parsed = schema.safeParse({
+				...draft,
+				legal_name: draft.legal_name?.trim() || null
+			});
+			if (!parsed.success) {
+				toast.error(parsed.error.issues[0]?.message ?? m.error_unexpected_description());
+				return;
+			}
+			organizationInput = parsed.data;
 		}
 
 		saving = true;
+		let didSave = false;
 		try {
-			const organization = await desktopApi.updateOrganizationSettings(parsed.data);
-			saved = organization;
-			draft = {
-				name: organization.name,
-				legal_name: organization.legal_name,
-				default_currency: organization.default_currency,
-				timezone: organization.timezone
-			};
-			app.organizationName = organization.name;
-			toast.success(m.common_save());
+			if (organizationInput) {
+				const organization = await desktopApi.updateOrganizationSettings(organizationInput);
+				saved = organization;
+				draft = {
+					name: organization.name,
+					legal_name: organization.legal_name,
+					default_currency: organization.default_currency,
+					timezone: organization.timezone
+				};
+				app.organizationName = organization.name;
+				app.organizationTimezone = organization.timezone;
+				didSave = true;
+			}
+
+			if (localeDirty) {
+				if (await app.changeLanguage(draftLocale)) didSave = true;
+			}
+
+			if (didSave) toast.success(m.common_save());
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -99,66 +123,124 @@
 	}
 
 	function reset() {
-		if (!saved) return;
-		draft = {
-			name: saved.name,
-			legal_name: saved.legal_name,
-			default_currency: saved.default_currency,
-			timezone: saved.timezone
-		};
+		if (saved) {
+			draft = {
+				name: saved.name,
+				legal_name: saved.legal_name,
+				default_currency: saved.default_currency,
+				timezone: saved.timezone
+			};
+		}
+		draftLocale = app.locale;
+	}
+
+	function editConnection() {
+		app.clearMessages();
+		void goto('/connection');
 	}
 </script>
-
-<header class="grid gap-1">
-	<h2 class="text-lg font-semibold">{m.settings_organization()}</h2>
-	<p class="text-sm text-muted-foreground">{m.settings_organization_description()}</p>
-</header>
 
 {#if loading}
 	<div class="py-8 text-sm text-muted-foreground" role="status">{m.common_processing()}</div>
 {:else if saved}
 	<form
-		class="grid min-w-0 divide-y divide-border/70 pb-20"
+		class="grid min-w-0 gap-6 pb-24"
 		onsubmit={(event) => {
 			event.preventDefault();
 			void save();
 		}}
 	>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="organization-name">{m.settings_organization_name()}</Label>
-			<Input id="organization-name" bind:value={draft.name} autocomplete="organization" />
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="organization-legal-name">{m.settings_organization_legal_name()}</Label>
-			<Input
-				id="organization-legal-name"
-				value={draft.legal_name ?? ''}
-				oninput={(event) => (draft.legal_name = event.currentTarget.value)}
-				autocomplete="organization-title"
-			/>
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="organization-currency">{m.settings_default_currency()}</Label>
-			<div class="grid gap-1">
-				<CurrencySelector
+		<section class="overflow-hidden rounded-lg border border-border/70 bg-card">
+			<div class="divide-y divide-border/70">
+				<SettingsFieldRow
+					label={m.settings_organization_id()}
+					id="organization-id"
+					description={m.settings_organization_id_description()}
+					copyValue={saved.id}
+				>
+					<Input id="organization-id" value={saved.id} readonly dir="ltr" class="w-full font-mono text-xs sm:max-w-xl" />
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.settings_organization_name()}
+					id="organization-name"
+					description={m.settings_organization_name_description()}
+				>
+					<Input
+						id="organization-name"
+						bind:value={draft.name}
+						autocomplete="organization"
+						disabled={!canEditOrganization}
+						class="w-full sm:max-w-xl"
+					/>
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.settings_organization_legal_name()}
+					id="organization-legal-name"
+					description={m.settings_organization_legal_name_description()}
+				>
+					<Input
+						id="organization-legal-name"
+						value={draft.legal_name ?? ''}
+						oninput={(event) => (draft.legal_name = event.currentTarget.value)}
+						autocomplete="organization-title"
+						disabled={!canEditOrganization}
+						class="w-full sm:max-w-xl"
+					/>
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.settings_default_currency()}
 					id="organization-currency"
-					{currencies}
-					value={draft.default_currency}
-					onChange={(code) => (draft.default_currency = code)}
+					description={m.settings_currency_hint()}
+				>
+					<div class="w-full sm:max-w-xl">
+						<CurrencySelector
+							id="organization-currency"
+							{currencies}
+							value={draft.default_currency}
+							onChange={(code) => (draft.default_currency = code)}
+							disabled={!canEditOrganization}
+						/>
+					</div>
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.settings_timezone()}
+					id="organization-timezone"
+					description={m.settings_timezone_description()}
+				>
+					<Input
+						id="organization-timezone"
+						bind:value={draft.timezone}
+						dir="ltr"
+						autocomplete="off"
+						placeholder="Asia/Riyadh"
+						disabled={!canEditOrganization}
+						class="w-full sm:max-w-xl"
+					/>
+				</SettingsFieldRow>
+				<LanguageSettingsCard
+					locale={draftLocale}
+					onChange={(value) => (draftLocale = value)}
 				/>
-				<p class="text-xs text-muted-foreground">{m.settings_currency_hint()}</p>
+				<ConnectionSettingsCard
+					mode={app.mode}
+					connected={app.connected}
+					onEdit={editConnection}
+				/>
+				<UpdateSettingsCard
+					busy={app.updateBusy}
+					result={app.updateResult}
+					progress={app.updateProgress}
+					progressPercent={app.progressPercent}
+					error={app.updateError}
+					downloading={app.isDownloadingUpdate}
+					ready={app.isUpdateReady}
+					onCheck={app.checkForUpdates}
+					onDownload={app.downloadUpdate}
+					onInstall={app.installUpdate}
+				/>
 			</div>
-		</div>
-		<div class="grid gap-2 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center sm:gap-6">
-			<Label for="organization-timezone">{m.settings_timezone()}</Label>
-			<Input
-				id="organization-timezone"
-				bind:value={draft.timezone}
-				dir="ltr"
-				autocomplete="off"
-				placeholder="Asia/Riyadh"
-			/>
-		</div>
+		</section>
 	</form>
 {/if}
+
 <SettingsBottomBar visible={dirty} isSaving={saving} onsave={save} onreset={reset} />

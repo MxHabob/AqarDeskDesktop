@@ -3,7 +3,11 @@ use crate::{
         ApplicationError, OrganizationSettings, OrganizationSettingsInput,
         OrganizationSettingsRepository,
     },
-    infrastructure::{audit, models::organization},
+    infrastructure::{
+        audit,
+        currency_repository::{Column as CurrencyColumn, Entity as CurrencyEntity},
+        models::organization,
+    },
 };
 use chrono::Utc;
 use sea_orm::{
@@ -52,22 +56,29 @@ impl OrganizationSettingsRepository for SeaOrmOrganizationSettingsRepository {
             .await
             .map_err(persistence_error)?
             .ok_or(ApplicationError::NotFound)?;
-        let currency_enabled = crate::infrastructure::models::organization_currency::Entity::find()
-            .filter(
-                crate::infrastructure::models::organization_currency::Column::OrganizationId
-                    .eq(organization_id),
-            )
-            .filter(
-                crate::infrastructure::models::organization_currency::Column::CurrencyCode
-                    .eq(&input.default_currency),
-            )
-            .filter(
-                crate::infrastructure::models::organization_currency::Column::IsEnabled.eq(true),
-            )
+        let currency_enabled = CurrencyEntity::find_by_id(&input.default_currency)
+            .filter(CurrencyColumn::IsActive.eq(true))
             .one(&transaction)
             .await
             .map_err(persistence_error)?
-            .is_some();
+            .is_some()
+            && crate::infrastructure::models::organization_currency::Entity::find()
+                .filter(
+                    crate::infrastructure::models::organization_currency::Column::OrganizationId
+                        .eq(organization_id),
+                )
+                .filter(
+                    crate::infrastructure::models::organization_currency::Column::CurrencyCode
+                        .eq(&input.default_currency),
+                )
+                .filter(
+                    crate::infrastructure::models::organization_currency::Column::IsEnabled
+                        .eq(true),
+                )
+                .one(&transaction)
+                .await
+                .map_err(persistence_error)?
+                .is_some();
         if !currency_enabled {
             return Err(crate::domain::DomainError::Validation(
                 "The default currency must be enabled for the organization.",

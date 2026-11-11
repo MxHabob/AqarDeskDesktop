@@ -21,13 +21,16 @@ pub use contract_templates::{
     ContractTemplate, ContractTemplateInput, ContractTemplateRepository, ContractTemplateService,
     ContractTemplateVersion,
 };
-pub use currencies::{CurrencyCatalog, CurrencyRepository, CurrencySettings};
+pub use currencies::{
+    CurrencyCatalog, CurrencyInput, CurrencyRepository, CurrencySettings, NewCurrencyInput,
+};
 pub use dashboard::{
-    DashboardRepository, DashboardService, DashboardSummary, MonthlyPayment, StatusCount,
+    DashboardRepository, DashboardService, DashboardSummary, MonthlyPayment, PaymentCurrencyTotal,
+    StatusCount,
 };
 pub use errors::ApplicationError;
 pub use identity_management::IdentityService;
-pub use identity_port::{IdentityRepository, NewUser, OrganizationBootstrap};
+pub use identity_port::{IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate};
 pub use organization_settings::{
     OrganizationSettings, OrganizationSettingsInput, OrganizationSettingsRepository,
     OrganizationSettingsService,

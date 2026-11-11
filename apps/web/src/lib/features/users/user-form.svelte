@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { createForm } from '@tanstack/svelte-form';
 	import { z } from 'zod';
 	import {
@@ -12,35 +13,52 @@
 		SheetFooter
 	} from '@aqardesk/ui';
 	import FormField from '#lib/shared/components/form-field.svelte';
+	import type { User } from '#lib/features/auth/types';
 	import * as m from '#lib/paraglide/messages';
 
 	export type UserFormValues = {
 		name: string;
 		email: string;
 		password: string;
-		role: 'admin' | 'staff';
+		role: 'admin' | 'staff' | 'readonly';
 	};
 
 	type Props = {
+		initial?: User;
 		busy: boolean;
 		onSubmit: (values: UserFormValues) => Promise<boolean>;
 		onCancel: () => void;
 	};
 
-	let { busy, onSubmit, onCancel }: Props = $props();
+	let { initial, busy, onSubmit, onCancel }: Props = $props();
 
-	const defaultValues: UserFormValues = {
-		name: '',
-		email: '',
-		password: '',
-		role: 'staff'
-	};
+	const defaultValues = untrack(
+		(): UserFormValues => ({
+			name: initial?.name ?? '',
+			email: initial?.email ?? '',
+			password: '',
+			role:
+				initial?.role === 'admin'
+					? 'admin'
+					: initial?.role === 'readonly'
+						? 'readonly'
+						: 'staff'
+		})
+	);
 
 	const schema = z.object({
 		name: z.string().trim().min(1, m.users_name()),
 		email: z.email(m.auth_email()),
-		password: z.string().min(12, m.auth_password_hint()),
-		role: z.enum(['admin', 'staff'])
+		password: z.string(),
+		role: z.enum(['admin', 'staff', 'readonly'])
+	}).superRefine((values, context) => {
+		if ((!initial || values.password) && values.password.length < 12) {
+			context.addIssue({
+				code: 'custom',
+				path: ['password'],
+				message: m.auth_password_hint()
+			});
+		}
 	});
 
 	const form = createForm(() => ({
@@ -69,7 +87,7 @@
 	}
 
 	function setRole(value: string, change: (value: UserFormValues['role']) => void) {
-		if (value === 'admin' || value === 'staff') change(value);
+		if (value === 'admin' || value === 'staff' || value === 'readonly') change(value);
 	}
 </script>
 
@@ -77,9 +95,9 @@
 	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 	<form.Field name="name">
 		{#snippet children(field)}
-			<FormField label={m.users_name()} id="new-user-name" error={fieldError(field.state.meta.errors)}>
+			<FormField label={m.users_name()} id="user-name" error={fieldError(field.state.meta.errors)}>
 				<Input
-					id="new-user-name"
+					id="user-name"
 					value={field.state.value}
 					oninput={(event) => field.handleChange(event.currentTarget.value)}
 					onblur={field.handleBlur}
@@ -92,9 +110,9 @@
 	</form.Field>
 	<form.Field name="email">
 		{#snippet children(field)}
-			<FormField label={m.auth_email()} id="new-user-email" error={fieldError(field.state.meta.errors)}>
+			<FormField label={m.auth_email()} id="user-email" error={fieldError(field.state.meta.errors)}>
 				<Input
-					id="new-user-email"
+					id="user-email"
 					type="email"
 					value={field.state.value}
 					oninput={(event) => field.handleChange(event.currentTarget.value)}
@@ -111,12 +129,12 @@
 		{#snippet children(field)}
 			<FormField
 				label={m.auth_password()}
-				id="new-user-password"
-				description={m.auth_password_hint()}
+				id="user-password"
+				description={initial ? m.users_password_optional() : m.auth_password_hint()}
 				error={fieldError(field.state.meta.errors)}
 			>
 				<Input
-					id="new-user-password"
+					id="user-password"
 					type="password"
 					value={field.state.value}
 					oninput={(event) => field.handleChange(event.currentTarget.value)}
@@ -124,6 +142,7 @@
 					dir="ltr"
 					autocomplete="new-password"
 					aria-invalid={field.state.meta.errors.length > 0}
+					placeholder={initial ? m.users_password_unchanged() : undefined}
 					class="rounded-md"
 				/>
 			</FormField>
@@ -131,18 +150,19 @@
 	</form.Field>
 	<form.Field name="role">
 		{#snippet children(field)}
-			<FormField label={m.users_role()} id="new-user-role">
+			<FormField label={m.users_role()} id="user-role">
 				<Select
 					type="single"
 					value={field.state.value}
 					onValueChange={(value) => setRole(value, (role) => field.handleChange(role))}
 				>
-					<SelectTrigger id="new-user-role" class="h-9 w-full rounded-md text-sm">
+					<SelectTrigger id="user-role" class="h-9 w-full rounded-md text-sm">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="staff">{m.users_role_staff()}</SelectItem>
 						<SelectItem value="admin">{m.users_role_admin()}</SelectItem>
+						<SelectItem value="readonly">{m.users_role_readonly()}</SelectItem>
 					</SelectContent>
 				</Select>
 			</FormField>
@@ -155,6 +175,6 @@
 		{m.common_cancel()}
 	</Button>
 	<Button type="submit" form="user-form" class="rounded-md" disabled={busy}>
-		{busy ? m.common_processing() : m.users_add()}
+		{busy ? m.common_processing() : initial ? m.common_save() : m.users_add()}
 	</Button>
 </SheetFooter>

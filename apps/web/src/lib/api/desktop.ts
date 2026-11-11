@@ -21,6 +21,28 @@ import type { User } from '#lib/features/auth/types';
 
 export type ConnectionMode = 'local' | 'direct' | 'api';
 
+export type CurrencyDetailsInput = {
+	name: string;
+	name_ar?: string | null;
+	symbol: string;
+	symbol_position: 'prefix' | 'suffix';
+	decimal_digits: number;
+};
+
+export type NewCurrencyInput = CurrencyDetailsInput & {
+	code: string;
+	enable_for_organization: boolean;
+};
+
+export type CurrencyEditorInput = NewCurrencyInput;
+
+export type UserEditorInput = {
+	name: string;
+	email: string;
+	role: 'admin' | 'staff' | 'readonly';
+	password?: string;
+};
+
 export type ConnectionConfig = {
 	mode: ConnectionMode;
 	local?: { database_path: string } | null;
@@ -57,7 +79,35 @@ export type DashboardSummary = {
 		amount_minor: number;
 		payment_count: number;
 	}[];
+	payments_by_currency: {
+		currency_code: string;
+		currency_decimal_digits: number;
+		amount_minor: number;
+		payment_count: number;
+	}[];
 	unit_status_counts: { status: string; count: number }[];
+	payment_status_counts: { status: string; count: number }[];
+};
+
+export type DatabaseAdminStatus = {
+	mode: ConnectionMode;
+	database_path: string | null;
+	file_size_bytes: number | null;
+	modified_at_unix: number | null;
+	supports_file_management: boolean;
+	remote_database: string | null;
+};
+
+export type DatabaseBackup = {
+	name: string;
+	path: string;
+	size_bytes: number;
+	modified_at_unix: number;
+};
+
+export type DatabaseOperationResult = {
+	path: string;
+	size_bytes: number;
 };
 
 export const desktopApi = {
@@ -74,6 +124,15 @@ export const desktopApi = {
 		sslMode?: string | null;
 	}) => invoke<ConnectionConfig>('platform_connection_set_config', { input }),
 	connect: () => invoke<void>('platform_connection_connect'),
+	getDatabaseAdminStatus: () => invoke<DatabaseAdminStatus>('database_admin_get_status'),
+	listDatabaseBackups: () => invoke<DatabaseBackup[]>('database_admin_list_backups'),
+	createDatabaseBackup: (destinationPath: string) =>
+		invoke<DatabaseOperationResult>('database_admin_backup', { destinationPath }),
+	restoreDatabaseBackup: (sourcePath: string) =>
+		invoke<DatabaseOperationResult>('database_admin_restore', { sourcePath }),
+	checkDatabaseIntegrity: () => invoke<string>('database_admin_check_integrity'),
+	changeDatabaseLocation: (destinationPath: string) =>
+		invoke<DatabaseOperationResult>('database_admin_change_location', { destinationPath }),
 	checkApi: (serverUrl: string) => invoke<void>('platform_connection_check_api', { serverUrl }),
 	getSetupStatus: () =>
 		invoke<{ needs_admin: boolean; current_user: User | null }>('platform_auth_get_setup_status'),
@@ -91,6 +150,9 @@ export const desktopApi = {
 	updateOrganizationSettings: (input: OrganizationSettingsInput) =>
 		invoke<OrganizationSettings>('organization_update_settings', { input }),
 	listCurrencies: () => invoke<CurrencySettings[]>('currencies_list'),
+	createCurrency: (input: NewCurrencyInput) => invoke<void>('currencies_create', { input }),
+	updateCurrency: (currencyCode: string, input: CurrencyDetailsInput) =>
+		invoke<void>('currencies_update', { currencyCode, input }),
 	setOrganizationCurrencyEnabled: (currencyCode: string, isEnabled: boolean) =>
 		invoke<void>('currencies_set_organization_enabled', { currencyCode, isEnabled }),
 	getProfileSettings: () => invoke<ProfileSettings>('profile_get_settings'),
@@ -109,6 +171,8 @@ export const desktopApi = {
 	listUsers: () => invoke<User[]>('platform_users_list'),
 	createUser: (input: { name: string; email: string; password: string; role: string }) =>
 		invoke<void>('platform_users_create', input),
+	updateUser: (userId: string, input: UserEditorInput) =>
+		invoke<User>('platform_users_update', { userId, ...input }),
 	setUserActive: (userId: string, isActive: boolean) =>
 		invoke<void>('platform_users_set_active', { userId, isActive }),
 	listProperties: () => invoke<Property[]>('platform_properties_list'),

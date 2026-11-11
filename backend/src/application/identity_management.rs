@@ -1,5 +1,7 @@
 use crate::{
-    application::{ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap},
+    application::{
+        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+    },
     domain::{AccessRole, ActorContext, Organization, UserAccount},
 };
 
@@ -99,6 +101,27 @@ impl<R: IdentityRepository> IdentityService<R> {
             .set_user_active(actor.organization_id(), user_id, actor.user_id(), is_active)
             .await
     }
+
+    pub async fn update_user(
+        &self,
+        actor: ActorContext,
+        user_id: crate::domain::UserId,
+        input: UserUpdate<'_>,
+    ) -> Result<UserAccount, ApplicationError> {
+        require_admin(actor)?;
+        if input.name.trim().is_empty()
+            || !valid_email(input.email)
+            || input.password.is_some_and(|password| password.len() < 12)
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "Name, valid email, and an optional 12-character password are required.",
+            )
+            .into());
+        }
+        self.identities
+            .update_user(actor.organization_id(), user_id, actor.user_id(), input)
+            .await
+    }
 }
 
 fn require_admin(actor: ActorContext) -> Result<(), ApplicationError> {
@@ -160,6 +183,15 @@ mod tests {
         ) -> Result<UserAccount, ApplicationError> {
             unreachable!()
         }
+        async fn update_user(
+            &self,
+            _: OrganizationId,
+            _: UserId,
+            _: UserId,
+            _: UserUpdate<'_>,
+        ) -> Result<UserAccount, ApplicationError> {
+            unreachable!()
+        }
         async fn set_user_active(
             &self,
             _: OrganizationId,
@@ -191,6 +223,21 @@ mod tests {
         let actor = ActorContext::new(UserId::new(), OrganizationId::new(), AccessRole::Staff);
         assert!(matches!(
             service.list_users(actor).await,
+            Err(ApplicationError::Forbidden)
+        ));
+        assert!(matches!(
+            service
+                .update_user(
+                    actor,
+                    UserId::new(),
+                    UserUpdate {
+                        name: "Staff",
+                        email: "staff@example.com",
+                        password: None,
+                        role: AccessRole::Staff,
+                    },
+                )
+                .await,
             Err(ApplicationError::Forbidden)
         ));
     }
