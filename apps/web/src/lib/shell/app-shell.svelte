@@ -31,6 +31,7 @@
 	);
 	const settingsPath = $derived(`/${currentUser.organization_id}/settings`);
 	const routePath = $derived(deLocalizeUrl(page.url).pathname);
+	const rootWorkspace = $derived(routePath === `/${currentUser.organization_id}`);
 	const gridWorkspace = $derived(
 		[
 			`/${currentUser.organization_id}/properties`,
@@ -121,7 +122,9 @@
 				<main
 					class={gridWorkspace
 						? 'flex min-h-0 flex-1 flex-col overflow-hidden p-3 scrollbar-none sm:p-4'
-						: 'min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6'}
+						: rootWorkspace
+							? 'min-h-0 flex-1 overflow-y-auto p-3 scrollbar-none sm:p-4'
+							: 'min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6'}
 				>
 					<div
 						class={gridWorkspace

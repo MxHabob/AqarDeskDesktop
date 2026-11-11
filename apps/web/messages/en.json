@@ -75,7 +75,7 @@
 	"system_support_copied": "Copied!",
 	"system_support_done": "Done",
 	"system_support_send_report": "Open email to support",
-	"system_support_sending": "Opening email..."
+	"system_support_sending": "Opening email...",
 	"system_cli_title": "Database management",
 	"system_cli_description": "Create database backups and manage local database settings from the database management page.",
 	"system_cli_open": "Open database management",
