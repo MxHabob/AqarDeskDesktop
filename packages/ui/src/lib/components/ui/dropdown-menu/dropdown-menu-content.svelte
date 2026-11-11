@@ -23,7 +23,7 @@
 		{sideOffset}
 		{align}
 		class={cn(
-			"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 text-popover-foreground min-w-32 rounded-lg border border-border bg-popover shadow-floating ring-1 duration-100 z-[var(--layer-popover)] max-h-(--bits-dropdown-menu-content-available-height) w-(--bits-dropdown-menu-anchor-width) origin-(--bits-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto **:data-[slot$=-item]:focus:bg-accent **:data-[slot$=-item]:data-highlighted:bg-accent **:data-[slot$=-separator]:bg-border **:data-[slot$=-trigger]:focus:bg-accent **:data-[slot$=-trigger]:aria-expanded:bg-accent",
+			"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 ring-foreground/10 text-popover-foreground min-w-32 rounded-lg border border-border bg-popover shadow-floating ring-1 duration-75 z-[var(--layer-popover)] max-h-(--bits-dropdown-menu-content-available-height) w-(--bits-dropdown-menu-anchor-width) origin-(--bits-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto **:data-[slot$=-item]:focus:bg-accent **:data-[slot$=-item]:data-highlighted:bg-accent **:data-[slot$=-separator]:bg-border **:data-[slot$=-trigger]:focus:bg-accent **:data-[slot$=-trigger]:aria-expanded:bg-accent",
 			className
 		)}
 		{...restProps}

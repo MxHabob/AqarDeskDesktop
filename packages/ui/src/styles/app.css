@@ -26,6 +26,28 @@
 	}
 }
 
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+[data-slot='dropdown-menu-content'],
+[data-slot='dropdown-menu-sub-content'],
+[data-slot='select-content'] {
+	animation-duration: 75ms !important;
+}
+
+[data-slot='dialog-content'],
+[data-slot='dialog-overlay'] {
+	animation-duration: 100ms !important;
+}
+
 :root {
 
 	--background: oklch(1 0 0);

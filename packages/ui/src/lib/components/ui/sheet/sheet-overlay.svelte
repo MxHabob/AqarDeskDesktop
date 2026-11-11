@@ -13,7 +13,7 @@
 	bind:ref
 	data-slot="sheet-overlay"
 	class={cn(
-		'fixed inset-0 isolate z-[var(--layer-sheet)] bg-overlay/45 supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-150',
+		'fixed inset-0 isolate z-[var(--layer-sheet)] bg-overlay/45 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-100',
 		className
 	)}
 	{...restProps}
