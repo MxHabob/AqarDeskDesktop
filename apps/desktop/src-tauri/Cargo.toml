@@ -26,6 +26,7 @@ tauri-plugin-log = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 aqardesk-infrastructure = { path = "../../../backend/crates/infrastructure" }
+aqardesk-app = { path = "../../../backend/crates/app" }
 sea-orm = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }

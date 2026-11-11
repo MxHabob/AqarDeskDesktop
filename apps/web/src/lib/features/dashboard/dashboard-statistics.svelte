@@ -8,8 +8,9 @@
 	import DashboardMonthlyPaymentsChart from '#lib/features/dashboard/dashboard-monthly-payments-chart.svelte';
 	import DashboardOpenChargesCard from '#lib/features/dashboard/dashboard-open-charges-card.svelte';
 	import DashboardStatCard from '#lib/features/dashboard/dashboard-stat-card.svelte';
+	import DashboardStackedSummary from '#lib/features/dashboard/dashboard-stacked-summary.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
+	import { toast } from '@aqardesk/ui';
 
 	let {
 		currentUser,
@@ -25,6 +26,13 @@
 		queryKey: dashboardQueryKeys.summary(currentUser.organization_id, months),
 		queryFn: () => dashboardQueries.summary(months)
 	}));
+
+	let lastNotifiedError = '';
+	$effect(() => {
+		const error = summaryQuery.error ? String(summaryQuery.error) : '';
+		if (error && error !== lastNotifiedError) toast.error(error);
+		lastNotifiedError = error;
+	});
 
 	const cards = $derived(
 		summaryQuery.data
@@ -70,9 +78,7 @@
 <section class="grid gap-3" aria-labelledby="dashboard-statistics-title">
 	<h2 id="dashboard-statistics-title" class="sr-only">{m.dashboard_statistics_title()}</h2>
 
-	{#if summaryQuery.error && !summaryQuery.data}
-		<MessageBanner message={String(summaryQuery.error)} />
-	{:else if summaryQuery.isLoading && !summaryQuery.data}
+	{#if summaryQuery.isLoading && !summaryQuery.data}
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-live="polite">
 			{#each [0, 1, 2, 3] as index (index)}
 				<Card class="h-[166px] animate-pulse p-3">
@@ -82,10 +88,7 @@
 			{/each}
 		</div>
 	{:else if summaryQuery.data && cards}
-		{#if summaryQuery.error}
-			<MessageBanner message={String(summaryQuery.error)} />
-		{/if}
-
+		<DashboardStackedSummary summary={summaryQuery.data} />
 		{#if view === 'overview'}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				{#each cards.primary as card (card.label)}

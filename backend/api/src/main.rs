@@ -1,6 +1,14 @@
+use aqardesk_app::{
+    AppError,
+    services::{properties::PropertyService, tenants::TenantService, units::UnitService},
+};
 use aqardesk_infrastructure::{
-    connect_database, run_migrations,
-    services::{properties, tenants, units},
+    connect_database,
+    repositories::{
+        properties::SeaOrmPropertyRepository, tenants::SeaOrmTenantRepository,
+        units::SeaOrmUnitRepository,
+    },
+    run_migrations,
     settings::{ConnectionConfig, ConnectionMode},
     users::{self, UserSummary},
 };
@@ -285,9 +293,11 @@ async fn list_properties(
     headers: HeaderMap,
 ) -> Result<Json<Vec<dto::Property>>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_user(&state, &headers).await?;
-    let items = properties::list_properties(&state.database, &user.organization_id)
+    let service = PropertyService::new(SeaOrmPropertyRepository::new(&state.database));
+    let items = service
+        .list(&user.organization_id)
         .await
-        .map_err(|message| business_error(message))?;
+        .map_err(business_error)?;
     Ok(Json(items.into_iter().map(Into::into).collect()))
 }
 
@@ -310,14 +320,11 @@ async fn create_property(
     Json(input): Json<dto::PropertyInput>,
 ) -> Result<(StatusCode, Json<dto::Property>), (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = properties::create_property(
-        &state.database,
-        &user.organization_id,
-        &user.id,
-        input.into(),
-    )
-    .await
-    .map_err(business_error)?;
+    let service = PropertyService::new(SeaOrmPropertyRepository::new(&state.database));
+    let item = service
+        .create(&user.organization_id, &user.id, input.into())
+        .await
+        .map_err(business_error)?;
     Ok((StatusCode::CREATED, Json(item.into())))
 }
 
@@ -343,15 +350,11 @@ async fn update_property(
     Json(input): Json<dto::PropertyInput>,
 ) -> Result<Json<dto::Property>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = properties::update_property(
-        &state.database,
-        &user.organization_id,
-        &user.id,
-        &property_id,
-        input.into(),
-    )
-    .await
-    .map_err(business_error)?;
+    let service = PropertyService::new(SeaOrmPropertyRepository::new(&state.database));
+    let item = service
+        .update(&user.organization_id, &user.id, &property_id, input.into())
+        .await
+        .map_err(business_error)?;
     Ok(Json(item.into()))
 }
 
@@ -374,7 +377,9 @@ async fn archive_property(
     Path(property_id): Path<String>,
 ) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    properties::archive_property(&state.database, &user.organization_id, &property_id)
+    let service = PropertyService::new(SeaOrmPropertyRepository::new(&state.database));
+    service
+        .archive(&user.organization_id, &user.id, &property_id)
         .await
         .map_err(business_error)?;
     Ok(Json(dto::OperationResult { ok: true }))
@@ -396,7 +401,9 @@ async fn list_units(
     headers: HeaderMap,
 ) -> Result<Json<Vec<dto::PropertyUnit>>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_user(&state, &headers).await?;
-    let items = units::list_units(&state.database, &user.organization_id, None)
+    let service = UnitService::new(SeaOrmUnitRepository::new(&state.database));
+    let items = service
+        .list(&user.organization_id, None)
         .await
         .map_err(business_error)?;
     Ok(Json(items.into_iter().map(Into::into).collect()))
@@ -421,7 +428,9 @@ async fn create_unit(
     Json(input): Json<dto::PropertyUnitInput>,
 ) -> Result<(StatusCode, Json<dto::PropertyUnit>), (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = units::create_unit(&state.database, &user.organization_id, input.into())
+    let service = UnitService::new(SeaOrmUnitRepository::new(&state.database));
+    let item = service
+        .create(&user.organization_id, input.into())
         .await
         .map_err(business_error)?;
     Ok((StatusCode::CREATED, Json(item.into())))
@@ -449,14 +458,11 @@ async fn update_unit(
     Json(input): Json<dto::PropertyUnitInput>,
 ) -> Result<Json<dto::PropertyUnit>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = units::update_unit(
-        &state.database,
-        &user.organization_id,
-        &unit_id,
-        input.into(),
-    )
-    .await
-    .map_err(business_error)?;
+    let service = UnitService::new(SeaOrmUnitRepository::new(&state.database));
+    let item = service
+        .update(&user.organization_id, &unit_id, input.into())
+        .await
+        .map_err(business_error)?;
     Ok(Json(item.into()))
 }
 
@@ -479,7 +485,9 @@ async fn archive_unit(
     Path(unit_id): Path<String>,
 ) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    units::archive_unit(&state.database, &user.organization_id, &unit_id)
+    let service = UnitService::new(SeaOrmUnitRepository::new(&state.database));
+    service
+        .archive(&user.organization_id, &unit_id)
         .await
         .map_err(business_error)?;
     Ok(Json(dto::OperationResult { ok: true }))
@@ -501,7 +509,9 @@ async fn list_tenants(
     headers: HeaderMap,
 ) -> Result<Json<Vec<dto::Tenant>>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_user(&state, &headers).await?;
-    let items = tenants::list_tenants(&state.database, &user.organization_id)
+    let service = TenantService::new(SeaOrmTenantRepository::new(&state.database));
+    let items = service
+        .list(&user.organization_id)
         .await
         .map_err(business_error)?;
     Ok(Json(items.into_iter().map(Into::into).collect()))
@@ -526,7 +536,9 @@ async fn create_tenant(
     Json(input): Json<dto::TenantInput>,
 ) -> Result<(StatusCode, Json<dto::Tenant>), (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = tenants::create_tenant(&state.database, &user.organization_id, input.into())
+    let service = TenantService::new(SeaOrmTenantRepository::new(&state.database));
+    let item = service
+        .create(&user.organization_id, input.into())
         .await
         .map_err(business_error)?;
     Ok((StatusCode::CREATED, Json(item.into())))
@@ -554,14 +566,11 @@ async fn update_tenant(
     Json(input): Json<dto::TenantInput>,
 ) -> Result<Json<dto::Tenant>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    let item = tenants::update_tenant(
-        &state.database,
-        &user.organization_id,
-        &tenant_id,
-        input.into(),
-    )
-    .await
-    .map_err(business_error)?;
+    let service = TenantService::new(SeaOrmTenantRepository::new(&state.database));
+    let item = service
+        .update(&user.organization_id, &tenant_id, input.into())
+        .await
+        .map_err(business_error)?;
     Ok(Json(item.into()))
 }
 
@@ -584,7 +593,9 @@ async fn archive_tenant(
     Path(tenant_id): Path<String>,
 ) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
     let user = require_business_writer(&state, &headers).await?;
-    tenants::archive_tenant(&state.database, &user.organization_id, &tenant_id)
+    let service = TenantService::new(SeaOrmTenantRepository::new(&state.database));
+    service
+        .archive(&user.organization_id, &tenant_id)
         .await
         .map_err(business_error)?;
     Ok(Json(dto::OperationResult { ok: true }))
@@ -646,13 +657,24 @@ async fn require_user(
         .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Session expired. Sign in again."))
 }
 
-fn business_error(message: String) -> (StatusCode, Json<serde_json::Value>) {
-    if message.contains("not found") {
-        error(StatusCode::NOT_FOUND, message)
-    } else if message.starts_with("Failed to") {
-        error(StatusCode::INTERNAL_SERVER_ERROR, message)
-    } else {
-        error(StatusCode::BAD_REQUEST, message)
+fn business_error(value: AppError) -> (StatusCode, Json<serde_json::Value>) {
+    match value {
+        AppError::Validation(message) => error(StatusCode::BAD_REQUEST, message),
+        AppError::NotFound(message) => error(StatusCode::NOT_FOUND, message),
+        AppError::Persistence(message) => {
+            tracing::error!(%message, "Business data persistence operation failed");
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "A database operation failed.",
+            )
+        }
+        AppError::OrganizationNotFound(id) => error(
+            StatusCode::NOT_FOUND,
+            format!("Organization {id:?} was not found."),
+        ),
+        AppError::UserNotFound(id) => {
+            error(StatusCode::NOT_FOUND, format!("User {id:?} was not found."))
+        }
     }
 }
 

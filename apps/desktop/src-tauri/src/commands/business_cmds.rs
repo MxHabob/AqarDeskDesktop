@@ -1,10 +1,14 @@
 use crate::connection::{AuthState, ConnectionState, DatabaseState, LoggedInUser};
+use aqardesk_app::services::{
+    properties::{PropertyInput, PropertyService},
+    tenants::{TenantInput, TenantService},
+    units::{UnitInput, UnitService},
+};
 use aqardesk_infrastructure::{
     models::{property, tenant, unit},
-    services::{
-        properties::{self, PropertyInput},
-        tenants::{self, TenantInput},
-        units::{self, UnitInput},
+    repositories::{
+        properties::SeaOrmPropertyRepository, tenants::SeaOrmTenantRepository,
+        units::SeaOrmUnitRepository,
     },
     settings::ConnectionMode,
     users,
@@ -31,7 +35,11 @@ pub async fn properties_list(
         )
         .await;
     }
-    properties::list_properties(&database.get().await?, &user.organization_id).await
+    let database = database.get().await?;
+    PropertyService::new(SeaOrmPropertyRepository::new(&database))
+        .list(&user.organization_id)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -53,13 +61,11 @@ pub async fn properties_create(
         )
         .await;
     }
-    properties::create_property(
-        &database.get().await?,
-        &user.organization_id,
-        &user.id,
-        input,
-    )
-    .await
+    let database = database.get().await?;
+    PropertyService::new(SeaOrmPropertyRepository::new(&database))
+        .create(&user.organization_id, &user.id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -76,14 +82,11 @@ pub async fn properties_update(
         let path = format!("/api/v1/properties/{}", encode_segment(&property_id));
         return api_call(&connection, &auth, Method::PUT, &path, Some(input)).await;
     }
-    properties::update_property(
-        &database.get().await?,
-        &user.organization_id,
-        &user.id,
-        &property_id,
-        input,
-    )
-    .await
+    let database = database.get().await?;
+    PropertyService::new(SeaOrmPropertyRepository::new(&database))
+        .update(&user.organization_id, &user.id, &property_id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -106,7 +109,11 @@ pub async fn properties_archive(
         )
         .await;
     }
-    properties::archive_property(&database.get().await?, &user.organization_id, &property_id).await
+    let database = database.get().await?;
+    PropertyService::new(SeaOrmPropertyRepository::new(&database))
+        .archive(&user.organization_id, &user.id, &property_id)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -127,7 +134,11 @@ pub async fn units_list(
         )
         .await;
     }
-    units::list_units(&database.get().await?, &user.organization_id, None).await
+    let database = database.get().await?;
+    UnitService::new(SeaOrmUnitRepository::new(&database))
+        .list(&user.organization_id, None)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -149,7 +160,11 @@ pub async fn units_create(
         )
         .await;
     }
-    units::create_unit(&database.get().await?, &user.organization_id, input).await
+    let database = database.get().await?;
+    UnitService::new(SeaOrmUnitRepository::new(&database))
+        .create(&user.organization_id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -166,13 +181,11 @@ pub async fn units_update(
         let path = format!("/api/v1/units/{}", encode_segment(&unit_id));
         return api_call(&connection, &auth, Method::PUT, &path, Some(input)).await;
     }
-    units::update_unit(
-        &database.get().await?,
-        &user.organization_id,
-        &unit_id,
-        input,
-    )
-    .await
+    let database = database.get().await?;
+    UnitService::new(SeaOrmUnitRepository::new(&database))
+        .update(&user.organization_id, &unit_id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -195,7 +208,11 @@ pub async fn units_archive(
         )
         .await;
     }
-    units::archive_unit(&database.get().await?, &user.organization_id, &unit_id).await
+    let database = database.get().await?;
+    UnitService::new(SeaOrmUnitRepository::new(&database))
+        .archive(&user.organization_id, &unit_id)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -216,7 +233,11 @@ pub async fn tenants_list(
         )
         .await;
     }
-    tenants::list_tenants(&database.get().await?, &user.organization_id).await
+    let database = database.get().await?;
+    TenantService::new(SeaOrmTenantRepository::new(&database))
+        .list(&user.organization_id)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -238,7 +259,11 @@ pub async fn tenants_create(
         )
         .await;
     }
-    tenants::create_tenant(&database.get().await?, &user.organization_id, input).await
+    let database = database.get().await?;
+    TenantService::new(SeaOrmTenantRepository::new(&database))
+        .create(&user.organization_id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -255,13 +280,11 @@ pub async fn tenants_update(
         let path = format!("/api/v1/tenants/{}", encode_segment(&tenant_id));
         return api_call(&connection, &auth, Method::PUT, &path, Some(input)).await;
     }
-    tenants::update_tenant(
-        &database.get().await?,
-        &user.organization_id,
-        &tenant_id,
-        input,
-    )
-    .await
+    let database = database.get().await?;
+    TenantService::new(SeaOrmTenantRepository::new(&database))
+        .update(&user.organization_id, &tenant_id, input)
+        .await
+        .map_err(service_error)
 }
 
 #[tauri::command]
@@ -284,7 +307,11 @@ pub async fn tenants_archive(
         )
         .await;
     }
-    tenants::archive_tenant(&database.get().await?, &user.organization_id, &tenant_id).await
+    let database = database.get().await?;
+    TenantService::new(SeaOrmTenantRepository::new(&database))
+        .archive(&user.organization_id, &tenant_id)
+        .await
+        .map_err(service_error)
 }
 
 async fn require_user(
@@ -346,4 +373,8 @@ where
 
 fn encode_segment(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+}
+
+fn service_error(error: aqardesk_app::AppError) -> String {
+    error.to_string()
 }

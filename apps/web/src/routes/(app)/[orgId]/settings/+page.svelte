@@ -5,7 +5,6 @@
 	import LanguageSettingsCard from '#lib/features/settings/language-settings-card.svelte';
 	import UpdateSettingsCard from '#lib/features/settings/update-settings-card.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
 
@@ -14,9 +13,6 @@
 		void goto('/connection');
 	}
 </script>
-
-{#if app.error}<MessageBanner message={app.error} />{/if}
-{#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
 
 <div class="grid items-start gap-4 lg:grid-cols-2">
 	<LanguageSettingsCard

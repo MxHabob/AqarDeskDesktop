@@ -8,7 +8,6 @@
 	import type { ViewKey } from '#lib/shell/navigation';
 	import { getViewPath } from '#lib/shell/navigation';
 	import AppShell from '#lib/shell/app-shell.svelte';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	let { data, children }: LayoutProps = $props();
@@ -72,8 +71,6 @@
 		onSelect={selectView}
 		onLogout={signOut}
 	>
-		{#if app.error}<MessageBanner message={app.error} />{/if}
-		{#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
 		{@render children()}
 	</AppShell>
 {/if}

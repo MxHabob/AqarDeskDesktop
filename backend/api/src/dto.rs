@@ -61,7 +61,7 @@ pub struct PropertyInput {
     pub status: String,
 }
 
-impl From<PropertyInput> for aqardesk_infrastructure::services::properties::PropertyInput {
+impl From<PropertyInput> for aqardesk_app::services::properties::PropertyInput {
     fn from(input: PropertyInput) -> Self {
         Self {
             code: input.code,
@@ -97,7 +97,7 @@ pub struct PropertyUnitInput {
     pub status: String,
 }
 
-impl From<PropertyUnitInput> for aqardesk_infrastructure::services::units::UnitInput {
+impl From<PropertyUnitInput> for aqardesk_app::services::units::UnitInput {
     fn from(input: PropertyUnitInput) -> Self {
         Self {
             property_id: input.property_id,
@@ -123,7 +123,7 @@ pub struct TenantInput {
     pub notes: Option<String>,
 }
 
-impl From<TenantInput> for aqardesk_infrastructure::services::tenants::TenantInput {
+impl From<TenantInput> for aqardesk_app::services::tenants::TenantInput {
     fn from(input: TenantInput) -> Self {
         Self {
             full_name: input.full_name,

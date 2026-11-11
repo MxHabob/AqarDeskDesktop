@@ -6,7 +6,6 @@
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import ConnectionForm from '#lib/features/connection/connection-form.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
 	let desktopShell = $state(false);
@@ -88,9 +87,6 @@
 					{m.setup_connection_description()}
 				</p>
 			</div>
-
-			{#if app.error}<MessageBanner message={app.error} />{/if}
-			{#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
 
 			<ConnectionForm
 				mode={app.mode}

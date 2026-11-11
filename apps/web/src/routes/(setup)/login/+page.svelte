@@ -7,7 +7,6 @@
 	import LoginForm from '#lib/features/auth/login-form.svelte';
 	import LoginVideoBackground from '#lib/features/auth/login-video-background.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 
 	const app = getAppContext();
 	let desktopShell = $state(false);
@@ -58,9 +57,6 @@
 						{app.needsAdmin ? m.auth_admin_description() : m.auth_signin_description()}
 					</p>
 				</div>
-
-				{#if app.error}<MessageBanner message={app.error} />{/if}
-				{#if app.notice}<MessageBanner message={app.notice} variant="success" />{/if}
 
 				<LoginForm
 					needsAdmin={app.needsAdmin}

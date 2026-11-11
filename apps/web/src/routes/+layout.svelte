@@ -6,6 +6,7 @@
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
+	import { Toaster } from '@aqardesk/ui';
 	import { queryClient } from '#lib/core/query-client';
 	import ConfirmDialog from '#lib/shared/components/confirm-dialog.svelte';
 	import { createAppContext, setAppContext } from '#lib/core/app-context.svelte';
@@ -94,4 +95,5 @@
 		<SearchModal bind:open={searchOpen} currentUser={app.currentUser} onSelect={selectSearchResult} />
 	{/if}
 </QueryClientProvider>
+<Toaster />
 <ConfirmDialog />

@@ -148,6 +148,8 @@ name = "aqardesk-app"
 version = "0.1.0"
 dependencies = [
  "aqardesk-domain",
+ "async-trait",
+ "rust_decimal",
  "serde",
  "thiserror 2.0.21",
  "tracing",
@@ -158,6 +160,7 @@ dependencies = [
 name = "aqardesk-desktop"
 version = "0.1.0"
 dependencies = [
+ "aqardesk-app",
  "aqardesk-infrastructure",
  "log",
  "reqwest",
@@ -190,6 +193,7 @@ dependencies = [
  "aqardesk-app",
  "aqardesk-domain",
  "argon2",
+ "async-trait",
  "chrono",
  "keyring",
  "rand 0.8.8",

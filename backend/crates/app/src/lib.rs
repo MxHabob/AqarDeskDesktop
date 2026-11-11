@@ -1,6 +1,8 @@
 use aqardesk_domain::{Money, Organization, OrganizationId, User, UserId};
 use thiserror::Error;
 
+pub mod services;
+
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("organization not found: {0:?}")]
@@ -9,6 +11,10 @@ pub enum AppError {
     UserNotFound(UserId),
     #[error("validation failed: {0}")]
     Validation(String),
+    #[error("resource not found: {0}")]
+    NotFound(String),
+    #[error("persistence operation failed: {0}")]
+    Persistence(String),
 }
 
 #[derive(Debug, Clone)]

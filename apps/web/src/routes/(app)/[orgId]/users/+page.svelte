@@ -5,8 +5,8 @@
 	import AddUserSheet from '#lib/features/users/add-user-sheet.svelte';
 	import UsersDirectory from '#lib/features/users/users-directory.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import MessageBanner from '#lib/shared/components/message-banner.svelte';
 	import type { User } from '#lib/features/auth/types';
+	import { toast } from '@aqardesk/ui';
 
 	const app = getAppContext();
 	const usersQuery = createQuery(() => ({
@@ -15,14 +15,18 @@
 		enabled: app.currentUser?.role === 'admin'
 	}));
 	const users = $derived(usersQuery.data ?? []);
+
+	let lastNotifiedError = '';
+	$effect(() => {
+		const error = usersQuery.error ? String(usersQuery.error) : '';
+		if (error && error !== lastNotifiedError) toast.error(error);
+		lastNotifiedError = error;
+	});
 </script>
 
 <div class="flex items-start justify-between gap-4">
 	<AddUserSheet busy={app.busy} onAdd={app.addUser} />
 </div>
-{#if usersQuery.error || app.error}
-	<MessageBanner message={usersQuery.error ? String(usersQuery.error) : app.error} />
-{/if}
 <UsersDirectory
 	{users}
 	loading={usersQuery.isLoading}

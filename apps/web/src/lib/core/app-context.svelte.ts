@@ -7,6 +7,7 @@ import { userQueryKeys } from '#lib/features/users/queries';
 import * as m from '#lib/paraglide/messages';
 import { getLocale } from '#lib/paraglide/runtime';
 import { getContext, setContext } from 'svelte';
+import { toast } from '@aqardesk/ui';
 
 export const APP_CONTEXT = Symbol('aqardesk-app');
 
@@ -26,8 +27,8 @@ export function createAppContext() {
 	let connected = $state(false);
 	let needsAdmin = $state(false);
 	let currentUser = $state<User | null>(null);
-	let error = $state('');
-	let notice = $state('');
+	let errorToastId: number | undefined;
+	let noticeToastId: number | undefined;
 	let busy = $state(false);
 	let booting = $state(true);
 	let organizationName = $state('');
@@ -123,7 +124,7 @@ export function createAppContext() {
 		clearMessages();
 		try {
 			await desktopApi.checkApi(serverUrl);
-			notice = m.status_connected();
+			setNotice(m.status_connected());
 		} catch (cause) {
 			setError(cause);
 		} finally {
@@ -144,7 +145,7 @@ export function createAppContext() {
 			});
 			needsAdmin = false;
 			accountPassword = '';
-			notice = m.notification_admin_created();
+			setNotice(m.notification_admin_created());
 		} catch (cause) {
 			setError(cause);
 		} finally {
@@ -174,7 +175,7 @@ export function createAppContext() {
 			await queryClient.invalidateQueries({
 				queryKey: userQueryKeys.all(currentUser?.organization_id ?? '')
 			});
-			notice = m.notification_user_added();
+			setNotice(m.notification_user_added());
 			return true;
 		} catch (cause) {
 			setError(cause);
@@ -233,7 +234,7 @@ export function createAppContext() {
 		updateProgress = null;
 		try {
 			updateResult = await desktopApi.checkForUpdates();
-			notice = updateResult.has_update ? m.settings_update_available() : m.settings_up_to_date();
+			setNotice(updateResult.has_update ? m.settings_update_available() : m.settings_up_to_date());
 		} catch (cause) {
 			setError(cause);
 		} finally {
@@ -247,7 +248,7 @@ export function createAppContext() {
 		updateProgress = null;
 		try {
 			await desktopApi.downloadUpdate();
-			notice = m.notification_update_ready();
+			setNotice(m.notification_update_ready());
 		} catch (cause) {
 			setError(cause);
 		} finally {
@@ -297,12 +298,20 @@ export function createAppContext() {
 	}
 
 	function setError(cause: unknown) {
-		error = cause instanceof Error ? cause.message : String(cause);
+		if (errorToastId !== undefined) toast.dismiss(errorToastId);
+		errorToastId = toast.error(cause instanceof Error ? cause.message : String(cause));
+	}
+
+	function setNotice(message: string) {
+		if (noticeToastId !== undefined) toast.dismiss(noticeToastId);
+		noticeToastId = toast.success(message);
 	}
 
 	function clearMessages() {
-		error = '';
-		notice = '';
+		if (errorToastId !== undefined) toast.dismiss(errorToastId);
+		if (noticeToastId !== undefined) toast.dismiss(noticeToastId);
+		errorToastId = undefined;
+		noticeToastId = undefined;
 	}
 
 	return {
@@ -328,8 +337,6 @@ export function createAppContext() {
 		get connected() { return connected; },
 		get needsAdmin() { return needsAdmin; },
 		get currentUser() { return currentUser; },
-		get error() { return error; },
-		get notice() { return notice; },
 		get busy() { return busy; },
 		get booting() { return booting; },
 		get locale() { return locale; },

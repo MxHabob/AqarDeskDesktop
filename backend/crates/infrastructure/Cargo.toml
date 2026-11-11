@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 aqardesk-domain = { workspace = true }
 aqardesk-app = { workspace = true }
+async-trait = { workspace = true }
 sea-orm = { workspace = true }
 sea-orm-migration = { workspace = true }
 tokio = { workspace = true }
