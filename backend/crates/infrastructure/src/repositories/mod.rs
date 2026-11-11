@@ -1,3 +1,4 @@
+pub mod payments;
 pub mod properties;
 pub mod settings;
 pub mod tenants;

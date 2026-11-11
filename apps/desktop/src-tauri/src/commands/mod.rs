@@ -22,6 +22,8 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         user_cmds::users_set_active,
         settings_cmds::organization_get_settings,
         settings_cmds::organization_update_settings,
+        settings_cmds::currencies_list,
+        settings_cmds::currencies_set_organization_enabled,
         settings_cmds::profile_get_settings,
         settings_cmds::profile_update_settings,
         settings_cmds::audit_list,
@@ -41,6 +43,9 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         business_cmds::tenants_create,
         business_cmds::tenants_update,
         business_cmds::tenants_archive,
+        business_cmds::payments_list,
+        business_cmds::payments_record,
+        business_cmds::payments_void,
         update_cmds::system_check_for_updates,
         update_cmds::system_download_update,
         update_cmds::system_install_update

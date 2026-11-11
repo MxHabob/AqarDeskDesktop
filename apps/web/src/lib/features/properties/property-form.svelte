@@ -56,7 +56,19 @@
 	const schema = z.object({
 		name: z.string().trim().min(1, m.properties_name()),
 		code: z.string().trim().min(1, m.properties_code()),
-		property_type: z.enum(['residential', 'commercial', 'mixed_use', 'land', 'other']),
+		property_type: z.enum([
+			'residential',
+			'commercial',
+			'mixed_use',
+			'land',
+			'other',
+			'building',
+			'house_villa',
+			'investment',
+			'warehouse',
+			'yard',
+			'apartment'
+		]),
 		status: z.enum(['active', 'inactive']),
 		address_line_1: z.string().trim().min(1, m.properties_address()),
 		address_line_2: z.string(),
@@ -83,7 +95,21 @@
 	}));
 
 	function propertyType(value: string, change: (value: PropertyType) => void) {
-		if (['residential', 'commercial', 'mixed_use', 'land', 'other'].includes(value)) {
+		if (
+			[
+				'residential',
+				'commercial',
+				'mixed_use',
+				'land',
+				'other',
+				'building',
+				'house_villa',
+				'investment',
+				'warehouse',
+				'yard',
+				'apartment'
+			].includes(value)
+		) {
 			change(value as PropertyType);
 		}
 	}
@@ -127,6 +153,12 @@
 							<SelectItem value="mixed_use">{m.properties_type_mixed()}</SelectItem>
 							<SelectItem value="land">{m.properties_type_land()}</SelectItem>
 							<SelectItem value="other">{m.common_other()}</SelectItem>
+							<SelectItem value="building">{m.properties_type_building()}</SelectItem>
+							<SelectItem value="house_villa">{m.properties_type_house_villa()}</SelectItem>
+							<SelectItem value="investment">{m.properties_type_investment()}</SelectItem>
+							<SelectItem value="warehouse">{m.properties_type_warehouse()}</SelectItem>
+							<SelectItem value="yard">{m.properties_type_yard()}</SelectItem>
+							<SelectItem value="apartment">{m.properties_type_apartment()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</FormField>

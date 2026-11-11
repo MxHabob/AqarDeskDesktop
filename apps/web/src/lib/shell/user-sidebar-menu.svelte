@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { LogOut, Settings2 } from '@lucide/svelte';
+	import { CircleUserRound, LogOut, Settings2 } from '@lucide/svelte';
 	import { Button } from '@aqardesk/ui';
 	import DropdownMenu from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu.svelte';
 	import DropdownMenuContent from '@aqardesk/ui/components/ui/dropdown-menu/dropdown-menu-content.svelte';
@@ -61,6 +61,13 @@
 			</div>
 		</div>
 		<div class="py-1">
+			<DropdownMenuItem
+				class="cursor-pointer rounded px-3 py-2 text-xs"
+				onclick={() => void goto(`/${currentUser.organization_id}/account`)}
+			>
+				<CircleUserRound size={15} />
+				{m.nav_account()}
+			</DropdownMenuItem>
 			<DropdownMenuItem
 				class="cursor-pointer rounded px-3 py-2 text-xs"
 				onclick={() => void goto(`/${currentUser.organization_id}/settings`)}

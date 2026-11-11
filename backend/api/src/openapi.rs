@@ -16,6 +16,8 @@ use utoipa::{
         super::readiness,
         super::get_current_organization,
         super::update_current_organization,
+        super::list_currencies,
+        super::set_organization_currency_state,
         super::get_my_profile,
         super::update_my_profile,
         super::list_audit_events,
@@ -36,12 +38,17 @@ use utoipa::{
         super::create_tenant,
         super::update_tenant,
         super::archive_tenant
+        ,super::list_payments
+        ,super::record_payment
+        ,super::void_payment
     ),
     components(schemas(
         super::HealthPayload,
         super::ReadinessPayload,
         super::dto::OrganizationSettings,
         super::dto::OrganizationSettingsInput,
+        super::dto::CurrencySettings,
+        super::dto::OrganizationCurrencyStateInput,
         super::dto::ProfileSettings,
         super::dto::ProfileSettingsInput,
         super::dto::AuditEntry,
@@ -60,6 +67,9 @@ use utoipa::{
         super::dto::UnitStatus,
         super::dto::Tenant,
         super::dto::TenantInput,
+        super::dto::Payment,
+        super::dto::PaymentInput,
+        super::dto::PaymentMethod,
         super::dto::DashboardSummary,
         super::dto::StatusCount,
         super::dto::MonthlyPayment,
@@ -76,6 +86,7 @@ use utoipa::{
         (name = "Properties", description = "Property management"),
         (name = "Units", description = "Property unit management"),
         (name = "Tenants", description = "Tenant management")
+        ,(name = "Payments", description = "Incoming payment receipts")
     )
 )]
 pub struct ApiDoc;

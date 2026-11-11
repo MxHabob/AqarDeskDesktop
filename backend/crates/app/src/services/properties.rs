@@ -112,7 +112,17 @@ fn validate(mut input: PropertyInput) -> Result<PropertyInput, AppError> {
     }
     if !matches!(
         input.property_type.as_str(),
-        "residential" | "commercial" | "mixed_use" | "land" | "other"
+        "residential"
+            | "commercial"
+            | "mixed_use"
+            | "land"
+            | "other"
+            | "building"
+            | "house_villa"
+            | "investment"
+            | "warehouse"
+            | "yard"
+            | "apartment"
     ) {
         return Err(AppError::Validation(
             "Unsupported property type.".to_string(),
@@ -181,5 +191,37 @@ mod tests {
         .expect_err("unsupported property type");
 
         assert!(matches!(error, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn accepts_reference_property_categories() {
+        for property_type in [
+            "building",
+            "land",
+            "house_villa",
+            "investment",
+            "commercial",
+            "warehouse",
+            "yard",
+            "apartment",
+        ] {
+            let input = PropertyInput {
+                code: "APT-01".to_string(),
+                name: "Property".to_string(),
+                property_type: property_type.to_string(),
+                description: None,
+                address_line_1: "Main Street".to_string(),
+                address_line_2: None,
+                city: "City".to_string(),
+                region: None,
+                postal_code: None,
+                country_code: "US".to_string(),
+                status: "active".to_string(),
+            };
+            assert!(
+                validate(input).is_ok(),
+                "expected {property_type} to be accepted"
+            );
+        }
     }
 }

@@ -42,7 +42,7 @@
 			key: 'settings',
 			label: m.nav_settings(),
 			icon: Settings2,
-			active: ['users', 'settings']
+			active: ['users', 'settings', 'account']
 		}
 	] satisfies { key: ViewKey; label: string; icon: typeof Building2; active: string[] }[];
 </script>

@@ -193,13 +193,13 @@ pub async fn users_list(
     database: State<'_, DatabaseState>,
     auth: State<'_, AuthState>,
 ) -> Result<Vec<UserSummary>, String> {
-    require_admin(&connection, &database, &auth).await?;
+    let current_user = require_admin(&connection, &database, &auth).await?;
     let config = get_config(&connection)?;
     if config.mode == ConnectionMode::Api {
         let token = auth.api_token.read().await.clone();
         return api_request(&config, Method::GET, "/api/v1/users", token, None).await;
     }
-    users::list_users(&database.get().await?).await
+    users::list_users(&database.get().await?, &current_user.organization_id).await
 }
 
 #[tauri::command]
@@ -212,7 +212,7 @@ pub async fn users_create(
     password: String,
     role: String,
 ) -> Result<UserSummary, String> {
-    require_admin(&connection, &database, &auth).await?;
+    let current_user = require_admin(&connection, &database, &auth).await?;
     let config = get_config(&connection)?;
     if config.mode == ConnectionMode::Api {
         let token = auth.api_token.read().await.clone();
@@ -225,7 +225,16 @@ pub async fn users_create(
         )
         .await;
     }
-    users::create_user(&database.get().await?, &name, &email, &password, &role).await
+    users::create_user(
+        &database.get().await?,
+        &current_user.organization_id,
+        &current_user.id,
+        &name,
+        &email,
+        &password,
+        &role,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -254,17 +263,14 @@ pub async fn users_set_active(
         .await;
     }
     let database = database.get().await?;
-    if !is_active {
-        let target = aqardesk_infrastructure::models::user::Entity::find_by_id(&user_id)
-            .one(&database)
-            .await
-            .map_err(|error| format!("Could not inspect user account: {error}"))?
-            .ok_or_else(|| "User was not found.".to_string())?;
-        if target.access_role == "admin" && users::active_admin_count(&database).await? <= 1 {
-            return Err("The last active administrator cannot be deactivated.".to_string());
-        }
-    }
-    users::set_user_active(&database, &user_id, is_active).await
+    users::set_user_active(
+        &database,
+        &current_user.organization_id,
+        &current_user.id,
+        &user_id,
+        is_active,
+    )
+    .await
 }
 
 async fn establish_session(

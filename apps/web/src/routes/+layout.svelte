@@ -28,7 +28,7 @@
 		if (!app.currentUser) return m.app_name();
 		const parts = deLocalizeUrl(page.url).pathname.split('/').filter(Boolean);
 		const routes = parts.slice(1);
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'organization', 'profile', 'audit', 'contract-templates'];
+		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'account', 'organization', 'profile', 'audit', 'currencies', 'contract-templates'];
 		const segment = [...routes].reverse().find((part) => known.includes(part)) ?? routes[0] ?? 'overview';
 		switch (segment) {
 			case 'properties': return m.nav_properties();
@@ -38,9 +38,11 @@
 			case 'payments': return m.nav_payments();
 			case 'users': return m.nav_users();
 			case 'settings': return m.nav_settings();
+			case 'account': return m.nav_account();
 			case 'organization': return m.settings_organization();
 			case 'profile': return m.settings_my_profile();
 			case 'audit': return m.settings_audit();
+			case 'currencies': return m.settings_currencies();
 			case 'contract-templates': return m.settings_contract_templates();
 			default: return m.nav_overview();
 		}

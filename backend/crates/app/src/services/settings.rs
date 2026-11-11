@@ -19,6 +19,18 @@ pub struct OrganizationSettingsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CurrencySettings {
+    pub code: String,
+    pub name: String,
+    pub name_ar: Option<String>,
+    pub symbol: String,
+    pub symbol_position: String,
+    pub decimal_digits: i16,
+    pub is_active: bool,
+    pub is_enabled_for_organization: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileSettings {
     pub id: String,
     pub name: String,
@@ -98,6 +110,17 @@ pub trait SettingsRepository {
         actor_id: &str,
         input: OrganizationSettingsInput,
     ) -> Result<OrganizationSettings, AppError>;
+    async fn list_currencies(
+        &self,
+        organization_id: &str,
+    ) -> Result<Vec<CurrencySettings>, AppError>;
+    async fn set_currency_enabled(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        currency_code: &str,
+        is_enabled: bool,
+    ) -> Result<(), AppError>;
     async fn get_profile(
         &self,
         organization_id: &str,
@@ -194,6 +217,32 @@ impl<R: SettingsRepository> SettingsService<R> {
         }
         self.repository
             .update_organization(organization_id, actor_id, input)
+            .await
+    }
+
+    pub async fn list_currencies(
+        &self,
+        organization_id: &str,
+    ) -> Result<Vec<CurrencySettings>, AppError> {
+        self.repository.list_currencies(organization_id).await
+    }
+
+    pub async fn set_currency_enabled(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        currency_code: &str,
+        is_enabled: bool,
+    ) -> Result<(), AppError> {
+        let currency_code = currency_code.trim().to_uppercase();
+        if currency_code.len() != 3 || !currency_code.bytes().all(|byte| byte.is_ascii_uppercase())
+        {
+            return Err(AppError::Validation(
+                "Currency must be a three-letter currency code.".to_string(),
+            ));
+        }
+        self.repository
+            .set_currency_enabled(organization_id, actor_id, &currency_code, is_enabled)
             .await
     }
 

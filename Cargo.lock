@@ -149,6 +149,7 @@ version = "0.1.0"
 dependencies = [
  "aqardesk-domain",
  "async-trait",
+ "chrono",
  "rust_decimal",
  "serde",
  "serde_json",

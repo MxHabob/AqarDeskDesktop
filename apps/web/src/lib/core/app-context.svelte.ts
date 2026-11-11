@@ -321,6 +321,10 @@ export function createAppContext() {
 		noticeToastId = toast.success(message);
 	}
 
+	function updateCurrentUserProfile(name: string, email: string) {
+		if (currentUser) currentUser = { ...currentUser, name, email };
+	}
+
 	function clearMessages() {
 		if (errorToastId !== undefined) toast.dismiss(errorToastId);
 		if (noticeToastId !== undefined) toast.dismiss(noticeToastId);
@@ -381,6 +385,7 @@ export function createAppContext() {
 		changeLanguage,
 		initializeTheme,
 		changeTheme,
+		updateCurrentUserProfile,
 		setError,
 		clearMessages
 	};

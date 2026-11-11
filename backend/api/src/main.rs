@@ -1,15 +1,16 @@
 use aqardesk_app::{
     AppError,
     services::{
-        properties::PropertyService, settings::SettingsService, tenants::TenantService,
-        units::UnitService,
+        payments::PaymentService, properties::PropertyService, settings::SettingsService,
+        tenants::TenantService, units::UnitService,
     },
 };
 use aqardesk_infrastructure::{
     connect_database,
     repositories::{
-        properties::SeaOrmPropertyRepository, settings::SeaOrmSettingsRepository,
-        tenants::SeaOrmTenantRepository, units::SeaOrmUnitRepository,
+        payments::SeaOrmPaymentRepository, properties::SeaOrmPropertyRepository,
+        settings::SeaOrmSettingsRepository, tenants::SeaOrmTenantRepository,
+        units::SeaOrmUnitRepository,
     },
     run_migrations,
     settings::{ConnectionConfig, ConnectionMode},
@@ -154,7 +155,7 @@ async fn bootstrap_admin(
         &request.password,
     )
     .await
-    .map_err(|message| error(StatusCode::BAD_REQUEST, message))?;
+    .map_err(user_operation_error)?;
     Ok(Json(create_session(&state, user).await))
 }
 
@@ -240,6 +241,67 @@ async fn update_current_organization(
         .map(Into::into)
         .map(Json)
         .map_err(business_error)
+}
+
+#[utoipa::path(
+    get,
+    operation_id = "listCurrencies",
+    path = "/api/v1/currencies",
+    tag = "Settings",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Currencies and their organization availability", body = [dto::CurrencySettings]),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse)
+    )
+)]
+async fn list_currencies(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<dto::CurrencySettings>>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_user(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .list_currencies(&user.organization_id)
+        .await
+        .map(|currencies| currencies.into_iter().map(Into::into).collect())
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    put,
+    operation_id = "setOrganizationCurrencyState",
+    path = "/api/v1/currencies/{currency_code}/organization-state",
+    tag = "Settings",
+    request_body = dto::OrganizationCurrencyStateInput,
+    params(("currency_code" = String, Path, description = "ISO currency code")),
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Updated organization currency availability", body = dto::OperationResult),
+        (status = 400, description = "Currency cannot be disabled or request is invalid", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 403, description = "Administrator access is required", body = dto::ErrorResponse),
+        (status = 404, description = "Currency not found", body = dto::ErrorResponse)
+    )
+)]
+async fn set_organization_currency_state(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(currency_code): Path<String>,
+    Json(input): Json<dto::OrganizationCurrencyStateInput>,
+) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_admin(&state, &headers).await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&state.database));
+    service
+        .set_currency_enabled(
+            &user.organization_id,
+            &user.id,
+            &currency_code,
+            input.is_enabled,
+        )
+        .await
+        .map_err(business_error)?;
+    Ok(Json(dto::OperationResult { ok: true }))
 }
 
 #[utoipa::path(
@@ -465,8 +527,8 @@ async fn list_users(
     State(state): State<ApiState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<UserSummary>>, (StatusCode, Json<serde_json::Value>)> {
-    require_admin(&state, &headers).await?;
-    let users = users::list_users(&state.database)
+    let current_user = require_admin(&state, &headers).await?;
+    let users = users::list_users(&state.database, &current_user.organization_id)
         .await
         .map_err(|message| error(StatusCode::INTERNAL_SERVER_ERROR, message))?;
     Ok(Json(users))
@@ -513,9 +575,11 @@ async fn create_user(
     headers: HeaderMap,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<Json<UserSummary>, (StatusCode, Json<serde_json::Value>)> {
-    require_admin(&state, &headers).await?;
+    let current_user = require_admin(&state, &headers).await?;
     let user = users::create_user(
         &state.database,
+        &current_user.organization_id,
+        &current_user.id,
         &request.name,
         &request.email,
         &request.password,
@@ -539,9 +603,15 @@ async fn update_user(
             "You cannot deactivate the account currently in use.",
         ));
     }
-    let user = users::set_user_active(&state.database, &user_id, request.is_active)
-        .await
-        .map_err(|message| error(StatusCode::NOT_FOUND, message))?;
+    let user = users::set_user_active(
+        &state.database,
+        &current_user.organization_id,
+        &current_user.id,
+        &user_id,
+        request.is_active,
+    )
+    .await
+    .map_err(user_operation_error)?;
     Ok(Json(user))
 }
 
@@ -869,6 +939,85 @@ async fn archive_tenant(
     Ok(Json(dto::OperationResult { ok: true }))
 }
 
+#[utoipa::path(
+    get,
+    operation_id = "listPayments",
+    path = "/api/v1/payments",
+    tag = "Payments",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Organization payment receipts", body = [dto::Payment]),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse)
+    )
+)]
+async fn list_payments(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<dto::Payment>>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_user(&state, &headers).await?;
+    let service = PaymentService::new(SeaOrmPaymentRepository::new(&state.database));
+    service
+        .list(&user.organization_id)
+        .await
+        .map(|items| items.into_iter().map(Into::into).collect())
+        .map(Json)
+        .map_err(business_error)
+}
+
+#[utoipa::path(
+    post,
+    operation_id = "recordPayment",
+    path = "/api/v1/payments",
+    tag = "Payments",
+    request_body = dto::PaymentInput,
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 201, description = "Recorded payment receipt", body = dto::Payment),
+        (status = 400, description = "Invalid payment", body = dto::ErrorResponse),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse)
+    )
+)]
+async fn record_payment(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(input): Json<dto::PaymentInput>,
+) -> Result<(StatusCode, Json<dto::Payment>), (StatusCode, Json<serde_json::Value>)> {
+    let user = require_business_writer(&state, &headers).await?;
+    let service = PaymentService::new(SeaOrmPaymentRepository::new(&state.database));
+    let payment = service
+        .record(&user.organization_id, &user.id, input.into())
+        .await
+        .map_err(business_error)?;
+    Ok((StatusCode::CREATED, Json(payment.into())))
+}
+
+#[utoipa::path(
+    patch,
+    operation_id = "voidPayment",
+    path = "/api/v1/payments/{payment_id}/void",
+    tag = "Payments",
+    params(("payment_id" = String, Path, description = "Payment identifier")),
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Voided payment receipt", body = dto::OperationResult),
+        (status = 401, description = "Authentication required", body = dto::ErrorResponse),
+        (status = 404, description = "Payment not found", body = dto::ErrorResponse)
+    )
+)]
+async fn void_payment(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(payment_id): Path<String>,
+) -> Result<Json<dto::OperationResult>, (StatusCode, Json<serde_json::Value>)> {
+    let user = require_business_writer(&state, &headers).await?;
+    let service = PaymentService::new(SeaOrmPaymentRepository::new(&state.database));
+    service
+        .void(&user.organization_id, &user.id, &payment_id)
+        .await
+        .map_err(business_error)?;
+    Ok(Json(dto::OperationResult { ok: true }))
+}
+
 async fn create_session(state: &ApiState, user: UserSummary) -> LoginResponse {
     let token = Uuid::new_v4().to_string();
     state
@@ -944,6 +1093,22 @@ fn business_error(value: AppError) -> (StatusCode, Json<serde_json::Value>) {
             error(StatusCode::NOT_FOUND, format!("User {id:?} was not found."))
         }
     }
+}
+
+fn user_operation_error(message: String) -> (StatusCode, Json<serde_json::Value>) {
+    if message.starts_with("Failed to") {
+        tracing::error!(%message, "User operation failed");
+        return error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "A user operation failed.",
+        );
+    }
+    let status = match message.as_str() {
+        "User was not found." => StatusCode::NOT_FOUND,
+        "Administrator access is required." => StatusCode::FORBIDDEN,
+        _ => StatusCode::BAD_REQUEST,
+    };
+    error(status, message)
 }
 
 fn session_token(headers: &HeaderMap) -> Result<&str, (StatusCode, Json<serde_json::Value>)> {
@@ -1033,11 +1198,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/organizations/current",
             get(get_current_organization).put(update_current_organization),
         )
+        .route("/api/v1/currencies", get(list_currencies))
+        .route(
+            "/api/v1/currencies/{currency_code}/organization-state",
+            put(set_organization_currency_state),
+        )
         .route(
             "/api/v1/users/me",
             get(get_my_profile).put(update_my_profile),
         )
         .route("/api/v1/audit-events", get(list_audit_events))
+        .route("/api/v1/payments", get(list_payments).post(record_payment))
+        .route("/api/v1/payments/{payment_id}/void", patch(void_payment))
         .route(
             "/api/v1/contract-templates",
             get(list_contract_templates).post(create_contract_template),
@@ -1093,11 +1265,39 @@ mod tests {
         assert!(paths.contains_key("/api/v1/properties"));
         assert!(paths.contains_key("/api/v1/properties/{property_id}"));
         assert!(paths.contains_key("/api/v1/organizations/current"));
+        assert!(paths.contains_key("/api/v1/users/me"));
+        assert!(paths.contains_key("/api/v1/audit-events"));
+        assert!(paths.contains_key("/api/v1/contract-templates"));
+        assert!(paths.contains_key("/api/v1/contract-templates/{template_id}"));
+        assert_eq!(
+            paths["/api/v1/organizations/current"]["put"]["operationId"],
+            "updateCurrentOrganization"
+        );
+        assert_eq!(
+            paths["/api/v1/users/me"]["put"]["operationId"],
+            "updateMyProfile"
+        );
         assert!(paths.contains_key("/api/v1/units"));
         assert!(paths.contains_key("/api/v1/tenants"));
         assert_eq!(
             paths["/api/v1/properties"]["post"]["operationId"],
             "createProperty"
+        );
+        assert_eq!(
+            spec["components"]["schemas"]["PropertyType"]["enum"],
+            serde_json::json!([
+                "residential",
+                "commercial",
+                "mixed_use",
+                "land",
+                "other",
+                "building",
+                "house_villa",
+                "investment",
+                "warehouse",
+                "yard",
+                "apartment"
+            ])
         );
         assert!(
             spec["components"]["securitySchemes"]["bearer_auth"].is_object(),
@@ -1151,9 +1351,26 @@ mod tests {
         assert_eq!(restored.id, user.id);
         assert_eq!(restored.organization_id, user.organization_id);
 
-        users::set_user_active(&state.database, &user.id, false)
-            .await
-            .expect("deactivate administrator");
+        let secondary_admin = users::create_user(
+            &state.database,
+            &user.organization_id,
+            &user.id,
+            "Second Admin",
+            "second-admin@example.com",
+            "another-secure-password",
+            "admin",
+        )
+        .await
+        .expect("create a second administrator");
+        users::set_user_active(
+            &state.database,
+            &user.organization_id,
+            &secondary_admin.id,
+            &user.id,
+            false,
+        )
+        .await
+        .expect("deactivate administrator");
         assert!(
             get_session(State(state.clone()), headers.clone())
                 .await
@@ -1164,5 +1381,94 @@ mod tests {
             .await
             .expect("revoke session");
         assert!(get_session(State(state), headers).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn settings_endpoints_scope_profiles_and_restrict_administrative_operations() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory database");
+        aqardesk_infrastructure::run_migrations(&database)
+            .await
+            .expect("apply migrations");
+        let admin = users::create_initial_admin(
+            &database,
+            "AqarDesk",
+            "Admin",
+            "admin@example.com",
+            "a-secure-password",
+        )
+        .await
+        .expect("create initial administrator");
+        let staff = users::create_user(
+            &database,
+            &admin.organization_id,
+            &admin.id,
+            "Staff",
+            "staff@example.com",
+            "another-secure-password",
+            "staff",
+        )
+        .await
+        .expect("create staff user");
+        let state = ApiState {
+            database,
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+        };
+        let token = create_session(&state, staff.clone()).await.token;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {token}")).expect("valid auth header"),
+        );
+
+        let profile = get_my_profile(State(state.clone()), headers.clone())
+            .await
+            .expect("staff may read own profile")
+            .0;
+        assert_eq!(profile.id, staff.id);
+        assert_eq!(profile.role, "staff");
+
+        let update = update_my_profile(
+            State(state.clone()),
+            headers.clone(),
+            Json(dto::ProfileSettingsInput {
+                name: "Updated Staff".to_string(),
+                email: "updated-staff@example.com".to_string(),
+                current_password: None,
+                new_password: None,
+            }),
+        )
+        .await
+        .expect("staff may update own profile")
+        .0;
+        assert_eq!(update.name, "Updated Staff");
+        assert_eq!(update.role, "staff");
+
+        let organization_update = update_current_organization(
+            State(state.clone()),
+            headers.clone(),
+            Json(dto::OrganizationSettingsInput {
+                name: "Not Allowed".to_string(),
+                legal_name: None,
+                default_currency: "SAR".to_string(),
+                timezone: "Asia/Riyadh".to_string(),
+            }),
+        )
+        .await
+        .expect_err("staff cannot update organization settings");
+        assert_eq!(organization_update.0, StatusCode::FORBIDDEN);
+
+        let audit = list_audit_events(
+            State(state),
+            headers,
+            Query(dto::AuditQuery {
+                limit: Some(50),
+                offset: Some(0),
+            }),
+        )
+        .await
+        .expect_err("staff cannot read organization audit events");
+        assert_eq!(audit.0, StatusCode::FORBIDDEN);
     }
 }

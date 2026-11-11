@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ArchivePropertyData, ArchivePropertyErrors, ArchivePropertyResponses, ArchiveTenantData, ArchiveTenantErrors, ArchiveTenantResponses, ArchiveUnitData, ArchiveUnitErrors, ArchiveUnitResponses, CreatePropertyData, CreatePropertyErrors, CreatePropertyResponses, CreateTenantData, CreateTenantErrors, CreateTenantResponses, CreateUnitData, CreateUnitErrors, CreateUnitResponses, GetDashboardSummaryData, GetDashboardSummaryErrors, GetDashboardSummaryResponses, GetHealthData, GetHealthResponses, GetReadinessData, GetReadinessResponses, ListPropertiesData, ListPropertiesErrors, ListPropertiesResponses, ListTenantsData, ListTenantsErrors, ListTenantsResponses, ListUnitsData, ListUnitsErrors, ListUnitsResponses, UpdatePropertyData, UpdatePropertyErrors, UpdatePropertyResponses, UpdateTenantData, UpdateTenantErrors, UpdateTenantResponses, UpdateUnitData, UpdateUnitErrors, UpdateUnitResponses } from './types.gen';
+import type { ArchivePropertyData, ArchivePropertyErrors, ArchivePropertyResponses, ArchiveTenantData, ArchiveTenantErrors, ArchiveTenantResponses, ArchiveUnitData, ArchiveUnitErrors, ArchiveUnitResponses, CreateContractTemplateData, CreateContractTemplateErrors, CreateContractTemplateResponses, CreateContractTemplateVersionData, CreateContractTemplateVersionErrors, CreateContractTemplateVersionResponses, CreatePropertyData, CreatePropertyErrors, CreatePropertyResponses, CreateTenantData, CreateTenantErrors, CreateTenantResponses, CreateUnitData, CreateUnitErrors, CreateUnitResponses, GetCurrentOrganizationData, GetCurrentOrganizationErrors, GetCurrentOrganizationResponses, GetDashboardSummaryData, GetDashboardSummaryErrors, GetDashboardSummaryResponses, GetHealthData, GetHealthResponses, GetMyProfileData, GetMyProfileErrors, GetMyProfileResponses, GetReadinessData, GetReadinessResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListContractTemplatesData, ListContractTemplatesErrors, ListContractTemplatesResponses, ListCurrenciesData, ListCurrenciesErrors, ListCurrenciesResponses, ListPaymentsData, ListPaymentsErrors, ListPaymentsResponses, ListPropertiesData, ListPropertiesErrors, ListPropertiesResponses, ListTenantsData, ListTenantsErrors, ListTenantsResponses, ListUnitsData, ListUnitsErrors, ListUnitsResponses, RecordPaymentData, RecordPaymentErrors, RecordPaymentResponses, SetContractTemplateStateData, SetContractTemplateStateErrors, SetContractTemplateStateResponses, SetOrganizationCurrencyStateData, SetOrganizationCurrencyStateErrors, SetOrganizationCurrencyStateResponses, UpdateCurrentOrganizationData, UpdateCurrentOrganizationErrors, UpdateCurrentOrganizationResponses, UpdateMyProfileData, UpdateMyProfileErrors, UpdateMyProfileResponses, UpdatePropertyData, UpdatePropertyErrors, UpdatePropertyResponses, UpdateTenantData, UpdateTenantErrors, UpdateTenantResponses, UpdateUnitData, UpdateUnitErrors, UpdateUnitResponses, VoidPaymentData, VoidPaymentErrors, VoidPaymentResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -18,6 +18,64 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
 
+export const listAuditEvents = <ThrowOnError extends boolean = false>(options?: Options<ListAuditEventsData, ThrowOnError>): RequestResult<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError> => (options?.client ?? client).get<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/audit-events',
+    ...options
+});
+
+export const listContractTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListContractTemplatesData, ThrowOnError>): RequestResult<ListContractTemplatesResponses, ListContractTemplatesErrors, ThrowOnError> => (options?.client ?? client).get<ListContractTemplatesResponses, ListContractTemplatesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contract-templates',
+    ...options
+});
+
+export const createContractTemplate = <ThrowOnError extends boolean = false>(options: Options<CreateContractTemplateData, ThrowOnError>): RequestResult<CreateContractTemplateResponses, CreateContractTemplateErrors, ThrowOnError> => (options.client ?? client).post<CreateContractTemplateResponses, CreateContractTemplateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contract-templates',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const createContractTemplateVersion = <ThrowOnError extends boolean = false>(options: Options<CreateContractTemplateVersionData, ThrowOnError>): RequestResult<CreateContractTemplateVersionResponses, CreateContractTemplateVersionErrors, ThrowOnError> => (options.client ?? client).put<CreateContractTemplateVersionResponses, CreateContractTemplateVersionErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contract-templates/{template_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const setContractTemplateState = <ThrowOnError extends boolean = false>(options: Options<SetContractTemplateStateData, ThrowOnError>): RequestResult<SetContractTemplateStateResponses, SetContractTemplateStateErrors, ThrowOnError> => (options.client ?? client).patch<SetContractTemplateStateResponses, SetContractTemplateStateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contract-templates/{template_id}/state',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const listCurrencies = <ThrowOnError extends boolean = false>(options?: Options<ListCurrenciesData, ThrowOnError>): RequestResult<ListCurrenciesResponses, ListCurrenciesErrors, ThrowOnError> => (options?.client ?? client).get<ListCurrenciesResponses, ListCurrenciesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/currencies',
+    ...options
+});
+
+export const setOrganizationCurrencyState = <ThrowOnError extends boolean = false>(options: Options<SetOrganizationCurrencyStateData, ThrowOnError>): RequestResult<SetOrganizationCurrencyStateResponses, SetOrganizationCurrencyStateErrors, ThrowOnError> => (options.client ?? client).put<SetOrganizationCurrencyStateResponses, SetOrganizationCurrencyStateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/currencies/{currency_code}/organization-state',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
 export const getDashboardSummary = <ThrowOnError extends boolean = false>(options?: Options<GetDashboardSummaryData, ThrowOnError>): RequestResult<GetDashboardSummaryResponses, GetDashboardSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetDashboardSummaryResponses, GetDashboardSummaryErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/dashboard/summary',
@@ -25,6 +83,44 @@ export const getDashboardSummary = <ThrowOnError extends boolean = false>(option
 });
 
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>): RequestResult<GetHealthResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetHealthResponses, unknown, ThrowOnError>({ url: '/api/v1/health', ...options });
+
+export const getCurrentOrganization = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentOrganizationData, ThrowOnError>): RequestResult<GetCurrentOrganizationResponses, GetCurrentOrganizationErrors, ThrowOnError> => (options?.client ?? client).get<GetCurrentOrganizationResponses, GetCurrentOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/organizations/current',
+    ...options
+});
+
+export const updateCurrentOrganization = <ThrowOnError extends boolean = false>(options: Options<UpdateCurrentOrganizationData, ThrowOnError>): RequestResult<UpdateCurrentOrganizationResponses, UpdateCurrentOrganizationErrors, ThrowOnError> => (options.client ?? client).put<UpdateCurrentOrganizationResponses, UpdateCurrentOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/organizations/current',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const listPayments = <ThrowOnError extends boolean = false>(options?: Options<ListPaymentsData, ThrowOnError>): RequestResult<ListPaymentsResponses, ListPaymentsErrors, ThrowOnError> => (options?.client ?? client).get<ListPaymentsResponses, ListPaymentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/payments',
+    ...options
+});
+
+export const recordPayment = <ThrowOnError extends boolean = false>(options: Options<RecordPaymentData, ThrowOnError>): RequestResult<RecordPaymentResponses, RecordPaymentErrors, ThrowOnError> => (options.client ?? client).post<RecordPaymentResponses, RecordPaymentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/payments',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const voidPayment = <ThrowOnError extends boolean = false>(options: Options<VoidPaymentData, ThrowOnError>): RequestResult<VoidPaymentResponses, VoidPaymentErrors, ThrowOnError> => (options.client ?? client).patch<VoidPaymentResponses, VoidPaymentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/payments/{payment_id}/void',
+    ...options
+});
 
 export const listProperties = <ThrowOnError extends boolean = false>(options?: Options<ListPropertiesData, ThrowOnError>): RequestResult<ListPropertiesResponses, ListPropertiesErrors, ThrowOnError> => (options?.client ?? client).get<ListPropertiesResponses, ListPropertiesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -117,6 +213,22 @@ export const archiveUnit = <ThrowOnError extends boolean = false>(options: Optio
 export const updateUnit = <ThrowOnError extends boolean = false>(options: Options<UpdateUnitData, ThrowOnError>): RequestResult<UpdateUnitResponses, UpdateUnitErrors, ThrowOnError> => (options.client ?? client).put<UpdateUnitResponses, UpdateUnitErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/units/{unit_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getMyProfile = <ThrowOnError extends boolean = false>(options?: Options<GetMyProfileData, ThrowOnError>): RequestResult<GetMyProfileResponses, GetMyProfileErrors, ThrowOnError> => (options?.client ?? client).get<GetMyProfileResponses, GetMyProfileErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/users/me',
+    ...options
+});
+
+export const updateMyProfile = <ThrowOnError extends boolean = false>(options: Options<UpdateMyProfileData, ThrowOnError>): RequestResult<UpdateMyProfileResponses, UpdateMyProfileErrors, ThrowOnError> => (options.client ?? client).put<UpdateMyProfileResponses, UpdateMyProfileErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/users/me',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -6,6 +6,7 @@ mod m20261111_000002_property_management;
 mod m20261111_000003_leasing_and_payments;
 mod m20261111_000004_multi_currency;
 mod m20261111_000005_contract_templates;
+mod m20261111_000006_property_types;
 
 pub struct Migrator;
 
@@ -18,6 +19,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261111_000003_leasing_and_payments::Migration),
             Box::new(m20261111_000004_multi_currency::Migration),
             Box::new(m20261111_000005_contract_templates::Migration),
+            Box::new(m20261111_000006_property_types::Migration),
         ]
     }
 }
@@ -243,5 +245,169 @@ mod tests {
             ))
             .await
             .expect("store generated lease document");
+    }
+
+    #[tokio::test]
+    async fn property_type_migration_preserves_sqlite_properties_and_related_units() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory sqlite");
+        Migrator::up(&database, Some(5))
+            .await
+            .expect("apply migrations before property type expansion");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO organizations (id, name, default_currency, timezone) VALUES ('org-1', 'AqarDesk', 'SAR', 'Asia/Riyadh')",
+            ))
+            .await
+            .expect("insert organization");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO users (id, organization_id, full_name, email, password_hash, access_role) VALUES ('user-1', 'org-1', 'Admin', 'admin@example.com', 'a sufficiently long password hash', 'admin')",
+            ))
+            .await
+            .expect("insert user");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO properties (id, organization_id, code, name, property_type, address_line_1, city, country_code) VALUES ('property-1', 'org-1', 'LEGACY', 'Legacy property', 'residential', 'Street 1', 'Riyadh', 'SA')",
+            ))
+            .await
+            .expect("insert legacy property");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO property_units (id, organization_id, property_id, unit_number, unit_type) VALUES ('unit-1', 'org-1', 'property-1', 'A1', 'apartment')",
+            ))
+            .await
+            .expect("insert related unit");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "CREATE TABLE properties_replacement (stale TEXT)",
+            ))
+            .await
+            .expect("simulate a leftover replacement table");
+
+        Migrator::up(&database, Some(1))
+            .await
+            .expect("recover the replacement table and expand accepted property types");
+        for (index, property_type) in [
+            "residential",
+            "commercial",
+            "mixed_use",
+            "land",
+            "other",
+            "building",
+            "house_villa",
+            "investment",
+            "warehouse",
+            "yard",
+            "apartment",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            database
+                .execute(Statement::from_string(
+                    DbBackend::Sqlite,
+                    format!(
+                        "INSERT INTO properties (id, organization_id, code, name, property_type, address_line_1, city, country_code) VALUES ('type-{index}', 'org-1', 'TYPE-{index}', 'Type {index}', '{property_type}', 'Street 1', 'Riyadh', 'SA')"
+                    ),
+                ))
+                .await
+                .unwrap_or_else(|_| panic!("insert supported property type {property_type}"));
+        }
+
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "PRAGMA foreign_keys = OFF",
+            ))
+            .await
+            .expect("disable foreign keys to simulate an interrupted replacement");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "CREATE TABLE properties_replacement AS SELECT * FROM properties",
+            ))
+            .await
+            .expect("simulate the copied replacement table");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "DROP TABLE properties",
+            ))
+            .await
+            .expect("simulate interruption after dropping the original table");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "PRAGMA foreign_keys = ON",
+            ))
+            .await
+            .expect("restore foreign key enforcement");
+        let manager = SchemaManager::new(&database);
+        m20261111_000006_property_types::Migration
+            .up(&manager)
+            .await
+            .expect("recover from a missing original properties table");
+
+        let legacy_property = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT property_type FROM properties WHERE id = 'property-1'",
+            ))
+            .await
+            .expect("query migrated legacy property")
+            .expect("legacy property remains");
+        let legacy_type: String = legacy_property
+            .try_get("", "property_type")
+            .expect("read legacy property type");
+        assert_eq!(legacy_type, "residential");
+
+        Migrator::down(&database, Some(1))
+            .await
+            .expect("roll back property type expansion");
+        let category_after_rollback = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT property_type FROM properties WHERE id = 'type-6'",
+            ))
+            .await
+            .expect("query rolled-back category")
+            .expect("category remains after rollback");
+        let legacy_category: String = category_after_rollback
+            .try_get("", "property_type")
+            .expect("read rolled-back property type");
+        assert_eq!(legacy_category, "residential");
+        let related_unit_count = database
+            .query_all(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT id FROM property_units WHERE property_id = 'property-1'",
+            ))
+            .await
+            .expect("query related units");
+        let recovered_property_count = database
+            .query_all(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT id FROM properties WHERE id = 'property-1'",
+            ))
+            .await
+            .expect("query recovered property");
+        assert_eq!(recovered_property_count.len(), 1);
+        assert_eq!(related_unit_count.len(), 1);
+        assert!(
+            database
+                .query_all(Statement::from_string(
+                    DbBackend::Sqlite,
+                    "PRAGMA foreign_key_check",
+                ))
+                .await
+                .expect("check foreign keys")
+                .is_empty()
+        );
     }
 }

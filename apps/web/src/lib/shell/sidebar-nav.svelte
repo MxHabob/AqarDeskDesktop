@@ -11,9 +11,15 @@
 		collapsed: boolean;
 		onSelect: (view: ViewKey) => void;
 		onExpand: () => void;
+		navigation?: {
+			title: string;
+			activeKey: string;
+			items: { key: string; label: string }[];
+		};
+		onNavigate?: (key: string) => void;
 	};
 
-	let { active, currentUser, collapsed, onSelect, onExpand }: Props = $props();
+	let { active, currentUser, collapsed, onSelect, onExpand, navigation, onNavigate }: Props = $props();
 
 	const group = $derived.by(() => {
 		if (active === 'properties' || active === 'units' || active === 'tenants') {
@@ -75,25 +81,47 @@
 		</div>
 	{:else}
 		<nav class="min-h-0 flex-1 overflow-y-auto px-3 py-4 scrollbar-none" aria-label={m.nav_workspace()}>
-			<section>
-				<h2 class="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-					{group.title}
-				</h2>
-				<div class="grid gap-1">
-					{#each group.items as item (item.key)}
-						<Button
-							variant="ghost"
-							class={active === item.key
-								? 'h-9 justify-start rounded-lg bg-accent px-3 text-start text-accent-foreground'
-								: 'h-9 justify-start rounded-lg px-3 text-start text-muted-foreground hover:bg-muted hover:text-foreground'}
-							aria-current={active === item.key ? 'page' : undefined}
-							onclick={() => onSelect(item.key)}
-						>
-							<span class="truncate">{item.label}</span>
-						</Button>
-					{/each}
-				</div>
-			</section>
+			{#if navigation}
+				<section>
+					<h2 class="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+						{navigation.title}
+					</h2>
+					<div class="grid gap-1">
+						{#each navigation.items as item (item.key)}
+							<Button
+								variant="ghost"
+								class={navigation.activeKey === item.key
+									? 'h-9 justify-start rounded-lg bg-accent px-3 text-start text-accent-foreground'
+									: 'h-9 justify-start rounded-lg px-3 text-start text-muted-foreground hover:bg-muted hover:text-foreground'}
+								aria-current={navigation.activeKey === item.key ? 'page' : undefined}
+								onclick={() => onNavigate?.(item.key)}
+							>
+								<span class="truncate">{item.label}</span>
+							</Button>
+						{/each}
+					</div>
+				</section>
+			{:else}
+				<section>
+					<h2 class="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+						{group.title}
+					</h2>
+					<div class="grid gap-1">
+						{#each group.items as item (item.key)}
+							<Button
+								variant="ghost"
+								class={active === item.key
+									? 'h-9 justify-start rounded-lg bg-accent px-3 text-start text-accent-foreground'
+									: 'h-9 justify-start rounded-lg px-3 text-start text-muted-foreground hover:bg-muted hover:text-foreground'}
+								aria-current={active === item.key ? 'page' : undefined}
+								onclick={() => onSelect(item.key)}
+							>
+								<span class="truncate">{item.label}</span>
+							</Button>
+						{/each}
+					</div>
+				</section>
+			{/if}
 		</nav>
 	{/if}
 </aside>

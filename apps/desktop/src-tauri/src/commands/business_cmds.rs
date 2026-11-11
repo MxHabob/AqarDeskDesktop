@@ -1,5 +1,6 @@
 use crate::connection::{AuthState, ConnectionState, DatabaseState, LoggedInUser};
 use aqardesk_app::services::{
+    payments::{Payment, PaymentInput, PaymentService},
     properties::{PropertyInput, PropertyService},
     tenants::{TenantInput, TenantService},
     units::{UnitInput, UnitService},
@@ -7,8 +8,8 @@ use aqardesk_app::services::{
 use aqardesk_infrastructure::{
     models::{property, tenant, unit},
     repositories::{
-        properties::SeaOrmPropertyRepository, tenants::SeaOrmTenantRepository,
-        units::SeaOrmUnitRepository,
+        payments::SeaOrmPaymentRepository, properties::SeaOrmPropertyRepository,
+        tenants::SeaOrmTenantRepository, units::SeaOrmUnitRepository,
     },
     settings::ConnectionMode,
     users,
@@ -307,9 +308,89 @@ pub async fn tenants_archive(
         )
         .await;
     }
+
     let database = database.get().await?;
     TenantService::new(SeaOrmTenantRepository::new(&database))
         .archive(&user.organization_id, &tenant_id)
+        .await
+        .map_err(service_error)
+}
+
+#[tauri::command]
+pub async fn payments_list(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+) -> Result<Vec<Payment>, String> {
+    let user = require_user(&connection, &database, &auth).await?;
+    let config = super::user_cmds::get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        return api_call(
+            &connection,
+            &auth,
+            Method::GET,
+            "/api/v1/payments",
+            None::<serde_json::Value>,
+        )
+        .await;
+    }
+    let database = database.get().await?;
+    PaymentService::new(SeaOrmPaymentRepository::new(&database))
+        .list(&user.organization_id)
+        .await
+        .map_err(service_error)
+}
+
+#[tauri::command]
+pub async fn payments_record(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+    input: PaymentInput,
+) -> Result<Payment, String> {
+    let user = require_writer(&connection, &database, &auth).await?;
+    let config = super::user_cmds::get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        return api_call(
+            &connection,
+            &auth,
+            Method::POST,
+            "/api/v1/payments",
+            Some(input),
+        )
+        .await;
+    }
+    let database = database.get().await?;
+    PaymentService::new(SeaOrmPaymentRepository::new(&database))
+        .record(&user.organization_id, &user.id, input)
+        .await
+        .map_err(service_error)
+}
+
+#[tauri::command]
+pub async fn payments_void(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+    payment_id: String,
+) -> Result<(), String> {
+    let user = require_writer(&connection, &database, &auth).await?;
+    let config = super::user_cmds::get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        let path = format!("/api/v1/payments/{}/void", encode_segment(&payment_id));
+        let _: serde_json::Value = api_call(
+            &connection,
+            &auth,
+            Method::PATCH,
+            &path,
+            None::<serde_json::Value>,
+        )
+        .await?;
+        return Ok(());
+    }
+    let database = database.get().await?;
+    PaymentService::new(SeaOrmPaymentRepository::new(&database))
+        .void(&user.organization_id, &user.id, &payment_id)
         .await
         .map_err(service_error)
 }

@@ -2,6 +2,8 @@
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import { deLocalizeUrl } from '#lib/paraglide/runtime';
 	import { AppWindow } from '@lucide/svelte';
 	import * as m from '#lib/paraglide/messages';
 	import type { User } from '#lib/features/auth/types';
@@ -25,8 +27,37 @@
 	let sidebarSize = $state(2);
 	let desktopShell = $state(false);
 	const showContextNavigation = $derived(
-		active !== 'overview' && active !== 'settings' && !page.params.propertyId
+		active !== 'overview' && active !== 'account' && !page.params.propertyId
 	);
+	const settingsPath = $derived(`/${currentUser.organization_id}/settings`);
+	const routePath = $derived(deLocalizeUrl(page.url).pathname);
+	const settingsSection = $derived(routePath.slice(settingsPath.length).replace(/^\/+/, ''));
+	const settingsNavigation = $derived(
+		active === 'settings'
+			? {
+					title: m.nav_settings(),
+					activeKey: settingsSection || 'organization',
+					items: [
+						...(currentUser.role === 'admin'
+							? [{ key: 'organization', label: m.settings_organization() }]
+							: []),
+						{ key: 'general', label: m.settings_general() },
+						...(currentUser.role === 'admin'
+							? [
+									{ key: 'users', label: m.settings_user_management() },
+									{ key: 'audit', label: m.settings_audit() },
+									{ key: 'currencies', label: m.settings_currencies() },
+									{ key: 'contract-templates', label: m.settings_contract_templates() }
+								]
+							: [])
+					]
+				}
+			: undefined
+	);
+
+	function navigateSettings(key: string) {
+		void goto(`${settingsPath}${key === 'organization' ? '' : `/${key}`}`);
+	}
 
 	onMount(() => {
 		desktopShell = '__TAURI_INTERNALS__' in window;
@@ -45,6 +76,8 @@
 				collapsed={sidebarSize === 0}
 				{onSelect}
 				onExpand={() => (sidebarSize = 2)}
+				navigation={settingsNavigation}
+				onNavigate={navigateSettings}
 			/>
 		{/snippet}
 		{#snippet middle()}

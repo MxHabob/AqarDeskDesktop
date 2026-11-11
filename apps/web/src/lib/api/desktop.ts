@@ -4,6 +4,16 @@ import type {
 	PropertyInput,
 	PropertyUnit,
 	PropertyUnitInput,
+	AuditEntry,
+	ContractTemplate,
+	ContractTemplateInput,
+	CurrencySettings,
+	OrganizationSettings,
+	OrganizationSettingsInput,
+	Payment,
+	PaymentInput,
+	ProfileSettings,
+	ProfileSettingsInput,
 	Tenant,
 	TenantInput
 } from '@aqardesk/sdk';
@@ -87,6 +97,24 @@ export const desktopApi = {
 	signIn: (email: string, password: string) => invoke<User>('auth_login', { email, password }),
 	signOut: () => invoke<void>('auth_logout'),
 	getOrganizationName: () => invoke<string>('organization_get_name'),
+	getOrganizationSettings: () => invoke<OrganizationSettings>('organization_get_settings'),
+	updateOrganizationSettings: (input: OrganizationSettingsInput) =>
+		invoke<OrganizationSettings>('organization_update_settings', { input }),
+	listCurrencies: () => invoke<CurrencySettings[]>('currencies_list'),
+	setOrganizationCurrencyEnabled: (currencyCode: string, isEnabled: boolean) =>
+		invoke<void>('currencies_set_organization_enabled', { currencyCode, isEnabled }),
+	getProfileSettings: () => invoke<ProfileSettings>('profile_get_settings'),
+	updateProfileSettings: (input: ProfileSettingsInput) =>
+		invoke<ProfileSettings>('profile_update_settings', { input }),
+	listAuditEvents: (limit = 50, offset = 0) =>
+		invoke<AuditEntry[]>('audit_list', { limit, offset }),
+	listContractTemplates: () => invoke<ContractTemplate[]>('contract_templates_list'),
+	createContractTemplate: (input: ContractTemplateInput) =>
+		invoke<ContractTemplate>('contract_templates_create', { input }),
+	updateContractTemplate: (templateId: string, input: ContractTemplateInput) =>
+		invoke<ContractTemplate>('contract_templates_update', { templateId, input }),
+	setContractTemplateActive: (templateId: string, isActive: boolean) =>
+		invoke<void>('contract_templates_set_active', { templateId, isActive }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	listUsers: () => invoke<User[]>('users_list'),
 	createUser: (input: { name: string; email: string; password: string; role: string }) =>
@@ -108,6 +136,9 @@ export const desktopApi = {
 	updateTenant: (tenantId: string, input: TenantInput) =>
 		invoke<Tenant>('tenants_update', { tenantId, input }),
 	archiveTenant: (tenantId: string) => invoke<void>('tenants_archive', { tenantId }),
+	listPayments: () => invoke<Payment[]>('payments_list'),
+	recordPayment: (input: PaymentInput) => invoke<Payment>('payments_record', { input }),
+	voidPayment: (paymentId: string) => invoke<void>('payments_void', { paymentId }),
 	checkForUpdates: () => invoke<UpdateResult>('system_check_for_updates'),
 	downloadUpdate: () => invoke<string>('system_download_update'),
 	installUpdate: () => invoke<void>('system_install_update')

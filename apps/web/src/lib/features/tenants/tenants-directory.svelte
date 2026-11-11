@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Pencil, Trash2, UsersRound } from '@lucide/svelte';
+	import { UsersRound } from '@lucide/svelte';
 	import type { Tenant } from '@aqardesk/sdk';
-	import { Button, Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
-	import EmptyState from '#lib/shared/components/empty-state.svelte';
+	import { Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
+	import { getLocale } from '#lib/paraglide/runtime';
+	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 	type Props = {
 		tenants: Tenant[];
 		loading: boolean;
@@ -12,13 +13,42 @@
 		onArchive: (tenant: Tenant) => void;
 	};
 	let { tenants, loading, readonly, onEdit, onArchive }: Props = $props();
+	const rtl = $derived(getLocale() === 'ar');
+	const columns: OrbisColumnDef[] = $derived([
+		{ id: 'full_name', header: m.tenants_name(), width: 180 },
+		{ id: 'email', header: m.auth_email(), width: 220 },
+		{ id: 'phone', header: m.tenants_phone(), width: 140 },
+		{
+			id: 'actions',
+			header: m.users_action(),
+			type: 'action',
+			meta: {
+				items: [
+					{ id: 'edit', icon: 'Pencil', label: m.tenants_edit(), variant: 'outline', disabled: () => readonly },
+					{ id: 'archive', icon: 'Trash2', label: m.tenants_archive(), variant: 'destructive', disabled: () => readonly }
+				]
+			}
+		}
+	]);
+
+	function handleGridAction(event: GridActionEvent) {
+		const tenant = tenants.find((item) => item.id === String(event.row.id ?? ''));
+		if (!tenant) return;
+		if (event.actionId === 'edit') onEdit(tenant);
+		if (event.actionId === 'archive') onArchive(tenant);
+	}
 </script>
 <Card class="min-w-0 rounded-lg bg-card p-4 shadow-card ring-border/50 sm:p-5">
 	<CardHeader class="mb-4 flex-row items-center justify-between p-0"><div class="grid gap-1"><CardTitle class="text-base">{m.nav_tenants()}</CardTitle><CardDescription>{tenants.length} {m.nav_tenants()}</CardDescription></div><span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><UsersRound size={18} /></span></CardHeader>
-	{#if loading}<p class="py-12 text-center text-sm text-muted-foreground">{m.common_loading()}</p>
-	{:else if tenants.length === 0}<EmptyState title={m.tenants_empty()} description={m.dashboard_tenants_description()} />
-	{:else}<div class="overflow-x-auto scrollbar-none"><table class="w-full min-w-[38rem] border-collapse text-start text-sm">
-		<thead class="border-b border-border text-xs font-medium text-muted-foreground"><tr><th class="px-2 py-3 text-start">{m.tenants_name()}</th><th class="px-2 py-3 text-start">{m.auth_email()}</th><th class="px-2 py-3 text-start">{m.tenants_phone()}</th><th class="px-2 py-3 text-start">{m.users_action()}</th></tr></thead>
-		<tbody>{#each tenants as tenant (tenant.id)}<tr class="border-b border-border/60 last:border-0"><td class="px-2 py-3 font-medium">{tenant.full_name}</td><td class="px-2 py-3 text-muted-foreground" dir="ltr">{tenant.email ?? ''}</td><td class="px-2 py-3 text-muted-foreground" dir="ltr">{tenant.phone ?? ''}</td><td class="px-2 py-3"><div class="flex gap-2"><Button variant="outline" size="icon" class="size-8" disabled={readonly} aria-label={m.tenants_edit()} onclick={() => onEdit(tenant)}><Pencil size={15} /></Button><Button variant="outline" size="icon" class="size-8 text-destructive" disabled={readonly} aria-label={m.tenants_archive()} onclick={() => onArchive(tenant)}><Trash2 size={15} /></Button></div></td></tr>{/each}</tbody>
-	</table></div>{/if}
+	<OrbisGrid
+		{columns}
+		source={tenants}
+		{loading}
+		{rtl}
+		readonly
+		height="360px"
+		emptyTitle={m.tenants_empty()}
+		emptyDescription={m.dashboard_tenants_description()}
+		onaction={handleGridAction}
+	/>
 </Card>

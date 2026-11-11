@@ -1,3 +1,4 @@
+use aqardesk_app::services::payments::{Payment as AppPayment, PaymentInput as AppPaymentInput};
 use aqardesk_infrastructure::models::{property, tenant, unit};
 use sea_orm::prelude::{DateTimeUtc, Decimal};
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,12 @@ pub enum PropertyType {
     MixedUse,
     Land,
     Other,
+    Building,
+    HouseVilla,
+    Investment,
+    Warehouse,
+    Yard,
+    Apartment,
 }
 
 #[allow(dead_code)]
@@ -131,6 +138,77 @@ impl From<TenantInput> for aqardesk_app::services::tenants::TenantInput {
             phone: input.phone,
             mailing_address: input.mailing_address,
             notes: input.notes,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[schema(rename_all = "snake_case")]
+pub enum PaymentMethod {
+    Cash,
+    BankTransfer,
+    Card,
+    Cheque,
+    Online,
+    Other,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PaymentInput {
+    pub tenant_id: String,
+    pub received_at: String,
+    pub amount_minor: i64,
+    pub currency_code: String,
+    #[schema(value_type = PaymentMethod)]
+    pub payment_method: String,
+    pub external_reference: Option<String>,
+    pub notes: Option<String>,
+}
+
+impl From<PaymentInput> for AppPaymentInput {
+    fn from(input: PaymentInput) -> Self {
+        Self {
+            tenant_id: input.tenant_id,
+            received_at: input.received_at,
+            amount_minor: input.amount_minor,
+            currency_code: input.currency_code,
+            payment_method: input.payment_method,
+            external_reference: input.external_reference,
+            notes: input.notes,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Payment {
+    pub id: String,
+    pub tenant_id: String,
+    pub tenant_name: String,
+    pub received_at: String,
+    pub amount_minor: i64,
+    pub currency_code: String,
+    #[schema(value_type = PaymentMethod)]
+    pub payment_method: String,
+    pub external_reference: Option<String>,
+    pub status: String,
+    pub notes: Option<String>,
+    pub voided_at: Option<String>,
+}
+
+impl From<AppPayment> for Payment {
+    fn from(payment: AppPayment) -> Self {
+        Self {
+            id: payment.id,
+            tenant_id: payment.tenant_id,
+            tenant_name: payment.tenant_name,
+            received_at: payment.received_at,
+            amount_minor: payment.amount_minor,
+            currency_code: payment.currency_code,
+            payment_method: payment.payment_method,
+            external_reference: payment.external_reference,
+            status: payment.status,
+            notes: payment.notes,
+            voided_at: payment.voided_at,
         }
     }
 }
@@ -272,6 +350,38 @@ pub struct OrganizationSettingsInput {
     pub legal_name: Option<String>,
     pub default_currency: String,
     pub timezone: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CurrencySettings {
+    pub code: String,
+    pub name: String,
+    pub name_ar: Option<String>,
+    pub symbol: String,
+    pub symbol_position: String,
+    pub decimal_digits: i16,
+    pub is_active: bool,
+    pub is_enabled_for_organization: bool,
+}
+
+impl From<aqardesk_app::services::settings::CurrencySettings> for CurrencySettings {
+    fn from(value: aqardesk_app::services::settings::CurrencySettings) -> Self {
+        Self {
+            code: value.code,
+            name: value.name,
+            name_ar: value.name_ar,
+            symbol: value.symbol,
+            symbol_position: value.symbol_position,
+            decimal_digits: value.decimal_digits,
+            is_active: value.is_active,
+            is_enabled_for_organization: value.is_enabled_for_organization,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OrganizationCurrencyStateInput {
+    pub is_enabled: bool,
 }
 
 impl From<OrganizationSettingsInput>

@@ -3,7 +3,7 @@ use crate::{
     connection::{AuthState, ConnectionState, DatabaseState},
 };
 use aqardesk_app::services::settings::{
-    AuditEntry, ContractTemplate, ContractTemplateInput, OrganizationSettings,
+    AuditEntry, ContractTemplate, ContractTemplateInput, CurrencySettings, OrganizationSettings,
     OrganizationSettingsInput, ProfileSettings, ProfileSettingsInput, SettingsService,
 };
 use aqardesk_infrastructure::{
@@ -63,6 +63,65 @@ pub async fn organization_update_settings(
     let service = SettingsService::new(SeaOrmSettingsRepository::new(&database));
     service
         .update_organization(&user.organization_id, &user.id, input)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn currencies_list(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+) -> Result<Vec<CurrencySettings>, String> {
+    let user = user_cmds::require_active_user(&connection, &database, &auth).await?;
+    let config = user_cmds::get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        return api_request(
+            &config,
+            Method::GET,
+            "/api/v1/currencies",
+            auth.api_token.read().await.clone(),
+            None,
+        )
+        .await;
+    }
+    let database = database.get().await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&database));
+    service
+        .list_currencies(&user.organization_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn currencies_set_organization_enabled(
+    connection: State<'_, ConnectionState>,
+    database: State<'_, DatabaseState>,
+    auth: State<'_, AuthState>,
+    currency_code: String,
+    is_enabled: bool,
+) -> Result<(), String> {
+    let user = user_cmds::require_admin(&connection, &database, &auth).await?;
+    let currency_code = currency_code.trim().to_uppercase();
+    if currency_code.len() != 3 || !currency_code.bytes().all(|byte| byte.is_ascii_uppercase()) {
+        return Err("Currency must be a three-letter currency code.".to_string());
+    }
+    let config = user_cmds::get_config(&connection)?;
+    if config.mode == ConnectionMode::Api {
+        let _: serde_json::Value = api_request(
+            &config,
+            Method::PUT,
+            &format!("/api/v1/currencies/{}/organization-state", currency_code),
+            auth.api_token.read().await.clone(),
+            Some(serde_json::json!({ "is_enabled": is_enabled })),
+        )
+        .await?;
+        return Ok(());
+    }
+    let database = database.get().await?;
+    let service = SettingsService::new(SeaOrmSettingsRepository::new(&database));
+    service
+        .set_currency_enabled(&user.organization_id, &user.id, &currency_code, is_enabled)
         .await
         .map_err(|error| error.to_string())
 }

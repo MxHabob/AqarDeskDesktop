@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { Building2, Pencil, Trash2 } from '@lucide/svelte';
-	import type { Property, PropertyType } from '@aqardesk/sdk';
-	import { Button, Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
-	import EmptyState from '#lib/shared/components/empty-state.svelte';
-	import StatusBadge from '#lib/shared/components/status-badge.svelte';
+	import { Building2 } from '@lucide/svelte';
+	import type { Property } from '@aqardesk/sdk';
+	import { Card, CardDescription, CardHeader, CardTitle } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
+	import { getLocale } from '#lib/paraglide/runtime';
+	import { OrbisGrid, type GridActionEvent, type OrbisColumnDef } from '@aqardesk/svelte-grid';
 
 	type Props = {
 		properties: Property[];
@@ -14,15 +14,68 @@
 		onArchive: (property: Property) => void;
 	};
 	let { properties, loading, readonly, onEdit, onArchive }: Props = $props();
+	const rtl = $derived(getLocale() === 'ar');
 
-	function propertyTypeLabel(type: PropertyType) {
-		switch (type) {
-			case 'residential': return m.properties_type_residential();
-			case 'commercial': return m.properties_type_commercial();
-			case 'mixed_use': return m.properties_type_mixed();
-			case 'land': return m.properties_type_land();
-			case 'other': return m.common_other();
+	const columns: OrbisColumnDef[] = $derived([
+		{
+			id: 'property',
+			header: m.properties_name(),
+			width: 220,
+			accessor: (row) => [row.name, row.code, row.address_line_1].filter(Boolean).join(' · ')
+		},
+		{
+			id: 'property_type',
+			header: m.properties_type(),
+			type: 'enum',
+			options: [
+				{ value: 'residential', label: m.properties_type_residential() },
+				{ value: 'commercial', label: m.properties_type_commercial() },
+				{ value: 'mixed_use', label: m.properties_type_mixed() },
+				{ value: 'land', label: m.properties_type_land() },
+				{ value: 'other', label: m.common_other() },
+				{ value: 'building', label: m.properties_type_building() },
+				{ value: 'house_villa', label: m.properties_type_house_villa() },
+				{ value: 'investment', label: m.properties_type_investment() },
+				{ value: 'warehouse', label: m.properties_type_warehouse() },
+				{ value: 'yard', label: m.properties_type_yard() },
+				{ value: 'apartment', label: m.properties_type_apartment() }
+			]
+		},
+		{ id: 'city', header: m.properties_city() },
+		{
+			id: 'status',
+			header: m.properties_status(),
+			type: 'status',
+			options: [
+				{ value: 'active', label: m.common_enabled() },
+				{ value: 'inactive', label: m.common_disabled() },
+				{ value: 'archived', label: m.common_disabled() }
+			]
+		},
+		{
+			id: 'actions',
+			header: m.users_action(),
+			type: 'action',
+			meta: {
+				items: [
+					{ id: 'edit', icon: 'Pencil', label: m.properties_edit(), variant: 'outline', disabled: () => readonly },
+					{
+						id: 'archive',
+						icon: 'Trash2',
+						label: m.properties_archive(),
+						variant: 'destructive',
+						disabled: (row: Record<string, unknown>) => readonly || row.status === 'archived'
+					}
+				]
+			}
 		}
+	]);
+
+	function handleGridAction(event: GridActionEvent) {
+		const property = properties.find((item) => item.id === String(event.row.id ?? ''));
+		if (!property) return;
+		if (event.actionId === 'edit') onEdit(property);
+		if (event.actionId === 'archive') onArchive(property);
 	}
 </script>
 
@@ -34,31 +87,15 @@
 		</div>
 		<span class="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><Building2 size={18} /></span>
 	</CardHeader>
-	{#if loading}
-		<p class="py-12 text-center text-sm text-muted-foreground">{m.common_loading()}</p>
-	{:else if properties.length === 0}
-		<EmptyState title={m.properties_empty()} description={m.dashboard_properties_description()} />
-	{:else}
-		<div class="overflow-x-auto scrollbar-none">
-			<table class="w-full min-w-[42rem] border-collapse text-start text-sm">
-				<thead class="border-b border-border text-xs font-medium text-muted-foreground"><tr>
-					<th class="px-2 py-3 text-start">{m.properties_name()}</th><th class="px-2 py-3 text-start">{m.properties_type()}</th><th class="px-2 py-3 text-start">{m.properties_city()}</th><th class="px-2 py-3 text-start">{m.properties_status()}</th><th class="px-2 py-3 text-start">{m.users_action()}</th>
-				</tr></thead>
-				<tbody>
-					{#each properties as property (property.id)}
-						<tr class="border-b border-border/60 last:border-0">
-							<td class="px-2 py-3"><strong class="font-medium">{property.name}</strong><div class="text-xs text-muted-foreground">{property.code} · {property.address_line_1}</div></td>
-							<td class="px-2 py-3 text-muted-foreground">{propertyTypeLabel(property.property_type)}</td>
-							<td class="px-2 py-3 text-muted-foreground">{property.city}</td>
-							<td class="px-2 py-3"><StatusBadge label={property.status === 'active' ? m.common_enabled() : m.common_disabled()} active={property.status === 'active'} /></td>
-							<td class="px-2 py-3"><div class="flex gap-2">
-								<Button variant="outline" size="icon" class="size-8" disabled={readonly} aria-label={m.properties_edit()} onclick={() => onEdit(property)}><Pencil size={15} /></Button>
-								<Button variant="outline" size="icon" class="size-8 text-destructive" disabled={readonly || property.status === 'archived'} aria-label={m.properties_archive()} onclick={() => onArchive(property)}><Trash2 size={15} /></Button>
-							</div></td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
+	<OrbisGrid
+		{columns}
+		source={properties}
+		{loading}
+		{rtl}
+		readonly
+		height="360px"
+		emptyTitle={m.properties_empty()}
+		emptyDescription={m.dashboard_properties_description()}
+		onaction={handleGridAction}
+	/>
 </Card>

@@ -4,6 +4,73 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AuditEntry = {
+    action: string;
+    actor_name?: string | null;
+    actor_user_id?: string | null;
+    created_at: string;
+    details_json?: string | null;
+    entity_id: string;
+    entity_type: string;
+    id: string;
+};
+
+export type AuditQuery = {
+    limit?: number | null;
+    offset?: number | null;
+};
+
+export type ContractTemplate = {
+    created_at: string;
+    description?: string | null;
+    id: string;
+    is_active: boolean;
+    lease_type: string;
+    locale: string;
+    name: string;
+    template_key: string;
+    updated_at: string;
+    versions: Array<ContractTemplateVersion>;
+};
+
+export type ContractTemplateInput = {
+    change_note?: string | null;
+    content_body: string;
+    content_format: string;
+    description?: string | null;
+    lease_type: string;
+    locale: string;
+    name: string;
+    placeholders_json?: string | null;
+    template_key: string;
+};
+
+export type ContractTemplateStateInput = {
+    is_active: boolean;
+};
+
+export type ContractTemplateVersion = {
+    change_note?: string | null;
+    content_body?: string | null;
+    content_format: string;
+    content_sha256: string;
+    created_at: string;
+    id: string;
+    placeholders_json: string;
+    version_number: number;
+};
+
+export type CurrencySettings = {
+    code: string;
+    decimal_digits: number;
+    is_active: boolean;
+    is_enabled_for_organization: boolean;
+    name: string;
+    name_ar?: string | null;
+    symbol: string;
+    symbol_position: string;
+};
+
 export type DashboardSummary = {
     active_leases_count: number;
     active_properties_count: number;
@@ -50,6 +117,64 @@ export type OperationResult = {
     ok: boolean;
 };
 
+export type OrganizationCurrencyStateInput = {
+    is_enabled: boolean;
+};
+
+export type OrganizationSettings = {
+    default_currency: string;
+    id: string;
+    legal_name?: string | null;
+    name: string;
+    timezone: string;
+};
+
+export type OrganizationSettingsInput = {
+    default_currency: string;
+    legal_name?: string | null;
+    name: string;
+    timezone: string;
+};
+
+export type Payment = {
+    amount_minor: number;
+    currency_code: string;
+    external_reference?: string | null;
+    id: string;
+    notes?: string | null;
+    payment_method: string;
+    received_at: string;
+    status: string;
+    tenant_id: string;
+    tenant_name: string;
+    voided_at?: string | null;
+};
+
+export type PaymentInput = {
+    amount_minor: number;
+    currency_code: string;
+    external_reference?: string | null;
+    notes?: string | null;
+    payment_method: string;
+    received_at: string;
+    tenant_id: string;
+};
+
+export type ProfileSettings = {
+    email: string;
+    id: string;
+    is_active: boolean;
+    name: string;
+    role: string;
+};
+
+export type ProfileSettingsInput = {
+    current_password?: string | null;
+    email: string;
+    name: string;
+    new_password?: string | null;
+};
+
 export type Property = {
     address_line_1: string;
     address_line_2?: string | null;
@@ -84,7 +209,7 @@ export type PropertyInput = {
 
 export type PropertyStatus = 'active' | 'inactive' | 'archived';
 
-export type PropertyType = 'residential' | 'commercial' | 'mixed_use' | 'land' | 'other';
+export type PropertyType = 'residential' | 'commercial' | 'mixed_use' | 'land' | 'other' | 'building' | 'house_villa' | 'investment' | 'warehouse' | 'yard' | 'apartment';
 
 export type PropertyUnit = {
     area_square_meters?: number | null;
@@ -150,6 +275,257 @@ export type UnitStatus = 'available' | 'maintenance' | 'inactive';
 
 export type UnitType = 'apartment' | 'office' | 'retail' | 'warehouse' | 'parking' | 'other';
 
+export type ListAuditEventsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Maximum entries, 1 to 100
+         */
+        limit?: number;
+        /**
+         * Number of entries to skip
+         */
+        offset?: number;
+    };
+    url: '/api/v1/audit-events';
+};
+
+export type ListAuditEventsErrors = {
+    /**
+     * Invalid paging options
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+};
+
+export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors];
+
+export type ListAuditEventsResponses = {
+    /**
+     * Organization audit events
+     */
+    200: Array<AuditEntry>;
+};
+
+export type ListAuditEventsResponse = ListAuditEventsResponses[keyof ListAuditEventsResponses];
+
+export type ListContractTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/contract-templates';
+};
+
+export type ListContractTemplatesErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+};
+
+export type ListContractTemplatesError = ListContractTemplatesErrors[keyof ListContractTemplatesErrors];
+
+export type ListContractTemplatesResponses = {
+    /**
+     * Organization contract templates
+     */
+    200: Array<ContractTemplate>;
+};
+
+export type ListContractTemplatesResponse = ListContractTemplatesResponses[keyof ListContractTemplatesResponses];
+
+export type CreateContractTemplateData = {
+    body: ContractTemplateInput;
+    path?: never;
+    query?: never;
+    url: '/api/v1/contract-templates';
+};
+
+export type CreateContractTemplateErrors = {
+    /**
+     * Invalid contract template
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+};
+
+export type CreateContractTemplateError = CreateContractTemplateErrors[keyof CreateContractTemplateErrors];
+
+export type CreateContractTemplateResponses = {
+    /**
+     * Created contract template
+     */
+    201: ContractTemplate;
+};
+
+export type CreateContractTemplateResponse = CreateContractTemplateResponses[keyof CreateContractTemplateResponses];
+
+export type CreateContractTemplateVersionData = {
+    body: ContractTemplateInput;
+    path: {
+        /**
+         * Contract template identifier
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/contract-templates/{template_id}';
+};
+
+export type CreateContractTemplateVersionErrors = {
+    /**
+     * Invalid contract template
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+    /**
+     * Template not found
+     */
+    404: ErrorResponse;
+};
+
+export type CreateContractTemplateVersionError = CreateContractTemplateVersionErrors[keyof CreateContractTemplateVersionErrors];
+
+export type CreateContractTemplateVersionResponses = {
+    /**
+     * Updated template with a new immutable version
+     */
+    200: ContractTemplate;
+};
+
+export type CreateContractTemplateVersionResponse = CreateContractTemplateVersionResponses[keyof CreateContractTemplateVersionResponses];
+
+export type SetContractTemplateStateData = {
+    body: ContractTemplateStateInput;
+    path: {
+        /**
+         * Contract template identifier
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/contract-templates/{template_id}/state';
+};
+
+export type SetContractTemplateStateErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+    /**
+     * Template not found
+     */
+    404: ErrorResponse;
+};
+
+export type SetContractTemplateStateError = SetContractTemplateStateErrors[keyof SetContractTemplateStateErrors];
+
+export type SetContractTemplateStateResponses = {
+    /**
+     * Updated contract template state
+     */
+    200: OperationResult;
+};
+
+export type SetContractTemplateStateResponse = SetContractTemplateStateResponses[keyof SetContractTemplateStateResponses];
+
+export type ListCurrenciesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/currencies';
+};
+
+export type ListCurrenciesErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+};
+
+export type ListCurrenciesError = ListCurrenciesErrors[keyof ListCurrenciesErrors];
+
+export type ListCurrenciesResponses = {
+    /**
+     * Currencies and their organization availability
+     */
+    200: Array<CurrencySettings>;
+};
+
+export type ListCurrenciesResponse = ListCurrenciesResponses[keyof ListCurrenciesResponses];
+
+export type SetOrganizationCurrencyStateData = {
+    body: OrganizationCurrencyStateInput;
+    path: {
+        /**
+         * ISO currency code
+         */
+        currency_code: string;
+    };
+    query?: never;
+    url: '/api/v1/currencies/{currency_code}/organization-state';
+};
+
+export type SetOrganizationCurrencyStateErrors = {
+    /**
+     * Currency cannot be disabled or request is invalid
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+    /**
+     * Currency not found
+     */
+    404: ErrorResponse;
+};
+
+export type SetOrganizationCurrencyStateError = SetOrganizationCurrencyStateErrors[keyof SetOrganizationCurrencyStateErrors];
+
+export type SetOrganizationCurrencyStateResponses = {
+    /**
+     * Updated organization currency availability
+     */
+    200: OperationResult;
+};
+
+export type SetOrganizationCurrencyStateResponse = SetOrganizationCurrencyStateResponses[keyof SetOrganizationCurrencyStateResponses];
+
 export type GetDashboardSummaryData = {
     body?: never;
     path?: never;
@@ -199,6 +575,156 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type GetCurrentOrganizationData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/current';
+};
+
+export type GetCurrentOrganizationErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Organization not found
+     */
+    404: ErrorResponse;
+};
+
+export type GetCurrentOrganizationError = GetCurrentOrganizationErrors[keyof GetCurrentOrganizationErrors];
+
+export type GetCurrentOrganizationResponses = {
+    /**
+     * Current organization settings
+     */
+    200: OrganizationSettings;
+};
+
+export type GetCurrentOrganizationResponse = GetCurrentOrganizationResponses[keyof GetCurrentOrganizationResponses];
+
+export type UpdateCurrentOrganizationData = {
+    body: OrganizationSettingsInput;
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/current';
+};
+
+export type UpdateCurrentOrganizationErrors = {
+    /**
+     * Invalid organization settings
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Administrator access is required
+     */
+    403: ErrorResponse;
+};
+
+export type UpdateCurrentOrganizationError = UpdateCurrentOrganizationErrors[keyof UpdateCurrentOrganizationErrors];
+
+export type UpdateCurrentOrganizationResponses = {
+    /**
+     * Updated organization settings
+     */
+    200: OrganizationSettings;
+};
+
+export type UpdateCurrentOrganizationResponse = UpdateCurrentOrganizationResponses[keyof UpdateCurrentOrganizationResponses];
+
+export type ListPaymentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/payments';
+};
+
+export type ListPaymentsErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+};
+
+export type ListPaymentsError = ListPaymentsErrors[keyof ListPaymentsErrors];
+
+export type ListPaymentsResponses = {
+    /**
+     * Organization payment receipts
+     */
+    200: Array<Payment>;
+};
+
+export type ListPaymentsResponse = ListPaymentsResponses[keyof ListPaymentsResponses];
+
+export type RecordPaymentData = {
+    body: PaymentInput;
+    path?: never;
+    query?: never;
+    url: '/api/v1/payments';
+};
+
+export type RecordPaymentErrors = {
+    /**
+     * Invalid payment
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+};
+
+export type RecordPaymentError = RecordPaymentErrors[keyof RecordPaymentErrors];
+
+export type RecordPaymentResponses = {
+    /**
+     * Recorded payment receipt
+     */
+    201: Payment;
+};
+
+export type RecordPaymentResponse = RecordPaymentResponses[keyof RecordPaymentResponses];
+
+export type VoidPaymentData = {
+    body?: never;
+    path: {
+        /**
+         * Payment identifier
+         */
+        payment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/payments/{payment_id}/void';
+};
+
+export type VoidPaymentErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+    /**
+     * Payment not found
+     */
+    404: ErrorResponse;
+};
+
+export type VoidPaymentError = VoidPaymentErrors[keyof VoidPaymentErrors];
+
+export type VoidPaymentResponses = {
+    /**
+     * Voided payment receipt
+     */
+    200: OperationResult;
+};
+
+export type VoidPaymentResponse = VoidPaymentResponses[keyof VoidPaymentResponses];
 
 export type ListPropertiesData = {
     body?: never;
@@ -593,3 +1119,57 @@ export type UpdateUnitResponses = {
 };
 
 export type UpdateUnitResponse = UpdateUnitResponses[keyof UpdateUnitResponses];
+
+export type GetMyProfileData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/users/me';
+};
+
+export type GetMyProfileErrors = {
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+};
+
+export type GetMyProfileError = GetMyProfileErrors[keyof GetMyProfileErrors];
+
+export type GetMyProfileResponses = {
+    /**
+     * Current user profile
+     */
+    200: ProfileSettings;
+};
+
+export type GetMyProfileResponse = GetMyProfileResponses[keyof GetMyProfileResponses];
+
+export type UpdateMyProfileData = {
+    body: ProfileSettingsInput;
+    path?: never;
+    query?: never;
+    url: '/api/v1/users/me';
+};
+
+export type UpdateMyProfileErrors = {
+    /**
+     * Invalid profile settings
+     */
+    400: ErrorResponse;
+    /**
+     * Authentication required
+     */
+    401: ErrorResponse;
+};
+
+export type UpdateMyProfileError = UpdateMyProfileErrors[keyof UpdateMyProfileErrors];
+
+export type UpdateMyProfileResponses = {
+    /**
+     * Updated user profile
+     */
+    200: ProfileSettings;
+};
+
+export type UpdateMyProfileResponse = UpdateMyProfileResponses[keyof UpdateMyProfileResponses];

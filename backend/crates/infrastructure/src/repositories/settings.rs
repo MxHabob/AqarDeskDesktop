@@ -6,8 +6,8 @@ use aqardesk_app::{
     AppError,
     services::settings::{
         AuditEntry, ContractTemplate, ContractTemplateInput, ContractTemplateVersion,
-        OrganizationSettings, OrganizationSettingsInput, ProfileSettings, ProfileSettingsInput,
-        SettingsRepository,
+        CurrencySettings, OrganizationSettings, OrganizationSettingsInput, ProfileSettings,
+        ProfileSettingsInput, SettingsRepository,
     },
 };
 use chrono::Utc;
@@ -176,6 +176,121 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
         Ok(organization_settings(updated))
     }
 
+    async fn list_currencies(
+        &self,
+        organization_id: &str,
+    ) -> Result<Vec<CurrencySettings>, AppError> {
+        let currencies = currency::Entity::find()
+            .order_by_asc(currency::Column::Code)
+            .all(self.database)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to list currencies: {error}"))
+            })?;
+        let enabled = organization_currency::Entity::find()
+            .filter(organization_currency::Column::OrganizationId.eq(organization_id))
+            .filter(organization_currency::Column::IsEnabled.eq(true))
+            .all(self.database)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to list organization currencies: {error}"))
+            })?
+            .into_iter()
+            .map(|entry| entry.currency_code)
+            .collect::<std::collections::HashSet<_>>();
+        Ok(currencies
+            .into_iter()
+            .map(|model| CurrencySettings {
+                is_enabled_for_organization: enabled.contains(&model.code),
+                code: model.code,
+                name: model.name,
+                name_ar: model.name_ar,
+                symbol: model.symbol,
+                symbol_position: model.symbol_position,
+                decimal_digits: model.decimal_digits,
+                is_active: model.is_active,
+            })
+            .collect())
+    }
+
+    async fn set_currency_enabled(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        currency_code: &str,
+        is_enabled: bool,
+    ) -> Result<(), AppError> {
+        let transaction = self.database.begin().await.map_err(|error| {
+            AppError::Persistence(format!("Failed to begin currency update: {error}"))
+        })?;
+        let currency_exists = currency::Entity::find_by_id(currency_code)
+            .filter(currency::Column::IsActive.eq(true))
+            .one(&transaction)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to validate currency: {error}"))
+            })?
+            .is_some();
+        if !currency_exists {
+            return Err(AppError::NotFound(
+                "Active currency was not found.".to_string(),
+            ));
+        }
+        let organization = organization::Entity::find_by_id(organization_id)
+            .one(&transaction)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to find organization: {error}"))
+            })?
+            .ok_or_else(|| AppError::NotFound("Organization was not found.".to_string()))?;
+        if !is_enabled && organization.default_currency == currency_code {
+            return Err(AppError::Validation(
+                "The organization default currency must remain enabled.".to_string(),
+            ));
+        }
+        let existing = organization_currency::Entity::find()
+            .filter(organization_currency::Column::OrganizationId.eq(organization_id))
+            .filter(organization_currency::Column::CurrencyCode.eq(currency_code))
+            .one(&transaction)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to find organization currency: {error}"))
+            })?;
+        if let Some(existing) = existing {
+            let mut active = existing.into_active_model();
+            active.is_enabled = Set(is_enabled);
+            active.update(&transaction).await.map_err(|error| {
+                AppError::Persistence(format!("Failed to update organization currency: {error}"))
+            })?;
+        } else if is_enabled {
+            organization_currency::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                currency_code: Set(currency_code.to_string()),
+                is_enabled: Set(true),
+                created_by: Set(Some(actor_id.to_string())),
+                created_at: Set(Utc::now()),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!("Failed to enable organization currency: {error}"))
+            })?;
+        }
+        self.insert_audit(
+            &transaction,
+            organization_id,
+            actor_id,
+            if is_enabled { "enabled" } else { "disabled" },
+            "organization_currency",
+            currency_code,
+            serde_json::json!({"currency_code": currency_code, "is_enabled": is_enabled}),
+        )
+        .await?;
+        transaction.commit().await.map_err(|error| {
+            AppError::Persistence(format!("Failed to save organization currency: {error}"))
+        })
+    }
+
     async fn get_profile(
         &self,
         organization_id: &str,
@@ -329,14 +444,46 @@ impl SettingsRepository for SeaOrmSettingsRepository<'_> {
             .map_err(|error| {
                 AppError::Persistence(format!("Failed to list contract templates: {error}"))
             })?;
-        let mut templates = Vec::with_capacity(models.len());
-        for model in models {
-            templates.push(
-                self.load_template(self.database, organization_id, &model.id)
-                    .await?,
-            );
+        if models.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(templates)
+        let template_ids = models
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let versions = contract_template_version::Entity::find()
+            .filter(contract_template_version::Column::OrganizationId.eq(organization_id))
+            .filter(contract_template_version::Column::TemplateId.is_in(template_ids))
+            .order_by_desc(contract_template_version::Column::VersionNumber)
+            .all(self.database)
+            .await
+            .map_err(|error| {
+                AppError::Persistence(format!(
+                    "Failed to list contract template versions: {error}"
+                ))
+            })?;
+        let mut versions_by_template = HashMap::<String, Vec<ContractTemplateVersion>>::new();
+        for version in versions {
+            versions_by_template
+                .entry(version.template_id.clone())
+                .or_default()
+                .push(template_version(version));
+        }
+        Ok(models
+            .into_iter()
+            .map(|model| ContractTemplate {
+                id: model.id.clone(),
+                template_key: model.template_key,
+                name: model.name,
+                description: model.description,
+                lease_type: model.lease_type,
+                locale: model.locale,
+                is_active: model.is_active && model.archived_at.is_none(),
+                created_at: model.created_at.to_rfc3339(),
+                updated_at: model.updated_at.to_rfc3339(),
+                versions: versions_by_template.remove(&model.id).unwrap_or_default(),
+            })
+            .collect())
     }
 
     async fn create_template(
@@ -564,4 +711,239 @@ async fn insert_template_version(
     .await
     .map(|_| ())
     .map_err(|error| AppError::Persistence(format!("Failed to add template version: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aqardesk_app::services::settings::SettingsService;
+    use sea_orm::Database;
+
+    fn template_input(content_body: &str, change_note: Option<&str>) -> ContractTemplateInput {
+        ContractTemplateInput {
+            template_key: "standard-lease".to_string(),
+            name: "Standard lease".to_string(),
+            description: Some("Standard rental terms".to_string()),
+            lease_type: "residential".to_string(),
+            locale: "en".to_string(),
+            content_format: "markdown".to_string(),
+            content_body: content_body.to_string(),
+            placeholders_json: Some(r#"{"tenant_name":"string"}"#.to_string()),
+            change_note: change_note.map(str::to_string),
+        }
+    }
+
+    #[tokio::test]
+    async fn organization_currencies_are_scoped_and_default_cannot_be_disabled() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory database");
+        crate::run_migrations(&database)
+            .await
+            .expect("apply migrations");
+        let first_admin = crate::users::create_initial_admin(
+            &database,
+            "First organization",
+            "First admin",
+            "first-admin@example.com",
+            "a-secure-password",
+        )
+        .await
+        .expect("create first administrator");
+        let second_organization_id = Uuid::new_v4().to_string();
+        organization::ActiveModel {
+            id: Set(second_organization_id.clone()),
+            name: Set("Second organization".to_string()),
+            legal_name: Set(None),
+            default_currency: Set("SAR".to_string()),
+            timezone: Set("Asia/Riyadh".to_string()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
+        .insert(&database)
+        .await
+        .expect("create second organization");
+        let service = SettingsService::new(SeaOrmSettingsRepository::new(&database));
+
+        service
+            .set_currency_enabled(&first_admin.organization_id, &first_admin.id, "usd", true)
+            .await
+            .expect("enable USD for first organization");
+        let first_currencies = service
+            .list_currencies(&first_admin.organization_id)
+            .await
+            .expect("list first organization's currencies");
+        assert!(
+            first_currencies
+                .iter()
+                .any(|currency| currency.code == "USD" && currency.is_enabled_for_organization)
+        );
+        let second_currencies = service
+            .list_currencies(&second_organization_id)
+            .await
+            .expect("list second organization's currencies");
+        assert!(
+            second_currencies
+                .iter()
+                .any(|currency| currency.code == "USD" && !currency.is_enabled_for_organization)
+        );
+
+        let default_currency_result = service
+            .set_currency_enabled(&first_admin.organization_id, &first_admin.id, "SAR", false)
+            .await;
+        assert!(matches!(
+            default_currency_result,
+            Err(AppError::Validation(_))
+        ));
+        service
+            .set_currency_enabled(&first_admin.organization_id, &first_admin.id, "USD", false)
+            .await
+            .expect("disable non-default currency");
+        let first_currencies = service
+            .list_currencies(&first_admin.organization_id)
+            .await
+            .expect("refresh first organization's currencies");
+        assert!(
+            first_currencies
+                .iter()
+                .any(|currency| currency.code == "USD" && !currency.is_enabled_for_organization)
+        );
+    }
+
+    #[tokio::test]
+    async fn settings_updates_are_audited_and_template_versions_are_immutable() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory database");
+        crate::run_migrations(&database)
+            .await
+            .expect("apply migrations");
+        let admin = crate::users::create_initial_admin(
+            &database,
+            "AqarDesk",
+            "Admin",
+            "admin@example.com",
+            "a-secure-password",
+        )
+        .await
+        .expect("create initial administrator");
+        let service = SettingsService::new(SeaOrmSettingsRepository::new(&database));
+        let organization = service
+            .get_organization(&admin.organization_id)
+            .await
+            .expect("load organization settings");
+
+        let invalid_currency = service
+            .update_organization(
+                &admin.organization_id,
+                &admin.id,
+                OrganizationSettingsInput {
+                    name: "AqarDesk".to_string(),
+                    legal_name: None,
+                    default_currency: "USD".to_string(),
+                    timezone: "Asia/Riyadh".to_string(),
+                },
+            )
+            .await;
+        assert!(matches!(invalid_currency, Err(AppError::Validation(_))));
+
+        let updated_organization = service
+            .update_organization(
+                &admin.organization_id,
+                &admin.id,
+                OrganizationSettingsInput {
+                    name: "AqarDesk Group".to_string(),
+                    legal_name: Some("AqarDesk LLC".to_string()),
+                    default_currency: organization.default_currency,
+                    timezone: "Asia/Riyadh".to_string(),
+                },
+            )
+            .await
+            .expect("update organization settings");
+        assert_eq!(updated_organization.name, "AqarDesk Group");
+
+        let profile = service
+            .update_profile(
+                &admin.organization_id,
+                &admin.id,
+                ProfileSettingsInput {
+                    name: "Updated Admin".to_string(),
+                    email: "updated-admin@example.com".to_string(),
+                    current_password: Some("a-secure-password".to_string()),
+                    new_password: Some("new-secure-password".to_string()),
+                },
+            )
+            .await
+            .expect("update profile and password");
+        assert_eq!(profile.name, "Updated Admin");
+        let authenticated = crate::users::authenticate(
+            &database,
+            "updated-admin@example.com",
+            "new-secure-password",
+        )
+        .await
+        .expect("authenticate with updated credentials");
+        assert_eq!(authenticated.id, admin.id);
+
+        let created = service
+            .create_template(
+                &admin.organization_id,
+                &admin.id,
+                template_input("Version one", Some("Initial version")),
+            )
+            .await
+            .expect("create contract template");
+        assert_eq!(created.versions.len(), 1);
+        assert_eq!(
+            created.versions[0].content_body.as_deref(),
+            Some("Version one")
+        );
+        assert_eq!(
+            created.versions[0].content_sha256,
+            format!("{:x}", Sha256::digest(b"Version one"))
+        );
+
+        let updated = service
+            .update_template(
+                &admin.organization_id,
+                &admin.id,
+                &created.id,
+                template_input("Version two", Some("Updated terms")),
+            )
+            .await
+            .expect("append contract template version");
+        assert_eq!(updated.versions.len(), 2);
+        assert_eq!(updated.versions[0].version_number, 2);
+        assert_eq!(
+            updated.versions[0].content_body.as_deref(),
+            Some("Version two")
+        );
+        assert_eq!(updated.versions[1].version_number, 1);
+        assert_eq!(
+            updated.versions[1].content_body.as_deref(),
+            Some("Version one")
+        );
+
+        service
+            .set_template_active(&admin.organization_id, &admin.id, &created.id, false)
+            .await
+            .expect("archive contract template");
+        let templates = service
+            .list_templates(&admin.organization_id)
+            .await
+            .expect("list contract templates");
+        assert_eq!(templates.len(), 1);
+        assert!(!templates[0].is_active);
+        assert_eq!(templates[0].versions.len(), 2);
+
+        let audit = service
+            .list_audit(&admin.organization_id, 100, 0)
+            .await
+            .expect("list audit events");
+        assert_eq!(audit.len(), 5);
+        assert!(audit.iter().all(|entry| {
+            let details = entry.details_json.as_deref().unwrap_or_default();
+            !details.contains("a-secure-password") && !details.contains("new-secure-password")
+        }));
+    }
 }

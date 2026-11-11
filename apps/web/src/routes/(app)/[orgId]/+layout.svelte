@@ -16,12 +16,12 @@
 	const routeParts = $derived(deLocalizeUrl(page.url).pathname.split('/').filter(Boolean).slice(1));
 	const section = $derived(routeParts[0] ?? 'overview');
 	const active = $derived(
-		(['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings'] as string[]).includes(section)
+		(['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'account'] as string[]).includes(section)
 			? (section as ViewKey)
 			: 'overview'
 	);
 	const title = $derived.by(() => {
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'organization', 'profile', 'audit', 'contract-templates'];
+		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'account', 'organization', 'profile', 'audit', 'currencies', 'contract-templates'];
 		const routeName = [...routeParts].reverse().find((part) => known.includes(part)) ?? section;
 		switch (routeName) {
 			case 'properties': return m.nav_properties();
@@ -31,9 +31,11 @@
 			case 'payments': return m.nav_payments();
 			case 'users': return m.nav_users();
 			case 'settings': return m.nav_settings();
+			case 'account': return m.nav_account();
 			case 'organization': return m.settings_organization();
 			case 'profile': return m.settings_my_profile();
 			case 'audit': return m.settings_audit();
+			case 'currencies': return m.settings_currencies();
 			case 'contract-templates': return m.settings_contract_templates();
 			default: return m.nav_overview();
 		}
@@ -49,6 +51,12 @@
 			void goto(`/${app.currentUser.organization_id}`, { replaceState: true });
 		} else if (active === 'users' && app.currentUser.role !== 'admin') {
 			void goto(getViewPath(organization, 'overview'), { replaceState: true });
+		} else if (
+			active === 'settings' &&
+			['', 'users', 'audit', 'currencies', 'contract-templates'].includes(routeParts.slice(1).join('/')) &&
+			app.currentUser.role !== 'admin'
+		) {
+			void goto(`/${organization}/settings/general`, { replaceState: true });
 		}
 	});
 
