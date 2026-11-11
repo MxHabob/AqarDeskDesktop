@@ -25,11 +25,12 @@ tauri = { version = "2.12.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-aqardesk-infrastructure = { path = "../../../backend/crates/infrastructure" }
-aqardesk-app = { path = "../../../backend/crates/app" }
+aqardesk-platform = { path = "../../../backend/platform" }
 sea-orm = { workspace = true }
+rust_decimal = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 uuid = { workspace = true }
 url = { workspace = true }
 tracing = { workspace = true }
+keyring = { workspace = true }

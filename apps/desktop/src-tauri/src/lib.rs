@@ -1,5 +1,6 @@
 mod commands;
-mod connection;
+mod platform_commands;
+mod platform_runtime;
 
 use tauri::Manager;
 
@@ -19,16 +20,11 @@ pub fn run() {
             }
             let app_data_dir = app.path().app_data_dir().map_err(std::io::Error::other)?;
             std::fs::create_dir_all(&app_data_dir)?;
-            let config = connection::load_config(&app_data_dir).map_err(std::io::Error::other)?;
-            app.manage(connection::ConnectionState {
-                app_data_dir,
-                config: std::sync::RwLock::new(config),
-            });
-            app.manage(connection::DatabaseState {
-                connection: tokio::sync::RwLock::new(None),
-            });
-            app.manage(connection::AuthState::default());
             app.manage(commands::update_cmds::PendingUpdateState::default());
+            app.manage(
+                platform_runtime::PlatformState::new(app_data_dir)
+                    .map_err(std::io::Error::other)?,
+            );
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,17 +1,16 @@
-# Domain architecture
+# Platform domain architecture
 
-The domain layer is intentionally free of HTTP, SeaORM, and framework
-dependencies. It defines entities, value objects, invariants, and module
-responsibilities.
+The desktop backend is implemented in `backend/platform` as a modular
+monolith.
 
-## Initial domain contracts
+- `domain` owns validated identifiers, money, identity and access roles,
+  properties, units, tenants, and payments.
+- `application` owns use cases, authorization, and persistence ports.
+- `infrastructure` implements SeaORM repositories, password hashing,
+  transactions, and audit writes.
+- `migration` initializes and verifies the additive platform schema.
+- Tauri commands are thin presentation adapters in the desktop crate.
 
-- `aqardesk-domain`: shared value objects and identifiers for customers, organizations, branches, users, and money
-- `aqardesk-app`: application service orchestration and validation logic for core ERP concerns
-- `aqardesk-infrastructure`: SeaORM and external service implementation details
-
-## Modules
-
-The foundation explicitly names the following module families: core, finance, sales, purchasing, inventory, POS, CRM, supply chain, manufacturing, HR, assets, projects, documents, reporting, integrations, and automation.
-
-The domain model intentionally avoids adding complex accounting schemas before the database and audit requirements are finalized.
+The platform currently implements authentication and administration,
+properties, units, tenants, and payments. See
+[`platform-v2.md`](./platform-v2.md) for migration and verification details.

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import { ArrowLeft, Printer, ReceiptText } from '@lucide/svelte';
@@ -29,7 +30,7 @@
 			]);
 			organization = currentOrganization;
 			currencies = availableCurrencies;
-			payment = payments.find((item) => item.id === data.paymentId) ?? null;
+			payment = payments.find((item) => item.id === page.params.paymentId) ?? null;
 			if (!payment) toast.error(m.payments_not_found());
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -66,7 +67,7 @@
 </svelte:head>
 
 <div class="flex items-center justify-between gap-3 print:hidden">
-	<Button variant="ghost" class="rounded-md" onclick={() => void goto(`/${data.orgId}/payments`)}>
+	<Button variant="ghost" class="rounded-md" onclick={() => void goto(`/${page.params.orgId}/payments`)}>
 		<ArrowLeft size={16} />
 		{m.payments_back_to_list()}
 	</Button>

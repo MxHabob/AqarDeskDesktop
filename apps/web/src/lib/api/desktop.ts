@@ -72,7 +72,7 @@ export type DashboardSummary = {
 };
 
 export const desktopApi = {
-	getConnection: () => invoke<ConnectionConfig | null>('connection_get_config'),
+	getConnection: () => invoke<ConnectionConfig | null>('platform_connection_get_config'),
 	setConnection: (input: {
 		mode: ConnectionMode;
 		databasePath?: string | null;
@@ -83,20 +83,21 @@ export const desktopApi = {
 		username?: string | null;
 		password?: string | null;
 		sslMode?: string | null;
-	}) => invoke<ConnectionConfig>('connection_set_config', input),
-	connect: () => invoke<void>('connection_connect'),
-	checkApi: (serverUrl: string) => invoke<void>('connection_check_api', { serverUrl }),
+	}) => invoke<ConnectionConfig>('platform_connection_set_config', { input }),
+	connect: () => invoke<void>('platform_connection_connect'),
+	checkApi: (serverUrl: string) => invoke<void>('platform_connection_check_api', { serverUrl }),
 	getSetupStatus: () =>
-		invoke<{ needs_admin: boolean; current_user: User | null }>('auth_get_setup_status'),
+		invoke<{ needs_admin: boolean; current_user: User | null }>('platform_auth_get_setup_status'),
 	createAdmin: (input: {
 		organizationName: string;
 		name: string;
 		email: string;
 		password: string;
-	}) => invoke<User>('auth_bootstrap_admin', input),
-	signIn: (email: string, password: string) => invoke<User>('auth_login', { email, password }),
-	signOut: () => invoke<void>('auth_logout'),
-	getOrganizationName: () => invoke<string>('organization_get_name'),
+	}) => invoke<User>('platform_auth_bootstrap_admin', input),
+	signIn: (email: string, password: string) =>
+		invoke<User>('platform_auth_login', { email, password }),
+	signOut: () => invoke<void>('platform_auth_logout'),
+	getOrganizationName: () => invoke<string>('platform_organization_get_name'),
 	getOrganizationSettings: () => invoke<OrganizationSettings>('organization_get_settings'),
 	updateOrganizationSettings: (input: OrganizationSettingsInput) =>
 		invoke<OrganizationSettings>('organization_update_settings', { input }),
@@ -116,29 +117,34 @@ export const desktopApi = {
 	setContractTemplateActive: (templateId: string, isActive: boolean) =>
 		invoke<void>('contract_templates_set_active', { templateId, isActive }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
-	listUsers: () => invoke<User[]>('users_list'),
+	listUsers: () => invoke<User[]>('platform_users_list'),
 	createUser: (input: { name: string; email: string; password: string; role: string }) =>
-		invoke<void>('users_create', input),
+		invoke<void>('platform_users_create', input),
 	setUserActive: (userId: string, isActive: boolean) =>
-		invoke<void>('users_set_active', { userId, isActive }),
-	listProperties: () => invoke<Property[]>('properties_list'),
-	createProperty: (input: PropertyInput) => invoke<Property>('properties_create', { input }),
+		invoke<void>('platform_users_set_active', { userId, isActive }),
+	listProperties: () => invoke<Property[]>('platform_properties_list'),
+	createProperty: (input: PropertyInput) =>
+		invoke<Property>('platform_properties_create', { input }),
 	updateProperty: (propertyId: string, input: PropertyInput) =>
-		invoke<Property>('properties_update', { propertyId, input }),
-	archiveProperty: (propertyId: string) => invoke<void>('properties_archive', { propertyId }),
-	listUnits: () => invoke<PropertyUnit[]>('units_list'),
-	createUnit: (input: PropertyUnitInput) => invoke<PropertyUnit>('units_create', { input }),
+		invoke<Property>('platform_properties_update', { propertyId, input }),
+	archiveProperty: (propertyId: string) =>
+		invoke<void>('platform_properties_archive', { propertyId }),
+	listUnits: () => invoke<PropertyUnit[]>('platform_units_list', { propertyId: null }),
+	createUnit: (input: PropertyUnitInput) =>
+		invoke<PropertyUnit>('platform_units_create', { input }),
 	updateUnit: (unitId: string, input: PropertyUnitInput) =>
-		invoke<PropertyUnit>('units_update', { unitId, input }),
-	archiveUnit: (unitId: string) => invoke<void>('units_archive', { unitId }),
-	listTenants: () => invoke<Tenant[]>('tenants_list'),
-	createTenant: (input: TenantInput) => invoke<Tenant>('tenants_create', { input }),
+		invoke<PropertyUnit>('platform_units_update', { unitId, input }),
+	archiveUnit: (unitId: string) => invoke<void>('platform_units_archive', { unitId }),
+	listTenants: () => invoke<Tenant[]>('platform_tenants_list'),
+	createTenant: (input: TenantInput) =>
+		invoke<Tenant>('platform_tenants_create', { input }),
 	updateTenant: (tenantId: string, input: TenantInput) =>
-		invoke<Tenant>('tenants_update', { tenantId, input }),
-	archiveTenant: (tenantId: string) => invoke<void>('tenants_archive', { tenantId }),
-	listPayments: () => invoke<Payment[]>('payments_list'),
-	recordPayment: (input: PaymentInput) => invoke<Payment>('payments_record', { input }),
-	voidPayment: (paymentId: string) => invoke<void>('payments_void', { paymentId }),
+		invoke<Tenant>('platform_tenants_update', { tenantId, input }),
+	archiveTenant: (tenantId: string) => invoke<void>('platform_tenants_archive', { tenantId }),
+	listPayments: () => invoke<Payment[]>('platform_payments_list'),
+	recordPayment: (input: PaymentInput) =>
+		invoke<Payment>('platform_payments_record', { input }),
+	voidPayment: (paymentId: string) => invoke<void>('platform_payments_void', { paymentId }),
 	checkForUpdates: () => invoke<UpdateResult>('system_check_for_updates'),
 	downloadUpdate: () => invoke<string>('system_download_update'),
 	installUpdate: () => invoke<void>('system_install_update')

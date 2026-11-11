@@ -1,0 +1,250 @@
+use super::{DomainError, OrganizationId};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PropertyId(Uuid);
+
+impl PropertyId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn parse(value: &str) -> Result<Self, uuid::Error> {
+        Uuid::parse_str(value).map(Self)
+    }
+
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for PropertyId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for PropertyId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PropertyType {
+    Residential,
+    Commercial,
+    MixedUse,
+    Land,
+    Other,
+    Building,
+    HouseVilla,
+    Investment,
+    Warehouse,
+    Yard,
+    Apartment,
+}
+
+impl PropertyType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Residential => "residential",
+            Self::Commercial => "commercial",
+            Self::MixedUse => "mixed_use",
+            Self::Land => "land",
+            Self::Other => "other",
+            Self::Building => "building",
+            Self::HouseVilla => "house_villa",
+            Self::Investment => "investment",
+            Self::Warehouse => "warehouse",
+            Self::Yard => "yard",
+            Self::Apartment => "apartment",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, DomainError> {
+        match value {
+            "residential" => Ok(Self::Residential),
+            "commercial" => Ok(Self::Commercial),
+            "mixed_use" => Ok(Self::MixedUse),
+            "land" => Ok(Self::Land),
+            "other" => Ok(Self::Other),
+            "building" => Ok(Self::Building),
+            "house_villa" => Ok(Self::HouseVilla),
+            "investment" => Ok(Self::Investment),
+            "warehouse" => Ok(Self::Warehouse),
+            "yard" => Ok(Self::Yard),
+            "apartment" => Ok(Self::Apartment),
+            _ => Err(DomainError::Validation("Unsupported property type.")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PropertyStatus {
+    Active,
+    Inactive,
+    Archived,
+}
+
+impl PropertyStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+            Self::Archived => "archived",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, DomainError> {
+        match value {
+            "active" => Ok(Self::Active),
+            "inactive" => Ok(Self::Inactive),
+            "archived" => Ok(Self::Archived),
+            _ => Err(DomainError::Validation("Unsupported property status.")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PropertyInput {
+    pub code: String,
+    pub name: String,
+    pub property_type: PropertyType,
+    pub description: Option<String>,
+    pub address_line_1: String,
+    pub address_line_2: Option<String>,
+    pub city: String,
+    pub region: Option<String>,
+    pub postal_code: Option<String>,
+    pub country_code: String,
+    pub status: PropertyStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Property {
+    pub id: PropertyId,
+    pub organization_id: OrganizationId,
+    pub input: PropertyInput,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Property {
+    pub fn create(
+        id: PropertyId,
+        organization_id: OrganizationId,
+        mut input: PropertyInput,
+    ) -> Result<Self, DomainError> {
+        input.code = input.code.trim().to_ascii_uppercase();
+        input.name = input.name.trim().to_string();
+        input.address_line_1 = input.address_line_1.trim().to_string();
+        input.city = input.city.trim().to_string();
+        input.country_code = input.country_code.trim().to_ascii_uppercase();
+        input.description = clean_optional(input.description);
+        input.address_line_2 = clean_optional(input.address_line_2);
+        input.region = clean_optional(input.region);
+        input.postal_code = clean_optional(input.postal_code);
+
+        if input.code.is_empty() || input.code.len() > 32 {
+            return Err(DomainError::Validation(
+                "Property code is required and must be at most 32 characters.",
+            ));
+        }
+        if input.name.is_empty() || input.name.len() > 160 {
+            return Err(DomainError::Validation(
+                "Property name is required and must be at most 160 characters.",
+            ));
+        }
+        if input.address_line_1.is_empty() || input.city.is_empty() {
+            return Err(DomainError::Validation(
+                "Property address and city are required.",
+            ));
+        }
+        if input.country_code.len() != 2
+            || !input
+                .country_code
+                .bytes()
+                .all(|byte| byte.is_ascii_uppercase())
+        {
+            return Err(DomainError::Validation(
+                "Country code must contain two ASCII letters.",
+            ));
+        }
+
+        Ok(Self {
+            id,
+            organization_id,
+            input,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
+    }
+
+    pub fn restore(
+        id: PropertyId,
+        organization_id: OrganizationId,
+        input: PropertyInput,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, DomainError> {
+        let mut property = Self::create(id, organization_id, input)?;
+        property.created_at = created_at;
+        property.updated_at = updated_at;
+        Ok(property)
+    }
+}
+
+fn clean_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn property_input() -> PropertyInput {
+        PropertyInput {
+            code: " apt-01 ".to_string(),
+            name: " Apartment ".to_string(),
+            property_type: PropertyType::Residential,
+            description: Some(" ".to_string()),
+            address_line_1: " Main Street ".to_string(),
+            address_line_2: None,
+            city: " City ".to_string(),
+            region: None,
+            postal_code: None,
+            country_code: " us ".to_string(),
+            status: PropertyStatus::Active,
+        }
+    }
+
+    #[test]
+    fn property_creation_normalizes_user_input() {
+        let property = Property::create(PropertyId::new(), OrganizationId::new(), property_input())
+            .expect("valid property");
+
+        assert_eq!(property.input.code, "APT-01");
+        assert_eq!(property.input.name, "Apartment");
+        assert_eq!(property.input.description, None);
+        assert_eq!(property.input.country_code, "US");
+    }
+
+    #[test]
+    fn property_creation_rejects_invalid_country_codes() {
+        let mut input = property_input();
+        input.country_code = "USA".to_string();
+
+        assert!(matches!(
+            Property::create(PropertyId::new(), OrganizationId::new(), input),
+            Err(DomainError::Validation(_))
+        ));
+    }
+}
