@@ -108,13 +108,16 @@ function handleNodeMouseDown(e: MouseEvent) {
   }
 
   e.stopPropagation();
+  e.preventDefault();
   const startX = e.clientX;
   const startY = e.clientY;
   const originX = position.x;
   const originY = position.y;
   let didMove = false;
+  let moveFrame: number | null = null;
+  let pendingMoveEvent: MouseEvent | null = null;
 
-  const handleMove = (moveEvent: MouseEvent) => {
+  const applyMove = (moveEvent: MouseEvent) => {
     const deltaX = moveEvent.clientX - startX;
     const deltaY = moveEvent.clientY - startY;
     if (!didMove && Math.hypot(deltaX, deltaY) < 3) return;
@@ -132,12 +135,29 @@ function handleNodeMouseDown(e: MouseEvent) {
     ]);
   };
 
+  const handleMove = (moveEvent: MouseEvent) => {
+    pendingMoveEvent = moveEvent;
+    if (moveFrame !== null) return;
+    moveFrame = requestAnimationFrame(() => {
+      moveFrame = null;
+      const latestEvent = pendingMoveEvent;
+      pendingMoveEvent = null;
+      if (latestEvent) applyMove(latestEvent);
+    });
+  };
+
   const handleUp = (upEvent: MouseEvent) => {
     window.removeEventListener("mousemove", handleMove);
     window.removeEventListener("mouseup", handleUp);
     if (didMove) {
+      if (moveFrame !== null) cancelAnimationFrame(moveFrame);
+      moveFrame = null;
+      pendingMoveEvent = null;
+      applyMove(upEvent);
       onMoveAcrossPage?.([node.id], index, upEvent.clientX, upEvent.clientY);
       store.commitLiveMove();
+    } else if (moveFrame !== null) {
+      cancelAnimationFrame(moveFrame);
     }
   };
 

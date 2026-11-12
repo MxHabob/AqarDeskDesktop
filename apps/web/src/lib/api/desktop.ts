@@ -339,6 +339,8 @@ export const desktopApi = {
 			offset,
 			propertyId: propertyId ?? null
 		}),
+	documentPreviewPdf: (documentJson: string, contextData: Record<string, unknown> = {}) =>
+		invoke<number[]>('document_preview_pdf', { documentJson, contextData }),
 	listPaymentContracts: (tenantId: string) =>
 		invoke<PaymentContract[]>('platform_payments_contracts', { tenantId }),
 	createContractDocument: (input: ContractDocumentInput) =>

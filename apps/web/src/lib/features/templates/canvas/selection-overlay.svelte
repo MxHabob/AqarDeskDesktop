@@ -12,8 +12,8 @@
 import type { EditorStore } from "../stores/editor-store.svelte";
 import * as m from "#lib/paraglide/messages";
 import { mmToPx, pxToMm } from "@docforge/core/canvas";
-import { findNode, getPages } from "@docforge/core";
-import type { SnapLine, BoundingBox } from "@docforge/core";
+import { findNode, findNodePath } from "@docforge/core";
+import type { SnapLine, BoundingBox, TemplateNode } from "@docforge/core";
 import { calcSmartSnap } from "@docforge/core";
 import SnapLinesOverlay from "./snap-lines-overlay.svelte";
 
@@ -92,6 +92,8 @@ let dragOrigH = 0;
 let dragOrigPositions = new Map<string, { x: number; y: number }>();
 let dragOtherBounds: BoundingBox[] = [];
 let activeSnapLines = $state<SnapLine[]>([]);
+let dragFrame: number | null = null;
+let pendingDragEvent: MouseEvent | null = null;
 
 // ── Rotation State ───────────────────────────────────────────
 let isRotating = $state(false);
@@ -100,6 +102,8 @@ let rotateCenterX = 0;
 let rotateCenterY = 0;
 let rotateStartAngle = 0;
 let rotateOrigAngle = 0;
+let rotateFrame: number | null = null;
+let pendingRotateEvent: MouseEvent | null = null;
 
 // ── Rubber Band State ────────────────────────────────────────
 let isRubberBanding = $state(false);
@@ -107,6 +111,9 @@ let rubberBandStartX = $state(0);
 let rubberBandStartY = $state(0);
 let rubberBandEndX = $state(0);
 let rubberBandEndY = $state(0);
+let rubberBandPageGroup: SVGGElement | null = null;
+let rubberBandFrame: number | null = null;
+let pendingRubberBandEvent: MouseEvent | null = null;
 
 const rubberBandRect = $derived.by(() => {
   if (!isRubberBanding) return null;
@@ -159,6 +166,17 @@ function startDrag(e: MouseEvent, nodeId: string, handle: string) {
 }
 
 function onDragMove(e: MouseEvent) {
+  pendingDragEvent = e;
+  if (dragFrame !== null) return;
+  dragFrame = requestAnimationFrame(() => {
+    dragFrame = null;
+    const latestEvent = pendingDragEvent;
+    pendingDragEvent = null;
+    if (latestEvent) applyDragMove(latestEvent);
+  });
+}
+
+function applyDragMove(e: MouseEvent) {
   if (!isDragging || !dragNodeId) return;
   const dx = e.clientX - dragStartX;
   const dy = e.clientY - dragStartY;
@@ -272,7 +290,10 @@ function onDragMove(e: MouseEvent) {
 }
 
 function onDragEnd(e: MouseEvent) {
-  if (isDragging) onDragMove(e);
+  if (dragFrame !== null) cancelAnimationFrame(dragFrame);
+  dragFrame = null;
+  pendingDragEvent = null;
+  if (isDragging) applyDragMove(e);
   if (isDragging && dragHandle === "move") {
     onMoveAcrossPage(store.selectedIds, pageIndex, e.clientX, e.clientY);
   }
@@ -328,6 +349,17 @@ function startRotation(
 }
 
 function onRotateMove(e: MouseEvent) {
+  pendingRotateEvent = e;
+  if (rotateFrame !== null) return;
+  rotateFrame = requestAnimationFrame(() => {
+    rotateFrame = null;
+    const latestEvent = pendingRotateEvent;
+    pendingRotateEvent = null;
+    if (latestEvent) applyRotateMove(latestEvent);
+  });
+}
+
+function applyRotateMove(e: MouseEvent) {
   if (!isRotating || !rotateNodeId) return;
 
   const svgEl = document.querySelector(".selection-overlay")?.closest("svg");
@@ -357,7 +389,11 @@ function onRotateMove(e: MouseEvent) {
   store.updateSelectedProps({ rotation: Math.round(newAngle * 10) / 10 });
 }
 
-function onRotateEnd() {
+function onRotateEnd(e: MouseEvent) {
+  if (rotateFrame !== null) cancelAnimationFrame(rotateFrame);
+  rotateFrame = null;
+  pendingRotateEvent = null;
+  applyRotateMove(e);
   store.commitLiveMove();
   isRotating = false;
   rotateNodeId = null;
@@ -372,7 +408,11 @@ export function startRubberBand(
   canvasX: number,
   canvasY: number,
 ) {
+  e.preventDefault();
   isRubberBanding = true;
+  const svg = (e.target as Element).closest("svg");
+  rubberBandPageGroup =
+    svg?.querySelector<SVGGElement>(`[data-page-index="${pageIndex}"]`) ?? null;
   rubberBandStartX = canvasX;
   rubberBandStartY = canvasY;
   rubberBandEndX = canvasX;
@@ -384,38 +424,52 @@ export function startRubberBand(
 }
 
 function onRubberBandMove(e: MouseEvent) {
-  if (!isRubberBanding) return;
-  const svgEl = document.querySelector(".selection-overlay")?.closest("svg");
-  if (!svgEl) return;
-  const svgRect = svgEl.getBoundingClientRect();
-  const gEl = svgEl.querySelector("g.page-transform");
-  const gRect = gEl?.getBoundingClientRect();
-  const offsetX = gRect ? gRect.left - svgRect.left : 0;
-  const offsetY = gRect ? gRect.top - svgRect.top : 0;
-  rubberBandEndX = e.clientX - svgRect.left - offsetX;
-  rubberBandEndY = e.clientY - svgRect.top - offsetY;
+  pendingRubberBandEvent = e;
+  if (rubberBandFrame !== null) return;
+  rubberBandFrame = requestAnimationFrame(() => {
+    rubberBandFrame = null;
+    const latestEvent = pendingRubberBandEvent;
+    pendingRubberBandEvent = null;
+    if (latestEvent) applyRubberBandMove(latestEvent);
+  });
 }
 
-function onRubberBandEnd() {
+function applyRubberBandMove(e: MouseEvent) {
+  if (!isRubberBanding) return;
+  const pageBounds = rubberBandPageGroup
+    ?.querySelector(".page-bg")
+    ?.getBoundingClientRect();
+  if (!pageBounds) return;
+  rubberBandEndX = e.clientX - pageBounds.left;
+  rubberBandEndY = e.clientY - pageBounds.top;
+}
+
+function onRubberBandEnd(e: MouseEvent) {
+  if (rubberBandFrame !== null) cancelAnimationFrame(rubberBandFrame);
+  rubberBandFrame = null;
+  pendingRubberBandEvent = null;
+  applyRubberBandMove(e);
+
   if (isRubberBanding && rubberBandRect) {
     // Find all nodes within the rubber band
     const rb = rubberBandRect;
     const page = store.activePage;
     if (page && rb.w > 4 && rb.h > 4) {
       const matchIds: string[] = [];
-      for (const child of page.children) {
-        if (!("position" in child) || !(child as any).position) continue;
-        const pos = (child as any).position;
-        const nx = mmToPx(pos.x ?? 0, vp.dpi, vp.zoom);
-        const ny = mmToPx(pos.y ?? 0, vp.dpi, vp.zoom);
+      const candidates = collectPageNodes(page.children);
+      for (const child of candidates) {
+        const pos = getNodePosition(child);
+        if (!pos) continue;
+        const nx = mmToPx(Number(pos.x) || 0, vp.dpi, vp.zoom);
+        const ny = mmToPx(Number(pos.y) || 0, vp.dpi, vp.zoom);
         const nw =
-          typeof pos.width === "number"
-            ? mmToPx(pos.width, vp.dpi, vp.zoom)
-            : 50;
+          typeof pos.width === "string" && pos.width.endsWith("%")
+            ? (Number.parseFloat(pos.width) / 100) * pageSizePx.width
+            : mmToPx(Number(pos.width) || 50, vp.dpi, vp.zoom);
         const nh =
-          typeof pos.height === "number"
-            ? mmToPx(pos.height, vp.dpi, vp.zoom)
-            : 20;
+          typeof pos.height === "string" && pos.height.endsWith("%")
+            ? (Number.parseFloat(pos.height) / 100) * pageSizePx.height
+            : mmToPx(Number(pos.height) || 20, vp.dpi, vp.zoom);
 
         // Check if element intersects with rubber band
         if (
@@ -428,7 +482,13 @@ function onRubberBandEnd() {
         }
       }
       if (matchIds.length > 0) {
-        for (const id of matchIds) {
+        const selected = new Set(matchIds);
+        const rootMatches = matchIds.filter((id) =>
+          !findNodePath(store.document, id)
+            .slice(1, -1)
+            .some((ancestorId) => selected.has(ancestorId)),
+        );
+        for (const id of rootMatches) {
           store.select(id, true); // additive selection
         }
       }
@@ -436,11 +496,28 @@ function onRubberBandEnd() {
   }
 
   isRubberBanding = false;
+  rubberBandPageGroup = null;
   window.removeEventListener("mousemove", onRubberBandMove);
   window.removeEventListener("mouseup", onRubberBandEnd);
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+function collectPageNodes(nodes: TemplateNode[]): TemplateNode[] {
+  const result: TemplateNode[] = [];
+  for (const node of nodes) {
+    result.push(node);
+    if ("children" in node) result.push(...collectPageNodes(node.children));
+    if (node.type === "Conditional" && node.elseChildren) {
+      result.push(...collectPageNodes(node.elseChildren));
+    }
+  }
+  return result;
+}
+
+function getNodePosition(node: TemplateNode) {
+  return (node as any).props?.position ?? (node as any).position;
+}
 
 function collectOtherNodeBounds(excludeIds: Set<string>): BoundingBox[] {
   const page = store.activePage;

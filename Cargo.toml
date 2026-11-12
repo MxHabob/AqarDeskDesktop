@@ -1,7 +1,8 @@
 [workspace]
 members = [
   "backend",
-  "apps/desktop/src-tauri"
+  "apps/desktop/src-tauri",
+  "packages/docforge-engine"
 ]
 resolver = "2"
 

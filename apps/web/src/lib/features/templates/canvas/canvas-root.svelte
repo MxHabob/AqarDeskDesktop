@@ -5,7 +5,7 @@ import * as m from "#lib/paraglide/messages";
  * Renders the document page at real mm dimensions with zoom/pan support.
  * This is the WYSIWYG design surface.
  */
-import { onMount } from "svelte";
+import { onMount, tick } from "svelte";
 import type { EditorStore } from "../stores/editor-store.svelte";
 import { findNode } from "@docforge/core";
 import { mmToPx, pxToMm, screenToDoc } from "@docforge/core/canvas";
@@ -159,8 +159,21 @@ $effect(() => {
 // ── Mouse Position ───────────────────────────────────────────
 
 let cursorDocMm = $state({ x: 0, y: 0 });
+let pointerMoveFrame: number | null = null;
+let pendingPointerMove: MouseEvent | null = null;
 
 function handleMouseMove(e: MouseEvent) {
+  pendingPointerMove = e;
+  if (pointerMoveFrame !== null) return;
+  pointerMoveFrame = requestAnimationFrame(() => {
+    pointerMoveFrame = null;
+    const latestEvent = pendingPointerMove;
+    pendingPointerMove = null;
+    if (latestEvent) updatePointerPosition(latestEvent);
+  });
+}
+
+function updatePointerPosition(e: MouseEvent) {
   if (!svgEl) return;
   const rect = svgEl.getBoundingClientRect();
   const screenX = e.clientX - rect.left - offsetX;
@@ -191,6 +204,7 @@ function handleMouseDown(e: MouseEvent) {
   const target = e.target as Element;
   const pageGroup = target.closest<SVGGElement>("[data-page-index]");
   const pageIndex = pageGroup ? Number(pageGroup.dataset.pageIndex) : null;
+  let pageChanged = false;
 
   // Middle mouse button or space+click for pan
   if (e.button === 1 || (e.button === 0 && store.activeTool === "pan")) {
@@ -209,6 +223,7 @@ function handleMouseDown(e: MouseEvent) {
     store.activePageIndex !== pageIndex
   ) {
     store.setActivePage(pageIndex, false);
+    pageChanged = true;
   }
 
   // Left click on empty canvas area → rubber band selection or clear
@@ -218,20 +233,35 @@ function handleMouseDown(e: MouseEvent) {
       target?.classList?.contains("canvas-bg") ||
       target?.classList?.contains("page-bg"))
   ) {
-    // Start rubber band selection
-    if (selectionOverlay && svgEl) {
+    const startRubberBand = () => {
+      if (!selectionOverlay) return;
+      if (pageIndex !== null && store.pages[pageIndex]?.locked) {
+        store.clearSelection();
+        return;
+      }
+      if (!svgEl) return;
       const rect = svgEl.getBoundingClientRect();
       const canvasX = e.clientX - rect.left - offsetX;
       const activeOffsetY = offsetY + store.activePageIndex * pageStridePx;
       const canvasY = e.clientY - rect.top - activeOffsetY;
       selectionOverlay.startRubberBand(e, canvasX, canvasY);
+    };
+
+    if (pageChanged) {
+      void tick().then(startRubberBand);
+    } else if (selectionOverlay) {
+      startRubberBand();
     } else {
       store.clearSelection();
     }
   }
 }
 
-function handleMouseUp() {
+function handleMouseUp(e: MouseEvent) {
+  if (pointerMoveFrame !== null) cancelAnimationFrame(pointerMoveFrame);
+  pointerMoveFrame = null;
+  pendingPointerMove = null;
+  if (isPanning) updatePointerPosition(e);
   isPanning = false;
 }
 
