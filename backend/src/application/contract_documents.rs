@@ -28,8 +28,67 @@ pub struct ContractDocument {
     pub rent_amount_minor: i64,
     pub deposit_amount_minor: i64,
     pub document_body: String,
+    pub document_style: ContractDocumentStyle,
     pub created_by: String,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ContractDocumentStyle {
+    pub paper_size: String,
+    pub accent_color: String,
+    pub font_family: String,
+    pub font_size: u8,
+    pub alignment: String,
+    pub page_margin_mm: u8,
+    pub show_branding: bool,
+    pub brand_label: String,
+    pub show_contract_number: bool,
+    pub show_footer: bool,
+    pub footer_text: String,
+}
+
+impl Default for ContractDocumentStyle {
+    fn default() -> Self {
+        Self {
+            paper_size: "a4".to_string(),
+            accent_color: "#C7962F".to_string(),
+            font_family: "Tahoma".to_string(),
+            font_size: 16,
+            alignment: "start".to_string(),
+            page_margin_mm: 18,
+            show_branding: true,
+            brand_label: String::new(),
+            show_contract_number: true,
+            show_footer: true,
+            footer_text: String::new(),
+        }
+    }
+}
+
+impl ContractDocumentStyle {
+    pub fn validate(&self) -> Result<(), ApplicationError> {
+        if !matches!(self.paper_size.as_str(), "a4" | "letter")
+            || !matches!(
+                self.font_family.as_str(),
+                "Tahoma" | "Arial" | "Georgia" | "Noto Naskh Arabic"
+            )
+            || !matches!(self.font_size, 12 | 14 | 16 | 18)
+            || !matches!(self.alignment.as_str(), "start" | "justify")
+            || !(12..=30).contains(&self.page_margin_mm)
+            || self.brand_label.chars().count() > 100
+            || self.footer_text.chars().count() > 400
+            || self.accent_color.len() != 7
+            || !self.accent_color.starts_with('#')
+            || !self.accent_color[1..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(validation("Contract document design settings are invalid."));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +219,26 @@ fn validation(message: &'static str) -> ApplicationError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_document_style_is_valid_and_deserializes_legacy_settings() {
+        let style = serde_json::from_str::<ContractDocumentStyle>("{}")
+            .expect("legacy template settings use the default design");
+        style.validate().expect("default design is valid");
+        assert_eq!(style.paper_size, "a4");
+        assert_eq!(style.font_size, 16);
+    }
+
+    #[test]
+    fn document_style_rejects_unsafe_or_unsupported_values() {
+        let mut style = ContractDocumentStyle::default();
+        style.accent_color = "red;display:none".to_string();
+        assert!(style.validate().is_err());
+
+        style = ContractDocumentStyle::default();
+        style.page_margin_mm = 31;
+        assert!(style.validate().is_err());
+    }
 
     struct UnreachableRepository;
 

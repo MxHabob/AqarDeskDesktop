@@ -1,7 +1,7 @@
 use crate::{
     application::{
         ApplicationError, ContractDocument, ContractDocumentInput, ContractDocumentRepository,
-        Page, PageRequest,
+        ContractDocumentStyle, Page, PageRequest,
     },
     infrastructure::{
         audit,
@@ -144,6 +144,7 @@ pub struct Model {
     rent_amount_minor: i64,
     deposit_amount_minor: i64,
     document_body: String,
+    document_style_json: String,
     created_by: String,
     created_at: DateTimeUtc,
 }
@@ -263,6 +264,26 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             .content_body
             .filter(|content| !content.trim().is_empty())
             .ok_or_else(|| validation("The selected contract template has no content."))?;
+        let placeholders: serde_json::Value =
+            serde_json::from_str(&template_version.placeholders_json).map_err(|error| {
+                tracing::error!(%error, "Contract template settings are invalid");
+                validation("Contract template settings are invalid.")
+            })?;
+        let document_style: ContractDocumentStyle = serde_json::from_value(
+            placeholders
+                .get("design")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+        )
+        .map_err(|error| {
+            tracing::error!(%error, "Contract document design could not be decoded");
+            validation("Contract document design settings are invalid.")
+        })?;
+        document_style.validate()?;
+        let document_style_json = serde_json::to_string(&document_style).map_err(|error| {
+            tracing::error!(%error, "Contract document design could not be encoded");
+            ApplicationError::Persistence
+        })?;
         let organization = organization::Entity::find_by_id(organization_id)
             .one(&transaction)
             .await
@@ -409,6 +430,7 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             rent_amount_minor: Set(input.rent_amount_minor),
             deposit_amount_minor: Set(input.deposit_amount_minor),
             document_body: Set(document_body),
+            document_style_json: Set(document_style_json),
             created_by: Set(actor_id.to_string()),
             created_at: Set(now),
         }
@@ -481,6 +503,10 @@ fn format_amount(amount_minor: i64, decimal_digits: i16, currency_code: &str) ->
 }
 
 fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationError> {
+    let document_style = serde_json::from_str(&model.document_style_json).map_err(|error| {
+        tracing::error!(%error, "Saved contract document design could not be decoded");
+        ApplicationError::Persistence
+    })?;
     Ok(ContractDocument {
         id: model.id,
         organization_id: model.organization_id,
@@ -503,6 +529,7 @@ fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationErr
         rent_amount_minor: model.rent_amount_minor,
         deposit_amount_minor: model.deposit_amount_minor,
         document_body: model.document_body,
+        document_style,
         created_by: model.created_by,
         created_at: model.created_at.to_rfc3339(),
     })
@@ -596,7 +623,10 @@ mod tests {
             content_body:
                 "{{tenant.full_name}} - {{property.name}} - {{unit.number}} - {{contract.number}}"
                     .to_string(),
-            placeholders_json: Some("{}".to_string()),
+            placeholders_json: Some(
+                r##"{"design":{"paper_size":"letter","accent_color":"#245A74","font_family":"Georgia","font_size":18,"alignment":"justify","page_margin_mm":22,"show_branding":true,"brand_label":"Example Realty","show_footer":false}}"##
+                    .to_string(),
+            ),
             change_note: None,
         };
         let template = templates
@@ -609,9 +639,9 @@ mod tests {
                     actor,
                     ContractDocumentInput {
                         template_id: template.id.clone(),
-                        tenant_id,
+                        tenant_id: tenant_id.clone(),
                         property_id: property_id.clone(),
-                        unit_id,
+                        unit_id: unit_id.clone(),
                         start_date: "2026-01-01".to_string(),
                         end_date: "2026-12-31".to_string(),
                         currency_code: "SAR".to_string(),
@@ -624,25 +654,60 @@ mod tests {
 
         let mut edited_template = template_input;
         edited_template.content_body = "A later template version".to_string();
+        edited_template.placeholders_json = Some(
+            r##"{"design":{"paper_size":"a4","accent_color":"#C7962F","font_family":"Tahoma","font_size":16,"alignment":"start","page_margin_mm":18,"show_branding":true,"brand_label":"","show_footer":true}}"##
+                .to_string(),
+        );
         edited_template.change_note = Some("Update after issue".to_string());
         templates
             .update(actor, &template.id, edited_template)
             .await
             .expect("update source template");
 
+        let updated_document =
+            ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
+                .create(
+                    actor,
+                    ContractDocumentInput {
+                        template_id: template.id.clone(),
+                        tenant_id,
+                        property_id: property_id.clone(),
+                        unit_id,
+                        start_date: "2027-01-01".to_string(),
+                        end_date: "2027-12-31".to_string(),
+                        currency_code: "SAR".to_string(),
+                        rent_amount_minor: 120_000,
+                        deposit_amount_minor: 0,
+                    },
+                )
+                .await
+                .expect("new contract uses the updated template design");
         let saved = ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
             .list(actor, Some(&property_id))
             .await
             .expect("list saved contract for property");
-        assert_eq!(saved.len(), 1);
-        assert_eq!(saved[0].id, document.id);
-        assert_eq!(saved[0].template_version_id, template.versions[0].id);
+        assert_eq!(saved.len(), 2);
+        let original = saved
+            .iter()
+            .find(|item| item.id == document.id)
+            .expect("find original contract");
+        let updated = saved
+            .iter()
+            .find(|item| item.id == updated_document.id)
+            .expect("find contract created with updated template");
+        assert_eq!(original.template_version_id, template.versions[0].id);
         assert_eq!(
-            saved[0].document_body,
+            original.document_body,
             format!(
                 "Snapshot tenant - Snapshot property - A-1 - {}",
                 document.contract_number
             )
         );
+        assert_eq!(original.document_style.paper_size, "letter");
+        assert_eq!(original.document_style.accent_color, "#245A74");
+        assert_eq!(original.document_style.brand_label, "Example Realty");
+        assert!(!original.document_style.show_footer);
+        assert_eq!(updated.document_style.paper_size, "a4");
+        assert_eq!(updated.document_style.accent_color, "#C7962F");
     }
 }

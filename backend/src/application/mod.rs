@@ -23,6 +23,7 @@ mod unit_port;
 pub use audit_log::{AuditEntry, AuditLog, AuditLogRepository};
 pub use contract_documents::{
     ContractDocument, ContractDocumentInput, ContractDocumentRepository, ContractDocumentService,
+    ContractDocumentStyle,
 };
 pub use contract_templates::{
     ContractTemplate, ContractTemplateInput, ContractTemplateRepository, ContractTemplateService,

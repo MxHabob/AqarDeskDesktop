@@ -6,13 +6,19 @@
 		SheetContent,
 		SheetFooter,
 		SheetHeader,
-		SheetTitle
+		SheetTitle,
+		toast
 	} from '@aqardesk/ui';
 	import type { ContractDocument } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
+	import {
+		buildPrintDocumentHtml,
+		contractDocumentFont,
+		printHtmlDocument
+	} from '#lib/features/contracts/document-design';
 	import {
 		AqarDeskGrid,
 		type AqarDeskColumnDef,
@@ -100,24 +106,51 @@
 			});
 	}
 
-	function printDocument() {
+	function escapeHtml(value: string) {
+		return value
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
+	}
+
+	async function printDocument() {
 		if (!selected) return;
-		const printStyles = document.createElement('style');
-		printStyles.textContent = `
-			@media print {
-				@page { size: A4; margin: 0; }
-				body * { visibility: hidden !important; overflow: visible !important; }
-				#issued-contract, #issued-contract * { visibility: visible !important; }
-				#issued-contract {
-					position: absolute !important; inset: 0 !important; width: 100% !important;
-					max-width: none !important; min-height: 0 !important; margin: 0 !important;
-					padding: 18mm !important; border: 0 !important; border-radius: 0 !important;
-					box-shadow: none !important; background: #fff !important; color: #172033 !important;
+		const design = selected.document_style;
+		const hasHeader =
+			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
+		const headerHtml = hasHeader
+			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? `<p class="contract-number">${escapeHtml(selected.contract_number)}</p>` : ''}</header>`
+			: '';
+		const bodyHtml = documentBlocks(selected.document_body)
+			.map((block) => {
+				if (block.kind === 'heading') {
+					return `<h2>${escapeHtml(block.text.replace(/^#{1,3}\s+/, ''))}</h2>`;
 				}
-			}`;
-		document.head.append(printStyles);
-		window.addEventListener('afterprint', () => printStyles.remove(), { once: true });
-		window.print();
+				if (block.kind === 'list-item') {
+					return `<p><span class="bullet">• </span>${escapeHtml(block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, ''))}</p>`;
+				}
+				return `<p>${escapeHtml(block.text)}</p>`;
+			})
+			.join('');
+		const footerHtml = design.show_footer
+			? `<footer>${escapeHtml(design.footer_text.trim() || m.contracts_disclaimer())}</footer>`
+			: '';
+		try {
+			await printHtmlDocument(
+				buildPrintDocumentHtml({
+					title: selected.template_name,
+					direction: selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr',
+					design,
+					headerHtml,
+					bodyHtml,
+					footerHtml
+				})
+			);
+		} catch (cause) {
+			toast.error(cause instanceof Error ? cause.message : String(cause));
+		}
 	}
 </script>
 
@@ -157,6 +190,7 @@
 			<SheetTitle>{selected?.template_name ?? m.contracts_preview()}</SheetTitle>
 			{#if selected}
 				<p class="text-xs text-muted-foreground" dir="ltr">{selected.contract_number}</p>
+				<p class="text-xs text-muted-foreground">{m.contracts_design_snapshot_notice()}</p>
 			{/if}
 		</SheetHeader>
 		{#if selected}
@@ -164,27 +198,37 @@
 				<article
 					id="issued-contract"
 					dir={selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
-					class="mx-auto min-h-[29.7cm] w-full max-w-[21cm] rounded-md border border-border/70 bg-background px-8 py-10 shadow-sm sm:px-14 sm:py-16"
+					class="mx-auto w-full rounded-md border border-border/70 bg-white text-slate-900 shadow-sm"
+					style={`max-width:${selected.document_style.paper_size === 'a4' ? '210mm' : '215.9mm'};min-height:${selected.document_style.paper_size === 'a4' ? '297mm' : '279.4mm'};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
 				>
-					<header class="mb-8 border-b-2 border-primary/60 pb-5">
-						<p class="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">AqarDesk</p>
-						<h3 class="mt-3 text-2xl font-semibold leading-relaxed">{selected.template_name}</h3>
-						<p class="mt-2 text-xs text-muted-foreground" dir="ltr">{selected.contract_number}</p>
-					</header>
-					<div class="grid gap-3 text-sm leading-8">
+					{#if (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
+						<header class="mb-8 border-b-2 pb-5" style={`border-color:${selected.document_style.accent_color}`}>
+							{#if selected.document_style.show_branding && selected.document_style.brand_label.trim()}
+								<p class="text-sm font-bold" style={`color:${selected.document_style.accent_color}`}>
+									{selected.document_style.brand_label}
+								</p>
+							{/if}
+							{#if selected.document_style.show_contract_number}
+								<p class="text-sm text-muted-foreground" dir="ltr">{selected.contract_number}</p>
+							{/if}
+						</header>
+					{/if}
+					<div class="grid gap-3 leading-8">
 						{#each documentBlocks(selected.document_body) as block, index (`${block.kind}-${index}`)}
 							{#if block.kind === 'heading'}
-								<h4 class="pt-2 text-base font-semibold">{block.text.replace(/^#{1,3}\s+/, '')}</h4>
+								<h4 class="border-b pb-2 pt-4 text-lg font-semibold" style={`border-color:${selected.document_style.accent_color};color:${selected.document_style.accent_color}`}>{block.text.replace(/^#{1,3}\s+/, '')}</h4>
 							{:else if block.kind === 'list-item'}
-								<p class="before:me-2 before:text-primary before:content-['•']">{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
+								<p><span style={`color:${selected.document_style.accent_color}`}>• </span>{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
 							{:else}
 								<p class="whitespace-pre-wrap">{block.text}</p>
 							{/if}
 						{/each}
 					</div>
-					<footer class="mt-12 border-t border-border pt-3 text-[10px] leading-5 text-muted-foreground">
-						{m.contracts_disclaimer()}
-					</footer>
+					{#if selected.document_style.show_footer}
+						<footer class="mt-12 border-t pt-3 text-xs leading-6 text-muted-foreground" style={`border-color:${selected.document_style.accent_color}`}>
+							{selected.document_style.footer_text.trim() || m.contracts_disclaimer()}
+						</footer>
+					{/if}
 				</article>
 			</div>
 			<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">

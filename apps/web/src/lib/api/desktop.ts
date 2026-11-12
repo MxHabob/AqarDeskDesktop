@@ -52,8 +52,23 @@ export type ContractDocument = {
 	rent_amount_minor: number;
 	deposit_amount_minor: number;
 	document_body: string;
+	document_style: ContractDocumentStyle;
 	created_by: string;
 	created_at: string;
+};
+
+export type ContractDocumentStyle = {
+	paper_size: 'a4' | 'letter';
+	accent_color: string;
+	font_family: 'Tahoma' | 'Arial' | 'Georgia' | 'Noto Naskh Arabic';
+	font_size: 12 | 14 | 16 | 18;
+	alignment: 'start' | 'justify';
+	page_margin_mm: number;
+	show_branding: boolean;
+	brand_label: string;
+	show_contract_number: boolean;
+	show_footer: boolean;
+	footer_text: string;
 };
 
 export type ContractDocumentInput = {
