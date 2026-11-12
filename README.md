@@ -90,4 +90,7 @@ The release workflow uploads signed platform bundles under
 `/aqardesk/releases/<tag>/`, then publishes `/aqardesk/latest.json` last.
 Production builds are configured to check that manifest on the R2 domain. The
 GitHub Release can remain private; the updater files must be publicly
-downloadable for clients that are not authenticated to GitHub.
+downloadable for clients that are not authenticated to GitHub. After each
+successful upload, the workflow keeps the three newest AqarDesk versions in
+R2 and removes older AqarDesk release objects; `latest.json` and other
+products' prefixes are not pruned.

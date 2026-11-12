@@ -9,10 +9,48 @@ import {
 } from "./prepare-tauri-updater-config.mjs";
 
 const expectedPlatforms = ["windows-x86_64", "darwin-aarch64"];
+const retainedReleaseCount = 3;
 const artifactPatterns = {
   "windows-x86_64": /-setup\.exe$/,
   "darwin-aarch64": /\.app\.tar\.gz$/,
 };
+
+function compareReleaseTags(left, right) {
+  const leftParts = left.slice(1).split(".").map(Number);
+  const rightParts = right.slice(1).split(".").map(Number);
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] - rightParts[index];
+    }
+  }
+  return 0;
+}
+
+export function planR2ReleasePrune({ keys, pathPrefix = "aqardesk", latestTag }) {
+  const prefix = normalizeUpdaterPathPrefix(pathPrefix);
+  if (!/^v\d+\.\d+\.\d+$/.test(latestTag ?? "")) {
+    throw new Error(`Invalid latest release tag: ${latestTag ?? "(missing)"}.`);
+  }
+  const releasePrefix = `${prefix}/releases/`;
+  const versions = new Set();
+  for (const key of keys) {
+    if (typeof key !== "string" || !key.startsWith(releasePrefix)) continue;
+    const [tag] = key.slice(releasePrefix.length).split("/");
+    if (/^v\d+\.\d+\.\d+$/.test(tag)) versions.add(tag);
+  }
+
+  if (!versions.has(latestTag)) {
+    throw new Error(`The uploaded release ${latestTag} was not found in R2; refusing to prune.`);
+  }
+  const sortedVersions = [...versions].sort(compareReleaseTags).reverse();
+  if (sortedVersions[0] !== latestTag) {
+    throw new Error(`Release ${latestTag} is not the newest version in R2; refusing to prune.`);
+  }
+  return sortedVersions.slice(retainedReleaseCount).map((tag) => ({
+    tag,
+    prefix: `${releasePrefix}${tag}/`,
+  }));
+}
 
 export function createR2UploadPlan({
   publicUrl,
@@ -121,6 +159,58 @@ function run() {
     );
     if (result.error) throw new Error(`Could not start AWS CLI: ${result.error.message}`);
     if (result.status !== 0) throw new Error(`R2 upload failed with exit code ${result.status}.`);
+  }
+  const prefix = normalizeUpdaterPathPrefix(process.env.TAURI_UPDATER_PATH_PREFIX ?? "aqardesk");
+  const listed = spawnSync(
+    "aws",
+    [
+      "s3api",
+      "list-objects-v2",
+      "--bucket",
+      process.env.CLOUDFLARE_R2_BUCKET,
+      "--prefix",
+      `${prefix}/releases/`,
+      "--endpoint-url",
+      `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      "--region",
+      "auto",
+      "--query",
+      "Contents[].Key",
+      "--output",
+      "json",
+    ],
+    { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
+  );
+  if (listed.error) throw new Error(`Could not list R2 updater objects: ${listed.error.message}`);
+  if (listed.status !== 0) throw new Error(`Could not list R2 updater objects (exit code ${listed.status}).`);
+  const keys = JSON.parse(listed.stdout || "[]") ?? [];
+  if (!Array.isArray(keys)) throw new Error("R2 returned an invalid object listing.");
+  const obsoleteReleases = planR2ReleasePrune({
+    keys,
+    pathPrefix: prefix,
+    latestTag: process.env.RELEASE_TAG,
+  });
+  for (const release of obsoleteReleases) {
+    const result = spawnSync(
+      "aws",
+      [
+        "s3",
+        "rm",
+        `s3://${process.env.CLOUDFLARE_R2_BUCKET}/${release.prefix}`,
+        "--recursive",
+        "--endpoint-url",
+        `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        "--region",
+        "auto",
+        "--only-show-errors",
+      ],
+      { stdio: "inherit" },
+    );
+    if (result.error) throw new Error(`Could not start AWS CLI cleanup: ${result.error.message}`);
+    if (result.status !== 0) {
+      throw new Error(`Could not prune R2 release ${release.tag} (exit code ${result.status}).`);
+    }
+    console.log(`Removed expired R2 updater release ${release.tag}.`);
   }
   console.log("Uploaded versioned updater bundles and latest.json to R2.");
 }

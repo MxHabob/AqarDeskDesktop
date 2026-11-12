@@ -11,7 +11,10 @@ import {
   normalizeUpdaterPublicUrl,
 } from "./prepare-tauri-updater-config.mjs";
 import { stage } from "./stage-release-artifacts.mjs";
-import { createR2UploadPlan } from "./upload-updater-to-r2.mjs";
+import {
+  createR2UploadPlan,
+  planR2ReleasePrune,
+} from "./upload-updater-to-r2.mjs";
 import { validateLicenseBuildConfig } from "./validate-license-build-config.mjs";
 
 const base = {
@@ -177,6 +180,44 @@ test("plans versioned R2 bundle uploads before publishing the latest manifest", 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("keeps the newest three AqarDesk releases and prunes only its own prefix", () => {
+  const plan = planR2ReleasePrune({
+    pathPrefix: "aqardesk",
+    latestTag: "v1.0.10",
+    keys: [
+      "aqardesk/latest.json",
+      "aqardesk/releases/v1.0.1/AqarDesk.exe",
+      "aqardesk/releases/v1.0.9/AqarDesk.exe",
+      "aqardesk/releases/v1.0.10/AqarDesk.exe",
+      "aqardesk/releases/v1.0.2/AqarDesk.exe",
+      "orbis/releases/v5.0.0/Orbis.exe",
+    ],
+  });
+  assert.deepEqual(plan, [{ tag: "v1.0.1", prefix: "aqardesk/releases/v1.0.1/" }]);
+});
+
+test("refuses to prune unless the current release exists and is newest in R2", () => {
+  assert.throws(
+    () => planR2ReleasePrune({
+      pathPrefix: "aqardesk",
+      latestTag: "v1.0.3",
+      keys: ["aqardesk/releases/v1.0.1/AqarDesk.exe"],
+    }),
+    /was not found in R2; refusing to prune/,
+  );
+  assert.throws(
+    () => planR2ReleasePrune({
+      pathPrefix: "aqardesk",
+      latestTag: "v1.0.2",
+      keys: [
+        "aqardesk/releases/v1.0.2/AqarDesk.exe",
+        "aqardesk/releases/v1.0.3/AqarDesk.exe",
+      ],
+    }),
+    /not the newest version in R2; refusing to prune/,
+  );
 });
 
 test("stages signed bundles from the Cargo workspace target directory", () => {
