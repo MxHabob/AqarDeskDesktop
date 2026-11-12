@@ -214,9 +214,9 @@
 </script>
 
 {#if loading}
-	<div class="grid min-h-0 flex-1 content-start gap-3" role="status">
-		<div class="h-32 animate-pulse rounded-xl border border-border bg-card"></div>
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+	<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden" role="status">
+		<div class="h-10 w-1/3 animate-pulse rounded bg-muted"></div>
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 			{#each [0, 1, 2, 3] as index (index)}
 				<Card class="h-[182px] animate-pulse p-3">
 					<div class="h-3 w-24 rounded bg-muted"></div>
@@ -224,68 +224,63 @@
 				</Card>
 			{/each}
 		</div>
+		<div class="grid min-w-0 shrink-0 grid-cols-1 gap-3 lg:grid-cols-4">
+			<Card class="h-[182px] animate-pulse p-3 lg:col-span-2"></Card>
+			<Card class="h-[182px] animate-pulse p-3"></Card>
+			<Card class="h-[182px] animate-pulse p-3"></Card>
+		</div>
 	</div>
 {:else if property}
-	<div class="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto scrollbar-none">
-		<section class="rounded-xl border border-border bg-card p-4 sm:p-5">
-			<header class="flex flex-wrap items-start justify-between gap-4">
-				<div class="flex min-w-0 items-start gap-3">
-					<span class="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-						<Building2 size={20} />
-					</span>
-					<div class="min-w-0">
-						<h1 class="truncate text-xl font-semibold tracking-tight">{property.name}</h1>
-						<p class="mt-1 truncate text-sm text-muted-foreground">
-							{propertyTypeLabel(property.property_type)} · {addressOf(property) || property.code}
-						</p>
-						<div class="mt-2 flex flex-wrap items-center gap-2">
-							<span class="rounded-md border border-border px-2.5 py-1 text-xs">
-								{statusLabel(property.status)}
-							</span>
-							<span class="text-xs text-muted-foreground" dir="ltr">{property.code}</span>
-						</div>
-					</div>
-				</div>
-				<div class="flex flex-wrap items-center gap-2">
-					<Button
-						variant="outline"
-						disabled={!canUpdateProperty}
-						onclick={() => (propertySheetOpen = true)}
-					>
-						<Pencil size={16} />{m.properties_edit()}
-					</Button>
-					{#if canViewUnits}
-						<Button
-							variant="outline"
-							disabled={!canCreateUnits}
-							onclick={() => (unitSheetOpen = true)}
-						>
-							<Plus size={16} />{m.units_add()}
-						</Button>
-					{/if}
-					<Button
-						variant="outline"
-						disabled={!canCreateTenants}
-						onclick={() => (tenantSheetOpen = true)}
-					>
-						<Plus size={16} />{m.tenants_add()}
-					</Button>
-					{#if canViewContracts}
-						<Button disabled={!canCreateContractForProperty} onclick={createContract}>
-							<Plus size={16} />{m.contracts_new_contract()}
-						</Button>
-					{/if}
-				</div>
-			</header>
-			{#if property.description}
-				<p class="mt-4 max-w-4xl whitespace-pre-wrap border-t border-border pt-4 text-sm leading-6 text-muted-foreground">
-					{property.description}
+	<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+		<header class="flex min-h-10 flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center">
+			<div class="grid min-w-0 gap-1">
+				<h1 class="truncate font-serif text-3xl font-normal tracking-tight text-foreground">
+					{property.name}
+				</h1>
+				<p class="truncate text-xs text-muted-foreground">
+					{addressOf(property) || property.code}
+					<span aria-hidden="true"> · </span>
+					{propertyTypeLabel(property.property_type)}
+					<span aria-hidden="true"> · </span>
+					<span dir="ltr">{property.code}</span>
+					<span aria-hidden="true"> · </span>
+					{statusLabel(property.status)}
 				</p>
-			{/if}
-		</section>
+			</div>
+			<div class="flex shrink-0 flex-wrap items-center gap-2">
+				{#if canViewContracts}
+					<Button disabled={!canCreateContractForProperty} onclick={createContract}>
+						<Plus size={16} />{m.contracts_new_contract()}
+					</Button>
+				{/if}
+				{#if canViewUnits}
+					<Button
+						variant="outline"
+						disabled={!canCreateUnits}
+						onclick={() => (unitSheetOpen = true)}
+					>
+						<Plus size={16} />{m.units_add()}
+					</Button>
+				{/if}
+				<Button
+					variant="outline"
+					disabled={!canCreateTenants}
+					onclick={() => (tenantSheetOpen = true)}
+				>
+					<Plus size={16} />{m.tenants_add()}
+				</Button>
+				<Button
+					variant="outline"
+					disabled={!canUpdateProperty}
+					onclick={() => (propertySheetOpen = true)}
+				>
+					<Pencil size={16} />{m.properties_edit()}
+				</Button>
+			</div>
+		</header>
 
-		{#if canViewContracts && propertyDashboardQuery.data}
-			<section class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={m.dashboard_statistics_title()}>
+		<section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={m.dashboard_statistics_title()}>
+			{#if canViewContracts && propertyDashboardQuery.data}
 				<DashboardStatCard
 					label={m.dashboard_contract_count()}
 					value={propertyDashboardQuery.data.contract_count}
@@ -296,122 +291,149 @@
 					value={propertyDashboardQuery.data.tenant_count}
 					icon={UsersRound}
 				/>
-				{#if canViewUnits}
-					<DashboardStatCard label={m.dashboard_units_count()} value={units.length} icon={Building2} />
-				{/if}
+			{/if}
+			{#if canViewUnits}
+				<DashboardStatCard label={m.dashboard_units_count()} value={units.length} icon={Building2} />
+			{/if}
+			{#if canViewContracts}
 				<DashboardPaymentsByCurrencyCard
 					label={m.property_dashboard_rent_title()}
-					totals={propertyDashboardQuery.data.rent_by_currency}
+					totals={propertyDashboardQuery.data?.rent_by_currency}
 					emptyLabel={m.property_dashboard_no_amounts()}
 					icon={ReceiptText}
 				/>
-				{#if canViewPayments && propertyDashboardQuery.data.posted_allocations_by_currency}
-					<DashboardPaymentsByCurrencyCard
-						label={m.property_dashboard_paid_title()}
-						totals={propertyDashboardQuery.data.posted_allocations_by_currency}
-						emptyLabel={m.property_dashboard_no_amounts()}
-					/>
-				{/if}
-			</section>
-			{#if canViewPayments}
-				<p class="text-xs leading-5 text-muted-foreground">
-					{m.property_dashboard_balance_note()}
-				</p>
 			{/if}
-		{/if}
+		</section>
 
-		{#if canViewContracts}
-			<section class="rounded-xl border border-border bg-card p-4 sm:p-5">
-				<header class="mb-4 flex items-center justify-between gap-3">
-					<div>
-						<h2 class="text-base font-semibold">{m.property_dashboard_recent_contracts()}</h2>
-						<p class="mt-1 text-xs text-muted-foreground">{m.property_dashboard_contracts_hint()}</p>
-					</div>
-					<a
-						href={`/${organizationId}/properties/${data.propertyId}/contracts`}
-						class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
-					>
-						{m.property_dashboard_view_contracts()}<ArrowUpRight size={14} />
-					</a>
-				</header>
-				{#if contractDocumentsQuery.isLoading}
-					<div class="h-20 animate-pulse rounded-lg bg-muted"></div>
-				{:else if contractDocuments.length === 0}
-					<div class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-						{m.property_dashboard_no_contracts()}
-					</div>
-				{:else}
-					<div class="grid gap-2">
-						{#each contractDocuments.slice(0, 5) as contract (contract.id)}
-							<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-3">
-								<div class="min-w-0">
-									<p class="truncate text-sm font-medium">{contract.tenant_name}</p>
-									<p class="mt-1 text-xs text-muted-foreground">
-										<span dir="ltr">{contract.contract_number}</span>
-										<span> · {m.nav_units()} {contract.unit_number}</span>
-										<span> · {formatDate(contract.start_date, 'date')} – {formatDate(contract.end_date, 'date')}</span>
-									</p>
+		<div class="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-4">
+			{#if canViewContracts}
+				<Card class="flex h-[182px] min-h-0 min-w-0 flex-col p-3 lg:col-span-2">
+					<header class="mb-2 flex items-center justify-between gap-3">
+						<div class="min-w-0">
+							<h2 class="truncate text-xs font-medium text-muted-foreground">
+								{m.property_dashboard_recent_contracts()}
+							</h2>
+							<p class="mt-1 truncate text-[11px] text-muted-foreground">
+								{m.property_dashboard_contracts_hint()}
+							</p>
+						</div>
+						<a
+							href={`/${organizationId}/properties/${data.propertyId}/contracts`}
+							class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+						>
+							{m.property_dashboard_view_contracts()}<ArrowUpRight size={14} />
+						</a>
+					</header>
+					{#if contractDocumentsQuery.isLoading}
+						<div class="grid min-h-0 flex-1 content-center gap-2" role="status" aria-label={m.common_loading()}>
+							{#each [0, 1, 2] as index (index)}
+								<div class="h-7 animate-pulse rounded bg-muted"></div>
+							{/each}
+						</div>
+					{:else if contractDocuments.length === 0}
+						<div class="grid min-h-0 flex-1 place-items-center rounded border border-dashed border-border px-3 text-center text-xs text-muted-foreground">
+							{m.property_dashboard_no_contracts()}
+						</div>
+					{:else}
+						<div class="min-h-0 flex-1 divide-y divide-border overflow-hidden">
+							{#each contractDocuments.slice(0, 3) as contract (contract.id)}
+								<div class="flex min-w-0 items-center justify-between gap-3 py-2">
+									<div class="min-w-0">
+										<p class="truncate text-xs font-medium">{contract.tenant_name}</p>
+										<p class="mt-1 truncate text-[10px] text-muted-foreground">
+											<span dir="ltr">{contract.contract_number}</span>
+											<span> · {m.nav_units()} {contract.unit_number}</span>
+											<span> · {formatDate(contract.end_date, 'date')}</span>
+										</p>
+									</div>
+									<strong class="shrink-0 text-xs font-medium" dir="auto">
+										{formatCurrency(contract.rent_amount_minor, contract.currency_code, contract.currency_decimal_digits)}
+									</strong>
 								</div>
-								<strong class="shrink-0 text-sm font-medium" dir="auto">
-									{formatCurrency(contract.rent_amount_minor, contract.currency_code, contract.currency_decimal_digits)}
-								</strong>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</section>
-		{/if}
+							{/each}
+						</div>
+					{/if}
+				</Card>
+			{/if}
 
-		<div class="grid gap-4 lg:grid-cols-2">
-			<section class="rounded-xl border border-border bg-card p-4 sm:p-5">
-				<h2 class="text-base font-semibold">{m.properties_details()}</h2>
-				<dl class="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+			<Card class="flex h-[182px] min-w-0 flex-col p-3">
+				<h2 class="mb-2 text-xs font-medium text-muted-foreground">{m.properties_details()}</h2>
+				<dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
 					<div>
-						<dt class="text-xs text-muted-foreground">{m.properties_type()}</dt>
-						<dd class="mt-1 text-sm">{propertyTypeLabel(property.property_type)}</dd>
+						<dt class="text-[10px] text-muted-foreground">{m.properties_type()}</dt>
+						<dd class="mt-0.5 truncate">{propertyTypeLabel(property.property_type)}</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">{m.properties_lot_area()}</dt>
-						<dd class="mt-1 text-sm">{displayNumber(property.lot_area_square_meters)} م²</dd>
+						<dt class="text-[10px] text-muted-foreground">{m.properties_lot_area()}</dt>
+						<dd class="mt-0.5 truncate">{displayNumber(property.lot_area_square_meters)} m²</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">{m.properties_building_area()}</dt>
-						<dd class="mt-1 text-sm">{displayNumber(property.building_area_square_meters)} م²</dd>
+						<dt class="text-[10px] text-muted-foreground">{m.properties_building_area()}</dt>
+						<dd class="mt-0.5 truncate">{displayNumber(property.building_area_square_meters)} m²</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">{m.properties_frontage()}</dt>
-						<dd class="mt-1 text-sm">{displayNumber(property.frontage_meters)} م</dd>
-					</div>
-					<div>
-						<dt class="text-xs text-muted-foreground">{m.properties_depth()}</dt>
-						<dd class="mt-1 text-sm">{displayNumber(property.depth_meters)} م</dd>
-					</div>
-					<div>
-						<dt class="text-xs text-muted-foreground">{m.settings_created_at()}</dt>
-						<dd class="mt-1 text-sm">{formatDate(property.created_at, 'datetime', undefined, app.organizationTimezone)}</dd>
+						<dt class="text-[10px] text-muted-foreground">{m.settings_created_at()}</dt>
+						<dd class="mt-0.5 truncate">{formatDate(property.created_at, 'date', undefined, app.organizationTimezone)}</dd>
 					</div>
 				</dl>
-			</section>
+			</Card>
 
-			{#if canViewOwners && property.owners.length > 0}
-				<section class="rounded-xl border border-border bg-card p-4 sm:p-5">
-					<h2 class="text-base font-semibold">{m.properties_owners()}</h2>
-					<div class="mt-4 grid gap-3 sm:grid-cols-2">
+			{#if canViewPayments && propertyDashboardQuery.data?.posted_allocations_by_currency}
+				<DashboardPaymentsByCurrencyCard
+					label={m.property_dashboard_paid_title()}
+					totals={propertyDashboardQuery.data.posted_allocations_by_currency}
+					emptyLabel={m.property_dashboard_no_amounts()}
+				/>
+			{:else if canViewPayments}
+				<Card class="flex h-[182px] min-w-0 flex-col p-3">
+					<h2 class="mb-2 text-xs font-medium text-muted-foreground">{m.property_dashboard_paid_title()}</h2>
+					<p class="grid flex-1 place-items-center text-xs text-muted-foreground">
+						{m.property_dashboard_no_amounts()}
+					</p>
+				</Card>
+			{/if}
+		</div>
+
+		{#if canViewOwners}
+			<Card class="grid min-h-[182px] shrink-0 content-start gap-3 p-3">
+				<header class="flex items-center justify-between gap-3">
+					<div class="min-w-0">
+						<h2 class="truncate text-xs font-medium text-muted-foreground">{m.properties_owners()}</h2>
+						<p class="mt-1 text-[10px] text-muted-foreground">{formatNumber(property.owners.length)}</p>
+					</div>
+					<UsersRound size={16} class="shrink-0 text-muted-foreground" />
+				</header>
+				{#if property.owners.length === 0}
+					<div class="grid min-h-20 place-items-center rounded border border-dashed border-border px-3 text-center text-xs text-muted-foreground">
+						{m.owners_empty()}
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
 						{#each property.owners as owner (owner.id)}
-							<div class="rounded-lg border border-border p-3">
-								<p class="text-sm font-medium">{owner.name}</p>
-								<p class="mt-1 text-sm text-muted-foreground" dir="ltr">{owner.phone_number}</p>
-								{#if owner.ownership_share_percent != null}
-									<p class="mt-1 text-xs text-muted-foreground">
-										{formatNumber(owner.ownership_share_percent)}%
+							<div class="flex min-w-0 items-center justify-between gap-2 rounded border border-border/70 px-2.5 py-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium">{owner.name}</p>
+									<p class="mt-0.5 truncate text-[10px] text-muted-foreground" dir="ltr">
+										{owner.phone_number}
 									</p>
+								</div>
+								{#if owner.ownership_share_percent != null}
+									<span class="shrink-0 text-[10px] text-muted-foreground">
+										{formatNumber(owner.ownership_share_percent)}%
+									</span>
 								{/if}
 							</div>
 						{/each}
 					</div>
-				</section>
-			{/if}
-		</div>
+				{/if}
+			</Card>
+		{/if}
+
+		{#if canViewPayments}
+			<p class="shrink-0 text-[11px] leading-4 text-muted-foreground">
+				{m.property_dashboard_balance_note()}
+			</p>
+		{/if}
 	</div>
 {:else}
 	<div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
