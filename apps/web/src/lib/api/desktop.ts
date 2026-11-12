@@ -62,7 +62,7 @@ export type ContractDocument = {
 };
 
 export type ContractDocumentStyle = {
-	paper_size: 'a4' | 'letter';
+	paper_size: 'a4' | 'a5' | 'letter';
 	accent_color: string;
 	font_family: 'Tahoma' | 'Arial' | 'Georgia' | 'Noto Naskh Arabic';
 	font_size: 12 | 14 | 16 | 18;

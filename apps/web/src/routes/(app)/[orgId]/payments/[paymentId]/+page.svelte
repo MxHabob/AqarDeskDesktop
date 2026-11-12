@@ -318,7 +318,7 @@
 <style>
 	@media print {
 		@page {
-			size: A4 landscape;
+			size: A5 portrait;
 			margin: 0;
 		}
 

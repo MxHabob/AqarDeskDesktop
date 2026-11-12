@@ -15,19 +15,21 @@ export const DEFAULT_CONTRACT_DOCUMENT_STYLE: ContractDocumentStyle = {
 };
 
 export function contractDocumentStyleFromPlaceholders(
-	value: string | null | undefined
+	value: string | null | undefined,
+	defaultPaperSize: ContractDocumentStyle['paper_size'] = DEFAULT_CONTRACT_DOCUMENT_STYLE.paper_size
 ): ContractDocumentStyle {
-	if (!value?.trim()) return { ...DEFAULT_CONTRACT_DOCUMENT_STYLE };
+	const defaultStyle = { ...DEFAULT_CONTRACT_DOCUMENT_STYLE, paper_size: defaultPaperSize };
+	if (!value?.trim()) return defaultStyle;
 	const parsed: unknown = JSON.parse(value);
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 		throw new Error('Contract template settings must be a JSON object.');
 	}
 	const design = (parsed as Record<string, unknown>).design;
 	if (!design || typeof design !== 'object' || Array.isArray(design)) {
-		return { ...DEFAULT_CONTRACT_DOCUMENT_STYLE };
+		return defaultStyle;
 	}
 	const values = design as Record<string, unknown>;
-	const paperSize = values.paper_size ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.paper_size;
+	const paperSize = values.paper_size ?? defaultStyle.paper_size;
 	const accentColor = values.accent_color ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.accent_color;
 	const fontFamily = values.font_family ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.font_family;
 	const fontSize = values.font_size ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.font_size;
@@ -40,7 +42,7 @@ export function contractDocumentStyleFromPlaceholders(
 	const showFooter = values.show_footer ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.show_footer;
 	const footerText = values.footer_text ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.footer_text;
 	if (
-		!(paperSize === 'a4' || paperSize === 'letter') ||
+		!(paperSize === 'a4' || paperSize === 'a5' || paperSize === 'letter') ||
 		typeof accentColor !== 'string' ||
 		!/^#[\da-f]{6}$/i.test(accentColor) ||
 		!(
@@ -66,7 +68,7 @@ export function contractDocumentStyleFromPlaceholders(
 		throw new Error('Contract document design settings are invalid.');
 	}
 	return {
-		...DEFAULT_CONTRACT_DOCUMENT_STYLE,
+		...defaultStyle,
 		paper_size: paperSize,
 		accent_color: accentColor,
 		font_family: fontFamily,
@@ -110,7 +112,25 @@ export function contractDocumentFont(fontFamily: ContractDocumentStyle['font_fam
 }
 
 export function contractDocumentPaperSize(paperSize: ContractDocumentStyle['paper_size']) {
-	return paperSize === 'letter' ? 'Letter' : 'A4';
+	switch (paperSize) {
+		case 'a5':
+			return 'A5';
+		case 'letter':
+			return 'Letter';
+		default:
+			return 'A4';
+	}
+}
+
+export function contractDocumentPaperDimensions(paperSize: ContractDocumentStyle['paper_size']) {
+	switch (paperSize) {
+		case 'a5':
+			return { width: '148mm', height: '210mm' };
+		case 'letter':
+			return { width: '215.9mm', height: '279.4mm' };
+		default:
+			return { width: '210mm', height: '297mm' };
+	}
 }
 
 export function buildPrintDocumentHtml(input: {

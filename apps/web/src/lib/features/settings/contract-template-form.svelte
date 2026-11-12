@@ -7,6 +7,7 @@
 	import {
 		buildPrintDocumentHtml,
 		contractDocumentFont,
+		contractDocumentPaperDimensions,
 		contractDocumentPaperSize,
 		contractDocumentStyleFromPlaceholders,
 		contractTemplatePlaceholdersWithDesign,
@@ -54,7 +55,12 @@
 	}));
 	let preview = $state<Values>({ ...defaultValues });
 	let design = $state<ContractDocumentStyle>(
-		untrack(() => contractDocumentStyleFromPlaceholders(initial?.versions[0]?.placeholders_json))
+		untrack(() =>
+			contractDocumentStyleFromPlaceholders(
+				initial?.versions[0]?.placeholders_json,
+				initial?.lease_type === 'receipt' ? 'a5' : 'a4'
+			)
+		)
 	);
 	let contentEditor = $state<HTMLTextAreaElement>();
 	let contentArea = $state<HTMLDivElement>();
@@ -356,7 +362,7 @@
 					<article
 						id="contract-template-preview"
 						class="mx-auto w-full rounded-lg border border-border/70 bg-background shadow-sm"
-						style={`max-width:${design.paper_size === 'a4' ? '210mm' : '215.9mm'};font-family:${contractDocumentFont(design.font_family)}`}
+						style={`max-width:${contractDocumentPaperDimensions(design.paper_size).width};font-family:${contractDocumentFont(design.font_family)}`}
 						dir={previewDirection}
 					>
 						<div class="contract-template-toolbar flex items-center justify-between gap-2 border-b border-border/70 px-4 py-2">
@@ -431,7 +437,7 @@
 							{:else}
 								<div
 									class="template-document-preview min-h-[calc(100dvh-18rem)] space-y-3 leading-8"
-									style={`min-height:${design.paper_size === 'a4' ? '297mm' : '279.4mm'};padding:${design.page_margin_mm}mm;font-size:${design.font_size}px;text-align:${design.alignment};background:#fff;color:#172033`}
+									style={`min-height:${contractDocumentPaperDimensions(design.paper_size).height};padding:${design.page_margin_mm}mm;font-size:${design.font_size}px;text-align:${design.alignment};background:#fff;color:#172033`}
 									dir={previewDirection}
 								>
 									{#if design.show_branding || design.show_contract_number}
@@ -473,15 +479,19 @@
 					value={design.paper_size}
 					items={[
 						{ value: 'a4', label: m.contract_design_paper_a4() },
+						{ value: 'a5', label: m.contract_design_paper_a5() },
 						{ value: 'letter', label: m.contract_design_paper_letter() }
 					]}
 					onValueChange={(value) => {
-						if (value === 'a4' || value === 'letter') design = { ...design, paper_size: value };
+						if (value === 'a4' || value === 'a5' || value === 'letter') {
+							design = { ...design, paper_size: value };
+						}
 					}}
 				>
 					<SelectTrigger id="contract-design-paper" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 					<SelectContent>
 						<SelectItem value="a4" label={m.contract_design_paper_a4()}>{m.contract_design_paper_a4()}</SelectItem>
+						<SelectItem value="a5" label={m.contract_design_paper_a5()}>{m.contract_design_paper_a5()}</SelectItem>
 						<SelectItem value="letter" label={m.contract_design_paper_letter()}>{m.contract_design_paper_letter()}</SelectItem>
 					</SelectContent>
 				</Select>
@@ -627,6 +637,7 @@
 							onValueChange={(value) => {
 								updatePreview('lease_type', value);
 								field.handleChange(value);
+								if (value === 'receipt') design = { ...design, paper_size: 'a5' };
 							}}
 						>
 							<SelectTrigger id="template-lease-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>

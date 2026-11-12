@@ -26,6 +26,7 @@
 	import {
 		buildPrintDocumentHtml,
 		contractDocumentFont,
+		contractDocumentPaperDimensions,
 		printHtmlDocument
 	} from '#lib/features/contracts/document-design';
 	import {
@@ -287,7 +288,7 @@
 					id="issued-contract"
 					dir={selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
 					class="mx-auto w-full rounded-md border border-border/70 bg-white text-slate-900 shadow-sm"
-					style={`max-width:${selected.document_style.paper_size === 'a4' ? '210mm' : '215.9mm'};min-height:${selected.document_style.paper_size === 'a4' ? '297mm' : '279.4mm'};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
+					style={`max-width:${contractDocumentPaperDimensions(selected.document_style.paper_size).width};min-height:${contractDocumentPaperDimensions(selected.document_style.paper_size).height};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
 				>
 					{#if (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
 						<header class="mb-8 border-b-2 pb-5" style={`border-color:${selected.document_style.accent_color}`}>

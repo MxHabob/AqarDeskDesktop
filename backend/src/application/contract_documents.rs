@@ -73,7 +73,7 @@ impl Default for ContractDocumentStyle {
 
 impl ContractDocumentStyle {
     pub fn validate(&self) -> Result<(), ApplicationError> {
-        if !matches!(self.paper_size.as_str(), "a4" | "letter")
+        if !matches!(self.paper_size.as_str(), "a4" | "a5" | "letter")
             || !matches!(
                 self.font_family.as_str(),
                 "Tahoma" | "Arial" | "Georgia" | "Noto Naskh Arabic"
@@ -331,6 +331,15 @@ mod tests {
         style.validate().expect("default design is valid");
         assert_eq!(style.paper_size, "a4");
         assert_eq!(style.font_size, 16);
+    }
+
+    #[test]
+    fn document_style_accepts_a5_paper_size() {
+        let style = ContractDocumentStyle {
+            paper_size: "a5".to_string(),
+            ..ContractDocumentStyle::default()
+        };
+        style.validate().expect("A5 is a supported paper size");
     }
 
     #[test]
