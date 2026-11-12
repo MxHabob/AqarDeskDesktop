@@ -1,5 +1,6 @@
 mod audit;
 mod audit_log_repository;
+mod contract_document_repository;
 mod contract_template_repository;
 mod currency_repository;
 mod dashboard_repository;
@@ -15,6 +16,7 @@ mod tenant_repository;
 mod unit_repository;
 
 pub use audit_log_repository::SeaOrmAuditLogRepository;
+pub use contract_document_repository::SeaOrmContractDocumentRepository;
 pub use contract_template_repository::SeaOrmContractTemplateRepository;
 pub use currency_repository::SeaOrmCurrencyRepository;
 pub use dashboard_repository::SeaOrmDashboardRepository;

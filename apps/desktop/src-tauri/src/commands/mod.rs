@@ -1,4 +1,5 @@
 pub mod audit_cmds;
+pub mod contract_document_cmds;
 pub mod contract_template_cmds;
 pub mod dashboard_cmds;
 pub mod database_admin_cmds;
@@ -11,9 +12,12 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
     tauri::generate_handler![
         audit_cmds::audit_list,
         contract_template_cmds::contract_templates_list,
+        contract_template_cmds::contract_templates_available,
         contract_template_cmds::contract_templates_create,
         contract_template_cmds::contract_templates_update,
         contract_template_cmds::contract_templates_set_active,
+        contract_document_cmds::contract_documents_list,
+        contract_document_cmds::contract_documents_create,
         database_admin_cmds::database_admin_get_status,
         database_admin_cmds::database_admin_list_backups,
         database_admin_cmds::database_admin_backup,
@@ -70,6 +74,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::platform_commands::platform_tenants_update,
         crate::platform_commands::platform_tenants_archive,
         crate::platform_commands::platform_payments_list,
+        crate::platform_commands::platform_payments_contracts,
         crate::platform_commands::platform_payments_record,
         crate::platform_commands::platform_payments_void
     ]

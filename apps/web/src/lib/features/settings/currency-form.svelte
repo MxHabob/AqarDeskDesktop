@@ -134,6 +134,10 @@
 			<Select
 				type="single"
 				value={values.symbol_position}
+				items={[
+					{ value: 'prefix', label: m.settings_currency_prefix() },
+					{ value: 'suffix', label: m.settings_currency_suffix() }
+				]}
 				onValueChange={(value) => {
 					if (value === 'prefix' || value === 'suffix') values.symbol_position = value;
 				}}
@@ -142,8 +146,8 @@
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="prefix">{m.settings_currency_prefix()}</SelectItem>
-					<SelectItem value="suffix">{m.settings_currency_suffix()}</SelectItem>
+					<SelectItem value="prefix" label={m.settings_currency_prefix()}>{m.settings_currency_prefix()}</SelectItem>
+					<SelectItem value="suffix" label={m.settings_currency_suffix()}>{m.settings_currency_suffix()}</SelectItem>
 				</SelectContent>
 			</Select>
 		</FormField>

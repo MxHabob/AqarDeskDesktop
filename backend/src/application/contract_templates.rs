@@ -1,6 +1,6 @@
 use crate::{
-    application::{ApplicationError, require_admin},
-    domain::ActorContext,
+    application::{ApplicationError, require_admin, require_permission},
+    domain::{ActorContext, Permission},
 };
 use serde::{Deserialize, Serialize};
 
@@ -102,6 +102,30 @@ impl<R: ContractTemplateRepository> ContractTemplateService<R> {
         self.repository
             .list(&actor.organization_id().to_string())
             .await
+    }
+
+    pub async fn list_active(
+        &self,
+        actor: ActorContext,
+    ) -> Result<Vec<ContractTemplate>, ApplicationError> {
+        require_permission(actor, Permission::ViewContracts)?;
+        let templates = self
+            .repository
+            .list(&actor.organization_id().to_string())
+            .await?;
+        Ok(templates
+            .into_iter()
+            .filter(|template| {
+                template.is_active
+                    && template.lease_type != "receipt"
+                    && template.versions.first().is_some_and(|version| {
+                        version
+                            .content_body
+                            .as_deref()
+                            .is_some_and(|content| !content.trim().is_empty())
+                    })
+            })
+            .collect())
     }
 
     pub async fn create(

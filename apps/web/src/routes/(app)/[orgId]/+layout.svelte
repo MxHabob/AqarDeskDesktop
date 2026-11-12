@@ -29,6 +29,7 @@
 			case 'tenants': return 'view_tenants';
 			case 'owners': return 'view_owners';
 			case 'payments': return 'view_payments';
+			case 'contracts': return 'view_contracts';
 			default: return undefined;
 		}
 	});
@@ -93,6 +94,14 @@
 
 	function selectView(view: ViewKey) {
 		if (!app.currentUser) return;
+		if (
+			view === 'contracts' &&
+			!hasPermission(app.currentUser.role, 'view_contracts', app.currentUser.permissions) &&
+			hasPermission(app.currentUser.role, 'view_payments', app.currentUser.permissions)
+		) {
+			void goto(getViewPath(app.currentUser.organization_id, 'payments'));
+			return;
+		}
 		if (view === 'properties') {
 			const availableView = (
 				[

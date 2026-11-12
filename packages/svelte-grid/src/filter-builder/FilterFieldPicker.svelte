@@ -38,13 +38,18 @@ function handleFieldChange(v: string | undefined) {
 }
 </script>
 
-<Select type="single" value={condition.field} onValueChange={handleFieldChange}>
+<Select
+    type="single"
+    value={condition.field}
+    items={fields.map((field) => ({ value: field.id, label: field.label }))}
+    onValueChange={handleFieldChange}
+>
     <SelectTrigger class="w-full bg-background h-9 text-xs">
         {selectedField?.label || translations.selectField}
     </SelectTrigger>
     <SelectContent>
         {#each fields as field (field.id)}
-            <SelectItem value={field.id}>{field.label}</SelectItem>
+            <SelectItem value={field.id} label={field.label}>{field.label}</SelectItem>
         {/each}
     </SelectContent>
 </Select>

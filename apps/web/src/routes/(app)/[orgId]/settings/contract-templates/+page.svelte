@@ -28,8 +28,10 @@
 	}
 
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
 		{ id: 'name', header: m.settings_template_name(), width: 200 },
 		{ id: 'template_key', header: m.settings_template_key(), width: 200 },
+		{ id: 'description', header: m.settings_template_description(), width: 240 },
 		{
 			id: 'lease_type',
 			header: m.settings_template_lease_type(),
@@ -45,10 +47,10 @@
 		},
 		{ id: 'locale', header: m.settings_template_locale(), width: 100 },
 		{
-			id: 'version',
-			header: m.settings_template_version(),
-			width: 100,
-			accessor: (row) => row.versions instanceof Array ? row.versions[0]?.version_number ?? '' : ''
+			id: 'versions',
+			header: m.settings_template_versions(),
+			width: 360,
+			accessor: (row) => JSON.stringify(row.versions ?? [])
 		},
 		{
 			id: 'status',
@@ -67,6 +69,8 @@
 				{ value: 'archived', label: m.settings_template_archived() }
 			]
 		},
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
+		{ id: 'updated_at', header: m.settings_updated_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),

@@ -48,6 +48,7 @@
 				case 'tenants':
 				case 'owners':
 				case 'payments':
+				case 'contracts':
 					return canViewBusinessView(currentUser.role, item.key, currentUser.permissions);
 				default:
 					return true;

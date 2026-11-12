@@ -1,16 +1,21 @@
 use crate::{
-    application::{ApplicationError, PaymentRepository},
+    application::{ApplicationError, PaymentContract, PaymentRepository},
     domain::{
-        CurrencyCode, Money, OrganizationId, Payment, PaymentId, PaymentMethod, PaymentStatus,
-        TenantId, UserId,
+        CurrencyCode, Money, OrganizationId, Payment, PaymentAllocation, PaymentId, PaymentMethod,
+        PaymentStatus, TenantId, UserId,
     },
-    infrastructure::{audit, models::payment},
+    infrastructure::{
+        audit,
+        models::{payment, payment_allocation, payment_contract},
+    },
 };
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
     IntoActiveModel, QueryFilter, QueryOrder, TransactionTrait,
 };
+use std::collections::HashMap;
+use uuid::Uuid;
 
 pub struct SeaOrmPaymentRepository {
     database: DatabaseConnection,
@@ -37,11 +42,69 @@ impl PaymentRepository for SeaOrmPaymentRepository {
             .await
             .map_err(persistence_error)?;
 
-        models.into_iter().map(restore_payment).collect()
+        if models.is_empty() {
+            return Ok(Vec::new());
+        }
+        let payment_ids = models
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let allocations = payment_allocation::Entity::find()
+            .filter(payment_allocation::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(payment_allocation::Column::PaymentId.is_in(payment_ids))
+            .order_by_asc(payment_allocation::Column::ContractNumber)
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let mut allocations_by_payment = HashMap::<String, Vec<PaymentAllocation>>::new();
+        for allocation in allocations {
+            allocations_by_payment
+                .entry(allocation.payment_id)
+                .or_default()
+                .push(PaymentAllocation {
+                    contract_document_id: allocation.contract_document_id,
+                    contract_number: allocation.contract_number,
+                    property_name: allocation.property_name,
+                    property_code: allocation.property_code,
+                    unit_number: allocation.unit_number,
+                    amount_minor: allocation.amount_minor,
+                });
+        }
+        models
+            .into_iter()
+            .map(|model| {
+                let allocations = allocations_by_payment.remove(&model.id).unwrap_or_default();
+                restore_payment(model, allocations)
+            })
+            .collect()
     }
 
-    async fn insert(&self, payment: Payment) -> Result<Payment, ApplicationError> {
+    async fn insert(&self, mut payment: Payment) -> Result<Payment, ApplicationError> {
         let transaction = self.database.begin().await.map_err(persistence_error)?;
+        for allocation in &mut payment.allocations {
+            let contract = payment_contract::Entity::find_by_id(&allocation.contract_document_id)
+                .filter(
+                    payment_contract::Column::OrganizationId
+                        .eq(payment.organization_id.to_string()),
+                )
+                .filter(payment_contract::Column::TenantId.eq(payment.tenant_id.to_string()))
+                .filter(
+                    payment_contract::Column::CurrencyCode
+                        .eq(payment.amount.currency().as_str()),
+                )
+                .one(&transaction)
+                .await
+                .map_err(persistence_error)?
+                .ok_or_else(|| {
+                    crate::domain::DomainError::Validation(
+                        "Each payment allocation must reference a contract for this tenant and currency.",
+                    )
+                })?;
+            allocation.contract_number = contract.contract_number;
+            allocation.property_name = contract.property_name;
+            allocation.property_code = contract.property_code;
+            allocation.unit_number = contract.unit_number;
+        }
         let model = payment::ActiveModel {
             id: Set(payment.id.to_string()),
             organization_id: Set(payment.organization_id.to_string()),
@@ -60,6 +123,22 @@ impl PaymentRepository for SeaOrmPaymentRepository {
         .insert(&transaction)
         .await
         .map_err(persistence_error)?;
+        for allocation in &payment.allocations {
+            payment_allocation::ActiveModel {
+                id: Set(Uuid::new_v4().to_string()),
+                organization_id: Set(payment.organization_id.to_string()),
+                payment_id: Set(payment.id.to_string()),
+                contract_document_id: Set(allocation.contract_document_id.clone()),
+                contract_number: Set(allocation.contract_number.clone()),
+                property_name: Set(allocation.property_name.clone()),
+                property_code: Set(allocation.property_code.clone()),
+                unit_number: Set(allocation.unit_number.clone()),
+                amount_minor: Set(allocation.amount_minor),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        }
         audit::record(
             &transaction,
             &payment.organization_id.to_string(),
@@ -71,12 +150,44 @@ impl PaymentRepository for SeaOrmPaymentRepository {
             &payment.id.to_string(),
             serde_json::json!({
                 "amount_minor": payment.amount.amount_minor(),
-                "currency_code": payment.amount.currency().as_str()
+                "currency_code": payment.amount.currency().as_str(),
+                "allocation_count": payment.allocations.len()
             }),
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
-        restore_payment(model)
+        restore_payment(model, payment.allocations)
+    }
+
+    async fn contracts(
+        &self,
+        organization_id: OrganizationId,
+        tenant_id: TenantId,
+    ) -> Result<Vec<PaymentContract>, ApplicationError> {
+        payment_contract::Entity::find()
+            .filter(payment_contract::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(payment_contract::Column::TenantId.eq(tenant_id.to_string()))
+            .order_by_asc(payment_contract::Column::ContractNumber)
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)
+            .map(|contracts| {
+                contracts
+                    .into_iter()
+                    .map(|contract| PaymentContract {
+                        id: contract.id,
+                        contract_number: contract.contract_number,
+                        property_name: contract.property_name,
+                        property_code: contract.property_code,
+                        unit_number: contract.unit_number,
+                        start_date: contract.start_date,
+                        end_date: contract.end_date,
+                        currency_code: contract.currency_code,
+                        currency_decimal_digits: contract.currency_decimal_digits,
+                        rent_amount_minor: contract.rent_amount_minor,
+                    })
+                    .collect()
+            })
     }
 
     async fn void(
@@ -117,7 +228,10 @@ impl PaymentRepository for SeaOrmPaymentRepository {
     }
 }
 
-fn restore_payment(model: payment::Model) -> Result<Payment, ApplicationError> {
+fn restore_payment(
+    model: payment::Model,
+    allocations: Vec<PaymentAllocation>,
+) -> Result<Payment, ApplicationError> {
     let id = PaymentId::parse(&model.id).map_err(|error| {
         tracing::error!(%error, "Persisted payment identifier is invalid");
         ApplicationError::Persistence
@@ -150,6 +264,7 @@ fn restore_payment(model: payment::Model) -> Result<Payment, ApplicationError> {
         received_at: model.received_at,
         amount,
         method: PaymentMethod::parse(&model.payment_method)?,
+        allocations,
         external_reference: model.external_reference,
         status: PaymentStatus::parse(&model.status)?,
         notes: model.notes,

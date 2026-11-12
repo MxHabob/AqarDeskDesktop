@@ -8,28 +8,17 @@
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { confirmStore } from '#lib/core/confirm.svelte';
-	import {
-		formatCurrency,
-		formatDate as formatLocalizedDate,
-		formatGridCell
-	} from '#lib/core/i18n';
-	import { getLocale } from '#lib/paraglide/runtime';
-	import PaymentSheet from '#lib/features/payments/payment-sheet.svelte';
+	import PaymentsDirectory from '#lib/features/payments/payments-directory.svelte';
 	import * as m from '#lib/paraglide/messages';
-	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 
 	let { data }: PageProps = $props();
 	const app = getAppContext();
-	const locale = $derived(getLocale());
 	const organizationId = $derived(data.orgId);
 	let payments = $state<Payment[]>([]);
 	let tenants = $state<Tenant[]>([]);
 	let currencies = $state<CurrencySettings[]>([]);
 	let loading = $state(true);
 	let busy = $state(false);
-	const enabledCurrencies = $derived(
-		currencies.filter((currency) => currency.is_active && currency.is_enabled_for_organization)
-	);
 	const canView = $derived(
 		hasPermission(app.currentUser?.role, 'view_payments', app.currentUser?.permissions)
 	);
@@ -39,7 +28,6 @@
 	const canVoid = $derived(
 		hasPermission(app.currentUser?.role, 'void_payments', app.currentUser?.permissions)
 	);
-	const rtl = $derived(locale === 'ar');
 
 	onMount(() => {
 		if (canView) void load();
@@ -100,118 +88,24 @@
 		}
 	}
 
-	function formatMoney(payment: Payment) {
-		const digits =
-			currencies.find((currency) => currency.code === payment.currency_code)?.decimal_digits ?? 2;
-		return formatCurrency(payment.amount_minor, payment.currency_code, digits);
-	}
-
-	function formatDate(value: string) {
-		return formatLocalizedDate(value, 'datetime', undefined, app.organizationTimezone);
-	}
-
-	function methodLabel(method: string) {
-		switch (method) {
-			case 'cash': return m.payments_method_cash();
-			case 'bank_transfer': return m.payments_method_bank_transfer();
-			case 'card': return m.payments_method_card();
-			case 'cheque': return m.payments_method_cheque();
-			case 'online': return m.payments_method_online();
-			default: return m.payments_method_other();
-		}
-	}
-
-	const gridRows = $derived(
-		payments.map((payment) => ({
-			...payment,
-			received_at_display: formatDate(payment.received_at),
-			amount_display: formatMoney(payment),
-			method_display: methodLabel(payment.payment_method)
-		}))
-	);
-
-	const columns: AqarDeskColumnDef[] = $derived([
-		{ id: 'received_at_display', header: m.payments_received_at(), sortable: false, width: 180 },
-		{ id: 'tenant_name', header: m.payments_tenant(), width: 180 },
-		{
-			id: 'amount_display',
-			header: m.payments_amount(),
-			sortable: false,
-			align: 'end',
-			cellClass: 'dir-ltr',
-			width: 150
-		},
-		{ id: 'method_display', header: m.payments_method(), sortable: false },
-		{
-			id: 'status',
-			header: m.payments_status(),
-			type: 'status',
-			options: [
-				{ value: 'posted', label: m.payments_status_posted() },
-				{ value: 'void', label: m.payments_status_void() }
-			]
-		},
-		{
-			id: 'actions',
-			header: m.users_action(),
-			type: 'action',
-			meta: {
-				items: [
-					{
-						id: 'open',
-						icon: 'ArrowUpRight',
-						label: m.payments_open_receipt(),
-						variant: 'outline'
-					},
-					{
-						id: 'void',
-						icon: 'Ban',
-						label: m.payments_void(),
-						variant: 'destructive',
-						visible: (row: Record<string, unknown>) => row.status === 'posted',
-						disabled: () => busy || !canVoid
-					}
-				]
-			}
-		}
-	]);
-
-	function handleGridAction(event: GridActionEvent) {
-		const payment = payments.find((item) => item.id === String(event.row.id ?? ''));
-		if (!payment) return;
-		if (event.actionId === 'dblclick' || event.actionId === 'open') {
-			void goto(`/${organizationId}/payments/${payment.id}`);
-		}
-		if (event.actionId === 'void') void voidPayment(payment);
+	function openPayment(payment: Payment) {
+		void goto(`/${organizationId}/payments/${payment.id}`);
 	}
 </script>
 
 {#if app.currentUser && canView}
-<div class="min-h-0 min-w-0 flex-1">
-	<AqarDeskGrid
-		{columns}
-		source={gridRows}
-		{loading}
-		{rtl}
-		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
-		readonly
-		height="100%"
-		emptyTitle={m.payments_empty_title()}
-		emptyDescription={m.payments_empty_description()}
-		onaction={handleGridAction}
-	>
-		{#snippet toolbarActions()}
-			<PaymentSheet
-				{tenants}
-				currencies={enabledCurrencies}
-				{busy}
-				disabled={!canRecord || tenants.length === 0}
-				onSubmit={record}
-			/>
-			{#if !loading && tenants.length === 0}
-				<span class="px-2 text-xs text-muted-foreground">{m.payments_need_tenant()}</span>
-			{/if}
-		{/snippet}
-	</AqarDeskGrid>
-</div>
+	<div class="min-h-0 min-w-0 flex-1">
+		<PaymentsDirectory
+			{payments}
+			{tenants}
+			{currencies}
+			{loading}
+			{busy}
+			{canRecord}
+			{canVoid}
+			onRecord={record}
+			onVoid={(payment) => void voidPayment(payment)}
+			onOpen={openPayment}
+		/>
+	</div>
 {/if}

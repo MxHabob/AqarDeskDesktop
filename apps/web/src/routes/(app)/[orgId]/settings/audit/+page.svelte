@@ -43,16 +43,19 @@
 			: []
 	);
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entry_id(), width: 220 },
 		{
 			id: 'actor_name',
 			header: m.settings_audit_actor(),
 			width: 180,
 			accessor: (row) => row.actor_name ?? row.actor_user_id ?? m.settings_audit_actor()
 		},
+		{ id: 'actor_user_id', header: m.settings_audit_actor_id(), width: 220 },
 		{ id: 'action', header: m.settings_audit_action(), width: 180 },
 		{ id: 'entity_type', header: m.settings_audit_entity(), width: 140 },
 		{ id: 'entity_id', header: m.settings_audit_entity_id(), width: 220 },
-		{ id: 'created_at', header: m.settings_audit_time(), type: 'datetime', width: 200 }
+		{ id: 'created_at', header: m.settings_audit_time(), type: 'datetime', width: 200 },
+		{ id: 'details_json', header: m.settings_audit_details(), width: 360 }
 	]);
 
 	onMount(() => {

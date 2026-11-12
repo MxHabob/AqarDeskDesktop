@@ -32,6 +32,10 @@
 <Select
 	type="single"
 	{value}
+	items={available.map((currency) => ({
+		value: currency.code,
+		label: currencyLabel(currency)
+	}))}
 	{disabled}
 	onValueChange={(selected) => {
 		if (selected) onChange(selected);
@@ -42,7 +46,7 @@
 	</SelectTrigger>
 	<SelectContent>
 		{#each available as currency (currency.code)}
-			<SelectItem value={currency.code}>{currencyLabel(currency)}</SelectItem>
+			<SelectItem value={currency.code} label={currencyLabel(currency)}>{currencyLabel(currency)}</SelectItem>
 		{/each}
 	</SelectContent>
 </Select>

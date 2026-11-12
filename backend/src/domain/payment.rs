@@ -69,8 +69,25 @@ pub struct PaymentInput {
     pub amount_minor: i64,
     pub currency_code: CurrencyCode,
     pub payment_method: PaymentMethod,
+    pub allocations: Vec<PaymentAllocationInput>,
     pub external_reference: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaymentAllocationInput {
+    pub contract_document_id: String,
+    pub amount_minor: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaymentAllocation {
+    pub contract_document_id: String,
+    pub contract_number: String,
+    pub property_name: String,
+    pub property_code: String,
+    pub unit_number: String,
+    pub amount_minor: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +99,7 @@ pub struct Payment {
     pub received_at: DateTime<Utc>,
     pub amount: Money,
     pub method: PaymentMethod,
+    pub allocations: Vec<PaymentAllocation>,
     pub external_reference: Option<String>,
     pub status: PaymentStatus,
     pub notes: Option<String>,
@@ -100,6 +118,27 @@ impl Payment {
         if input.amount_minor <= 0 {
             return Err(DomainError::Validation(
                 "Payment amount must be greater than zero.",
+            ));
+        }
+        let mut allocation_total = 0_i64;
+        let mut contract_ids = std::collections::HashSet::new();
+        let allocations_are_valid = !input.allocations.is_empty()
+            && input.allocations.iter().all(|allocation| {
+                if allocation.contract_document_id.trim().is_empty()
+                    || allocation.amount_minor <= 0
+                    || !contract_ids.insert(allocation.contract_document_id.as_str())
+                {
+                    return false;
+                }
+                let Some(total) = allocation_total.checked_add(allocation.amount_minor) else {
+                    return false;
+                };
+                allocation_total = total;
+                true
+            });
+        if !allocations_are_valid || allocation_total != input.amount_minor {
+            return Err(DomainError::Validation(
+                "Payment allocations must be positive, unique, and equal the payment total.",
             ));
         }
         if input
@@ -121,6 +160,18 @@ impl Payment {
             received_at: input.received_at,
             amount,
             method: input.payment_method,
+            allocations: input
+                .allocations
+                .into_iter()
+                .map(|allocation| PaymentAllocation {
+                    contract_document_id: allocation.contract_document_id,
+                    contract_number: String::new(),
+                    property_name: String::new(),
+                    property_code: String::new(),
+                    unit_number: String::new(),
+                    amount_minor: allocation.amount_minor,
+                })
+                .collect(),
             external_reference: input.external_reference,
             status: PaymentStatus::Posted,
             notes: input.notes,
@@ -156,6 +207,10 @@ mod tests {
             amount_minor,
             currency_code,
             payment_method: PaymentMethod::Cash,
+            allocations: vec![PaymentAllocationInput {
+                contract_document_id: "contract-1".to_string(),
+                amount_minor,
+            }],
             external_reference: None,
             notes: None,
         }
@@ -191,5 +246,44 @@ mod tests {
             ),
             Err(DomainError::Validation(_))
         ));
+    }
+
+    #[test]
+    fn payment_rejects_allocations_that_do_not_match_the_receipt() {
+        let mut input = input(10_000);
+        input.allocations[0].amount_minor = 9_999;
+        assert!(
+            Payment::record(
+                PaymentId::new(),
+                OrganizationId::new(),
+                UserId::new(),
+                input
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn payment_rejects_duplicate_contract_allocations() {
+        let mut input = input(10_000);
+        input.allocations = vec![
+            PaymentAllocationInput {
+                contract_document_id: "contract-1".to_string(),
+                amount_minor: 5_000,
+            },
+            PaymentAllocationInput {
+                contract_document_id: "contract-1".to_string(),
+                amount_minor: 5_000,
+            },
+        ];
+        assert!(
+            Payment::record(
+                PaymentId::new(),
+                OrganizationId::new(),
+                UserId::new(),
+                input
+            )
+            .is_err()
+        );
     }
 }

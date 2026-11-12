@@ -125,6 +125,57 @@ pub mod payment {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+pub mod payment_allocation {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "payment_allocations")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub payment_id: String,
+        pub contract_document_id: String,
+        pub contract_number: String,
+        pub property_name: String,
+        pub property_code: String,
+        pub unit_number: String,
+        pub amount_minor: i64,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod payment_contract {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_documents")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub contract_number: String,
+        pub property_name: String,
+        pub property_code: String,
+        pub unit_number: String,
+        pub tenant_id: String,
+        pub start_date: String,
+        pub end_date: String,
+        pub currency_code: String,
+        pub currency_decimal_digits: i16,
+        pub rent_amount_minor: i64,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 pub mod organization {
     use super::*;
 

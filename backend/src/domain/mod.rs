@@ -12,7 +12,9 @@ pub use identity::{
 };
 pub use money::{CurrencyCode, Money};
 pub use owner::{Owner, OwnerInput};
-pub use payment::{Payment, PaymentInput, PaymentMethod, PaymentStatus};
+pub use payment::{
+    Payment, PaymentAllocation, PaymentAllocationInput, PaymentInput, PaymentMethod, PaymentStatus,
+};
 pub use property::{
     Property, PropertyId, PropertyInput, PropertyOwnerInput, PropertyStatus, PropertyType,
 };

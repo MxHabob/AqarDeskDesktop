@@ -56,13 +56,18 @@ function removeGroup(index: number) {
 <div class="flex min-w-0 flex-col gap-3 {isRoot ? 'w-full' : 'ms-3 border-s border-border ps-3'}">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-            <Select type="single" value={filter.logic} onValueChange={(v) => { if (v) filter.logic = v as "AND" | "OR" }}>
+            <Select
+                type="single"
+                value={filter.logic}
+                items={[{ value: "AND", label: "AND" }, { value: "OR", label: "OR" }]}
+                onValueChange={(v) => { if (v) filter.logic = v as "AND" | "OR" }}
+            >
                 <SelectTrigger class="w-[90px] font-semibold tracking-wide text-xs h-9">
                     {filter.logic}
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="AND">AND</SelectItem>
-                    <SelectItem value="OR">OR</SelectItem>
+                    <SelectItem value="AND" label="AND">AND</SelectItem>
+                    <SelectItem value="OR" label="OR">OR</SelectItem>
                 </SelectContent>
             </Select>
             

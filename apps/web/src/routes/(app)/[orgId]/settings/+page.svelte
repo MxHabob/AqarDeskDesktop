@@ -229,6 +229,10 @@
 					<Select
 						type="single"
 						value={draft.timezone}
+						items={timezoneOptions.map((timezone) => ({
+							value: timezone,
+							label: timezone
+						}))}
 						disabled={!canEditOrganization}
 						onValueChange={(timezone) => {
 							if (timezone) draft.timezone = timezone;
@@ -239,7 +243,7 @@
 						</SelectTrigger>
 						<SelectContent class="max-h-72">
 							{#each timezoneOptions as timezone (timezone)}
-								<SelectItem value={timezone}>{timezone}</SelectItem>
+								<SelectItem value={timezone} label={timezone}>{timezone}</SelectItem>
 							{/each}
 						</SelectContent>
 					</Select>

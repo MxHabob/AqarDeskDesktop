@@ -94,6 +94,7 @@
 			{ key: 'payment.status', label: m.contracts_variable_payment_status() },
 			{ key: 'payment.tenant', label: m.contracts_variable_payment_tenant() },
 			{ key: 'payment.amount', label: m.contracts_variable_payment_amount() },
+			{ key: 'payment.allocations', label: m.contracts_variable_payment_allocations() },
 			{ key: 'payment.currency', label: m.contracts_variable_payment_currency() },
 			{ key: 'payment.method', label: m.contracts_variable_payment_method() },
 			{ key: 'payment.reference', label: m.contracts_variable_payment_reference() },
@@ -444,17 +445,28 @@
 			<form.Field name="lease_type">
 				{#snippet children(field)}
 					<FormField label={m.settings_template_lease_type()} id="template-lease-type">
-						<Select type="single" value={field.state.value} onValueChange={(value) => {
-							updatePreview('lease_type', value);
-							field.handleChange(value);
-						}}>
+						<Select
+							type="single"
+							value={field.state.value}
+							items={[
+								{ value: 'residential', label: m.properties_type_residential() },
+								{ value: 'commercial', label: m.properties_type_commercial() },
+								{ value: 'short_term', label: m.settings_template_short_term() },
+								{ value: 'other', label: m.common_other() },
+								{ value: 'receipt', label: m.settings_template_receipt() }
+							]}
+							onValueChange={(value) => {
+								updatePreview('lease_type', value);
+								field.handleChange(value);
+							}}
+						>
 							<SelectTrigger id="template-lease-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 							<SelectContent>
-								<SelectItem value="residential">{m.properties_type_residential()}</SelectItem>
-								<SelectItem value="commercial">{m.properties_type_commercial()}</SelectItem>
-								<SelectItem value="short_term">{m.settings_template_short_term()}</SelectItem>
-								<SelectItem value="other">{m.common_other()}</SelectItem>
-								<SelectItem value="receipt">{m.settings_template_receipt()}</SelectItem>
+								<SelectItem value="residential" label={m.properties_type_residential()}>{m.properties_type_residential()}</SelectItem>
+								<SelectItem value="commercial" label={m.properties_type_commercial()}>{m.properties_type_commercial()}</SelectItem>
+								<SelectItem value="short_term" label={m.settings_template_short_term()}>{m.settings_template_short_term()}</SelectItem>
+								<SelectItem value="other" label={m.common_other()}>{m.common_other()}</SelectItem>
+								<SelectItem value="receipt" label={m.settings_template_receipt()}>{m.settings_template_receipt()}</SelectItem>
 							</SelectContent>
 						</Select>
 					</FormField>

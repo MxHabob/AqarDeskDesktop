@@ -50,12 +50,18 @@
 		}
 	] satisfies { key: ViewKey; label: string; icon: typeof Building2; active: string[] }[];
 	const links = $derived(
-		allLinks.filter((item) =>
-			item.key !== 'properties' ||
-			(['properties', 'units', 'tenants', 'owners'] as const).some(
-				(view) => canViewBusinessView(currentUser.role, view, currentUser.permissions)
-			)
-		)
+		allLinks.filter((item) => {
+			if (item.key === 'properties') {
+				return (['properties', 'units', 'tenants', 'owners'] as const).some((view) =>
+					canViewBusinessView(currentUser.role, view, currentUser.permissions)
+				);
+			}
+			if (item.key === 'contracts') {
+				return canViewBusinessView(currentUser.role, 'contracts', currentUser.permissions) ||
+					canViewBusinessView(currentUser.role, 'payments', currentUser.permissions);
+			}
+			return true;
+		})
 	);
 </script>
 

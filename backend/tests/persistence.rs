@@ -1,8 +1,9 @@
 use aqardesk_backend::{
     application::{PaymentLedger, TenantDirectory, UnitCatalog},
     domain::{
-        AccessRole, ActorContext, CurrencyCode, OrganizationId, PaymentInput, PaymentMethod,
-        PropertyId, PropertyUnitInput, TenantInput, UnitStatus, UnitType, UserId,
+        AccessRole, ActorContext, CurrencyCode, OrganizationId, PaymentAllocationInput,
+        PaymentInput, PaymentMethod, PropertyId, PropertyUnitInput, TenantInput, UnitStatus,
+        UnitType, UserId,
     },
     infrastructure::{SeaOrmPaymentRepository, SeaOrmTenantRepository, SeaOrmUnitRepository},
     migration,
@@ -20,6 +21,8 @@ async fn database() -> sea_orm::DatabaseConnection {
         "CREATE TABLE tenants (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT, phone TEXT, mailing_address TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)",
         "CREATE TABLE property_units (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, property_id TEXT NOT NULL, unit_number TEXT NOT NULL, unit_type TEXT NOT NULL, floor_number INTEGER, area_square_meters REAL, bedrooms INTEGER NOT NULL, bathrooms REAL NOT NULL, market_rent_minor BIGINT, currency_code TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)",
         "CREATE TABLE payments (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, received_at TEXT NOT NULL, amount_minor BIGINT NOT NULL, currency_code TEXT NOT NULL, payment_method TEXT NOT NULL, external_reference TEXT, status TEXT NOT NULL, notes TEXT, recorded_by TEXT, created_at TEXT NOT NULL, voided_at TEXT)",
+        "CREATE TABLE contract_documents (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, contract_number TEXT NOT NULL, property_name TEXT NOT NULL, property_code TEXT NOT NULL, unit_number TEXT NOT NULL, tenant_id TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, currency_code TEXT NOT NULL, currency_decimal_digits INTEGER NOT NULL, rent_amount_minor BIGINT NOT NULL)",
+        "CREATE TABLE payment_allocations (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, payment_id TEXT NOT NULL, contract_document_id TEXT NOT NULL, contract_number TEXT NOT NULL, property_name TEXT NOT NULL, property_code TEXT NOT NULL, unit_number TEXT NOT NULL, amount_minor BIGINT NOT NULL)",
     ] {
         database
             .execute(Statement::from_string(DbBackend::Sqlite, sql))
@@ -150,16 +153,40 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
     let database = database().await;
     let organization_id = OrganizationId::new();
     let actor = actor(organization_id);
+    let tenant_id = aqardesk_backend::domain::TenantId::new();
+    database
+        .execute(Statement::from_string(
+            DbBackend::Sqlite,
+            format!(
+                "INSERT INTO contract_documents (id, organization_id, contract_number, property_name, property_code, unit_number, tenant_id, start_date, end_date, currency_code, currency_decimal_digits, rent_amount_minor) VALUES ('contract-1', '{}', 'AQD-1', 'Building A', 'A', '1', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 100000), ('contract-2', '{}', 'AQD-2', 'Building B', 'B', '2', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 200000)",
+                organization_id,
+                tenant_id,
+                organization_id,
+                tenant_id
+            ),
+        ))
+        .await
+        .expect("insert payment contract fixture");
     let ledger = PaymentLedger::new(SeaOrmPaymentRepository::new(&database));
     let payment = ledger
         .record(
             actor,
             PaymentInput {
-                tenant_id: aqardesk_backend::domain::TenantId::new(),
+                tenant_id,
                 received_at: Utc::now(),
                 amount_minor: 12_500,
                 currency_code: CurrencyCode::try_from("sar".to_string()).expect("currency code"),
                 payment_method: PaymentMethod::BankTransfer,
+                allocations: vec![
+                    PaymentAllocationInput {
+                        contract_document_id: "contract-1".to_string(),
+                        amount_minor: 5_000,
+                    },
+                    PaymentAllocationInput {
+                        contract_document_id: "contract-2".to_string(),
+                        amount_minor: 7_500,
+                    },
+                ],
                 external_reference: Some(" REF-1 ".to_string()),
                 notes: None,
             },
@@ -167,6 +194,19 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
         .await
         .expect("record payment");
     assert_eq!(payment.external_reference.as_deref(), Some("REF-1"));
+    assert_eq!(payment.allocations.len(), 2);
+    assert_eq!(payment.allocations[0].property_name, "Building A");
+    assert_eq!(payment.allocations[0].amount_minor, 5_000);
+    assert_eq!(payment.allocations[1].property_name, "Building B");
+    assert_eq!(payment.allocations[1].amount_minor, 7_500);
+    assert_eq!(
+        ledger
+            .contracts(actor, tenant_id)
+            .await
+            .expect("list tenant payment contracts")[0]
+            .contract_number,
+        "AQD-1"
+    );
 
     ledger.void(actor, payment.id).await.expect("void payment");
     assert!(
@@ -176,7 +216,12 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
             .expect("list payments")
             .iter()
             .any(|item| item.id == payment.id
-                && item.status == aqardesk_backend::domain::PaymentStatus::Void)
+                && item.status == aqardesk_backend::domain::PaymentStatus::Void
+                && item.allocations.len() == 2
+                && item
+                    .allocations
+                    .iter()
+                    .any(|allocation| allocation.contract_number == "AQD-1"))
     );
 
     let audit_rows = database

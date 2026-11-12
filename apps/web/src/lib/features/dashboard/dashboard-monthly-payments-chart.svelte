@@ -42,6 +42,7 @@
 			<Select
 				type="single"
 				value={activeCurrency}
+				items={currencies.map((currency) => ({ value: currency, label: currency }))}
 				onValueChange={(value) => (selectedCurrency = value)}
 			>
 				<SelectTrigger class="h-7 w-24 rounded-sm border-border/70 px-2">
@@ -49,7 +50,7 @@
 				</SelectTrigger>
 				<SelectContent>
 					{#each currencies as currency (currency)}
-						<SelectItem value={currency}>{currency}</SelectItem>
+						<SelectItem value={currency} label={currency}>{currency}</SelectItem>
 					{/each}
 				</SelectContent>
 			</Select>

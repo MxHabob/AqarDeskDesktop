@@ -110,11 +110,19 @@
 	<form.Field name="property_id">
 		{#snippet children(field)}
 			<FormField label={m.units_property()} id="unit-property" error={getFieldError(field.state.meta.errors)}>
-				<Select type="single" value={field.state.value} onValueChange={field.handleChange}>
+				<Select
+					type="single"
+					value={field.state.value}
+					items={properties.map((property) => ({
+						value: property.id,
+						label: `${property.name} (${property.code})`
+					}))}
+					onValueChange={field.handleChange}
+				>
 					<SelectTrigger id="unit-property" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 					<SelectContent>
 						{#each properties as property (property.id)}
-							<SelectItem value={property.id}>{property.name} ({property.code})</SelectItem>
+							<SelectItem value={property.id} label={`${property.name} (${property.code})`}>{property.name} ({property.code})</SelectItem>
 						{/each}
 					</SelectContent>
 				</Select>
@@ -132,15 +140,27 @@
 		<form.Field name="unit_type">
 			{#snippet children(field)}
 				<FormField label={m.units_type()} id="unit-type">
-					<Select type="single" value={field.state.value} onValueChange={(value) => setType(value, field.handleChange)}>
+					<Select
+						type="single"
+						value={field.state.value}
+						items={[
+							{ value: 'apartment', label: m.units_type_apartment() },
+							{ value: 'office', label: m.units_type_office() },
+							{ value: 'retail', label: m.units_type_retail() },
+							{ value: 'warehouse', label: m.units_type_warehouse() },
+							{ value: 'parking', label: m.units_type_parking() },
+							{ value: 'other', label: m.common_other() }
+						]}
+						onValueChange={(value) => setType(value, field.handleChange)}
+					>
 						<SelectTrigger id="unit-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 						<SelectContent>
-							<SelectItem value="apartment">{m.units_type_apartment()}</SelectItem>
-							<SelectItem value="office">{m.units_type_office()}</SelectItem>
-							<SelectItem value="retail">{m.units_type_retail()}</SelectItem>
-							<SelectItem value="warehouse">{m.units_type_warehouse()}</SelectItem>
-							<SelectItem value="parking">{m.units_type_parking()}</SelectItem>
-							<SelectItem value="other">{m.common_other()}</SelectItem>
+							<SelectItem value="apartment" label={m.units_type_apartment()}>{m.units_type_apartment()}</SelectItem>
+							<SelectItem value="office" label={m.units_type_office()}>{m.units_type_office()}</SelectItem>
+							<SelectItem value="retail" label={m.units_type_retail()}>{m.units_type_retail()}</SelectItem>
+							<SelectItem value="warehouse" label={m.units_type_warehouse()}>{m.units_type_warehouse()}</SelectItem>
+							<SelectItem value="parking" label={m.units_type_parking()}>{m.units_type_parking()}</SelectItem>
+							<SelectItem value="other" label={m.common_other()}>{m.common_other()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</FormField>
@@ -150,12 +170,21 @@
 	<form.Field name="status">
 		{#snippet children(field)}
 			<FormField label={m.units_status()} id="unit-status">
-				<Select type="single" value={field.state.value} onValueChange={(value) => setStatus(value, field.handleChange)}>
+				<Select
+					type="single"
+					value={field.state.value}
+					items={[
+						{ value: 'available', label: m.units_status_available() },
+						{ value: 'maintenance', label: m.units_status_maintenance() },
+						{ value: 'inactive', label: m.common_disabled() }
+					]}
+					onValueChange={(value) => setStatus(value, field.handleChange)}
+				>
 					<SelectTrigger id="unit-status" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 					<SelectContent>
-						<SelectItem value="available">{m.units_status_available()}</SelectItem>
-						<SelectItem value="maintenance">{m.units_status_maintenance()}</SelectItem>
-						<SelectItem value="inactive">{m.common_disabled()}</SelectItem>
+						<SelectItem value="available" label={m.units_status_available()}>{m.units_status_available()}</SelectItem>
+						<SelectItem value="maintenance" label={m.units_status_maintenance()}>{m.units_status_maintenance()}</SelectItem>
+						<SelectItem value="inactive" label={m.common_disabled()}>{m.common_disabled()}</SelectItem>
 					</SelectContent>
 				</Select>
 			</FormField>

@@ -41,8 +41,11 @@
 					{ key: 'contracts' as const, label: m.nav_contracts() },
 					{ key: 'payments' as const, label: m.nav_payments() }
 				].filter((item) =>
-					item.key !== 'payments' ||
-					canViewBusinessView(currentUser.role, 'payments', currentUser.permissions)
+					canViewBusinessView(
+						currentUser.role,
+						item.key,
+						currentUser.permissions
+					)
 				)
 			};
 		}
@@ -65,8 +68,9 @@
 				{ key: 'contracts' as const, label: m.nav_contracts() },
 				{ key: 'payments' as const, label: m.nav_payments() }
 			].filter((item) =>
-				item.key === 'contracts' ||
-				(item.key === 'properties'
+				(item.key === 'contracts'
+					? canViewBusinessView(currentUser.role, 'contracts', currentUser.permissions)
+					: item.key === 'properties'
 					? (['properties', 'units', 'tenants', 'owners'] as const).some((view) =>
 						canViewBusinessView(currentUser.role, view, currentUser.permissions)
 					)

@@ -229,6 +229,10 @@
 					<Select
 						type="single"
 						value={app.theme}
+						items={[
+							{ value: 'light', label: m.account_theme_light() },
+							{ value: 'dark', label: m.account_theme_dark() }
+						]}
 						onValueChange={(value) => {
 							if (value === 'light' || value === 'dark') app.changeTheme(value);
 						}}
@@ -237,8 +241,8 @@
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="light">{m.account_theme_light()}</SelectItem>
-							<SelectItem value="dark">{m.account_theme_dark()}</SelectItem>
+							<SelectItem value="light" label={m.account_theme_light()}>{m.account_theme_light()}</SelectItem>
+							<SelectItem value="dark" label={m.account_theme_dark()}>{m.account_theme_dark()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</SettingsFieldRow>
@@ -250,6 +254,10 @@
 					<Select
 						type="single"
 						value={app.contrast}
+						items={[
+							{ value: 'normal', label: m.account_contrast_normal() },
+							{ value: 'high', label: m.account_contrast_high() }
+						]}
 						onValueChange={(value) => {
 							if (value === 'normal' || value === 'high') app.changeContrast(value);
 						}}
@@ -258,8 +266,8 @@
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="normal">{m.account_contrast_normal()}</SelectItem>
-							<SelectItem value="high">{m.account_contrast_high()}</SelectItem>
+							<SelectItem value="normal" label={m.account_contrast_normal()}>{m.account_contrast_normal()}</SelectItem>
+							<SelectItem value="high" label={m.account_contrast_high()}>{m.account_contrast_high()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</SettingsFieldRow>
@@ -271,18 +279,26 @@
 					<Select
 						type="single"
 						value={app.toastPosition}
+						items={[
+							{ value: 'top-left', label: m.account_toast_top_left() },
+							{ value: 'top-center', label: m.account_toast_top_center() },
+							{ value: 'top-right', label: m.account_toast_top_right() },
+							{ value: 'bottom-left', label: m.account_toast_bottom_left() },
+							{ value: 'bottom-center', label: m.account_toast_bottom_center() },
+							{ value: 'bottom-right', label: m.account_toast_bottom_right() }
+						]}
 						onValueChange={previewToastPosition}
 					>
 						<SelectTrigger id="account-toast-position" class="h-9 w-full rounded-md text-sm">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="top-left">{m.account_toast_top_left()}</SelectItem>
-							<SelectItem value="top-center">{m.account_toast_top_center()}</SelectItem>
-							<SelectItem value="top-right">{m.account_toast_top_right()}</SelectItem>
-							<SelectItem value="bottom-left">{m.account_toast_bottom_left()}</SelectItem>
-							<SelectItem value="bottom-center">{m.account_toast_bottom_center()}</SelectItem>
-							<SelectItem value="bottom-right">{m.account_toast_bottom_right()}</SelectItem>
+							<SelectItem value="top-left" label={m.account_toast_top_left()}>{m.account_toast_top_left()}</SelectItem>
+							<SelectItem value="top-center" label={m.account_toast_top_center()}>{m.account_toast_top_center()}</SelectItem>
+							<SelectItem value="top-right" label={m.account_toast_top_right()}>{m.account_toast_top_right()}</SelectItem>
+							<SelectItem value="bottom-left" label={m.account_toast_bottom_left()}>{m.account_toast_bottom_left()}</SelectItem>
+							<SelectItem value="bottom-center" label={m.account_toast_bottom_center()}>{m.account_toast_bottom_center()}</SelectItem>
+							<SelectItem value="bottom-right" label={m.account_toast_bottom_right()}>{m.account_toast_bottom_right()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</SettingsFieldRow>

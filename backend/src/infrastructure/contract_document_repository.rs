@@ -1,0 +1,622 @@
+use crate::{
+    application::{
+        ApplicationError, ContractDocument, ContractDocumentInput, ContractDocumentRepository,
+    },
+    infrastructure::{
+        audit,
+        models::{organization, organization_currency, tenant, unit},
+    },
+};
+use chrono::Utc;
+use sea_orm::entity::prelude::*;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
+};
+use std::collections::HashMap;
+use uuid::Uuid;
+
+mod property {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "properties")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub code: String,
+        pub name: String,
+        pub address_line_1: String,
+        pub address_line_2: Option<String>,
+        pub city: String,
+        pub region: Option<String>,
+        pub status: String,
+        pub deleted_at: Option<DateTimeUtc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+mod currency {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "currencies")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub code: String,
+        pub name: String,
+        pub name_ar: Option<String>,
+        pub symbol: String,
+        pub symbol_position: String,
+        pub decimal_digits: i16,
+        pub is_active: bool,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+mod template {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_templates")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub template_key: String,
+        pub name: String,
+        pub description: Option<String>,
+        pub lease_type: String,
+        pub locale: String,
+        pub is_active: bool,
+        pub created_by: Option<String>,
+        pub updated_by: Option<String>,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+mod template_version {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_template_versions")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub template_id: String,
+        pub version_number: i32,
+        pub content_format: String,
+        pub content_body: Option<String>,
+        pub placeholders_json: String,
+        pub content_sha256: String,
+        pub change_note: Option<String>,
+        pub created_by: Option<String>,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[sea_orm(table_name = "contract_documents")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    id: String,
+    organization_id: String,
+    contract_number: String,
+    template_id: String,
+    template_version_id: String,
+    template_name: String,
+    template_locale: String,
+    property_id: String,
+    property_name: String,
+    property_code: String,
+    unit_id: String,
+    unit_number: String,
+    tenant_id: String,
+    tenant_name: String,
+    start_date: String,
+    end_date: String,
+    currency_code: String,
+    currency_decimal_digits: i16,
+    rent_amount_minor: i64,
+    deposit_amount_minor: i64,
+    document_body: String,
+    created_by: String,
+    created_at: DateTimeUtc,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+
+impl ActiveModelBehavior for ActiveModel {}
+
+pub struct SeaOrmContractDocumentRepository {
+    database: DatabaseConnection,
+}
+
+impl SeaOrmContractDocumentRepository {
+    pub fn new(database: &DatabaseConnection) -> Self {
+        Self {
+            database: database.clone(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
+    async fn list(
+        &self,
+        organization_id: &str,
+        property_id: Option<&str>,
+    ) -> Result<Vec<ContractDocument>, ApplicationError> {
+        let mut query = Entity::find()
+            .filter(Column::OrganizationId.eq(organization_id))
+            .order_by_desc(Column::CreatedAt);
+        if let Some(property_id) = property_id {
+            query = query.filter(Column::PropertyId.eq(property_id));
+        }
+        query
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?
+            .into_iter()
+            .map(to_contract_document)
+            .collect()
+    }
+
+    async fn create(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        input: ContractDocumentInput,
+    ) -> Result<ContractDocument, ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let property = property::Entity::find_by_id(&input.property_id)
+            .filter(property::Column::OrganizationId.eq(organization_id))
+            .filter(property::Column::DeletedAt.is_null())
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .filter(|property| property.status == "active")
+            .ok_or(ApplicationError::NotFound)?;
+        let unit = unit::Entity::find_by_id(&input.unit_id)
+            .filter(unit::Column::OrganizationId.eq(organization_id))
+            .filter(unit::Column::PropertyId.eq(&input.property_id))
+            .filter(unit::Column::DeletedAt.is_null())
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .filter(|unit| unit.status != "inactive")
+            .ok_or(ApplicationError::NotFound)?;
+        let tenant = tenant::Entity::find_by_id(&input.tenant_id)
+            .filter(tenant::Column::OrganizationId.eq(organization_id))
+            .filter(tenant::Column::DeletedAt.is_null())
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let template = template::Entity::find_by_id(&input.template_id)
+            .filter(template::Column::OrganizationId.eq(organization_id))
+            .filter(template::Column::IsActive.eq(true))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .filter(|template| template.lease_type != "receipt")
+            .ok_or(ApplicationError::NotFound)?;
+        let template_version = template_version::Entity::find()
+            .filter(template_version::Column::OrganizationId.eq(organization_id))
+            .filter(template_version::Column::TemplateId.eq(&template.id))
+            .order_by_desc(template_version::Column::VersionNumber)
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let content = template_version
+            .content_body
+            .filter(|content| !content.trim().is_empty())
+            .ok_or_else(|| validation("The selected contract template has no content."))?;
+        let organization = organization::Entity::find_by_id(organization_id)
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let currency = currency::Entity::find_by_id(&input.currency_code)
+            .filter(currency::Column::IsActive.eq(true))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or_else(|| validation("The selected currency is not active."))?;
+        let organization_currency = organization_currency::Entity::find()
+            .filter(organization_currency::Column::OrganizationId.eq(organization_id))
+            .filter(organization_currency::Column::CurrencyCode.eq(&input.currency_code))
+            .filter(organization_currency::Column::IsEnabled.eq(true))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        if organization_currency.is_none() {
+            return Err(validation(
+                "The selected currency is not enabled for this organization.",
+            ));
+        }
+
+        let timezone = organization.timezone.parse::<chrono_tz::Tz>().map_err(|error| {
+            tracing::error!(%error, "Organization timezone is invalid while preparing a contract");
+            ApplicationError::Persistence
+        })?;
+        let now = Utc::now();
+        let today = now.with_timezone(&timezone).date_naive().to_string();
+        let contract_number = format!(
+            "AQD-{}-{}",
+            today.replace('-', ""),
+            Uuid::new_v4()
+                .simple()
+                .to_string()
+                .chars()
+                .take(8)
+                .collect::<String>()
+                .to_uppercase()
+        );
+        let property_address = [
+            Some(property.address_line_1.as_str()),
+            property.address_line_2.as_deref(),
+            Some(property.city.as_str()),
+            property.region.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("، ");
+        let values = HashMap::from([
+            ("tenant.full_name", tenant.full_name.clone()),
+            (
+                "tenant.email",
+                tenant.email.unwrap_or_else(|| "—".to_string()),
+            ),
+            (
+                "tenant.phone",
+                tenant.phone.unwrap_or_else(|| "—".to_string()),
+            ),
+            (
+                "tenant.address",
+                tenant.mailing_address.unwrap_or_else(|| "—".to_string()),
+            ),
+            ("property.name", property.name.clone()),
+            ("property.code", property.code.clone()),
+            (
+                "property.address",
+                if property_address.is_empty() {
+                    "—".to_string()
+                } else {
+                    property_address
+                },
+            ),
+            ("property.city", property.city.clone()),
+            ("unit.number", unit.unit_number.clone()),
+            ("unit.type", unit.unit_type.clone()),
+            (
+                "unit.floor",
+                unit.floor_number
+                    .map_or_else(|| "—".to_string(), |floor| floor.to_string()),
+            ),
+            (
+                "unit.area",
+                unit.area_square_meters
+                    .map_or_else(|| "—".to_string(), |area| format!("{area} م²")),
+            ),
+            ("unit.bedrooms", unit.bedrooms.to_string()),
+            ("unit.bathrooms", unit.bathrooms.to_string()),
+            (
+                "unit.rent",
+                format_amount(
+                    input.rent_amount_minor,
+                    currency.decimal_digits,
+                    &currency.code,
+                ),
+            ),
+            ("unit.currency", currency.code.clone()),
+            ("contract.number", contract_number.clone()),
+            ("contract.date", today),
+            ("contract.start_date", input.start_date.clone()),
+            ("contract.end_date", input.end_date.clone()),
+            (
+                "contract.deposit",
+                if input.deposit_amount_minor == 0 {
+                    "—".to_string()
+                } else {
+                    format_amount(
+                        input.deposit_amount_minor,
+                        currency.decimal_digits,
+                        &currency.code,
+                    )
+                },
+            ),
+            ("organization.name", organization.name),
+        ]);
+        let document_body = resolve_template(&content, &values)?;
+        if document_body.trim().is_empty() || document_body.len() > 500_000 {
+            return Err(validation("The generated contract document is invalid."));
+        }
+
+        let id = Uuid::new_v4().to_string();
+        let model = ActiveModel {
+            id: Set(id),
+            organization_id: Set(organization_id.to_string()),
+            contract_number: Set(contract_number),
+            template_id: Set(template.id),
+            template_version_id: Set(template_version.id),
+            template_name: Set(template.name),
+            template_locale: Set(template.locale),
+            property_id: Set(property.id),
+            property_name: Set(property.name),
+            property_code: Set(property.code),
+            unit_id: Set(unit.id),
+            unit_number: Set(unit.unit_number),
+            tenant_id: Set(tenant.id),
+            tenant_name: Set(tenant.full_name),
+            start_date: Set(input.start_date),
+            end_date: Set(input.end_date),
+            currency_code: Set(currency.code),
+            currency_decimal_digits: Set(currency.decimal_digits),
+            rent_amount_minor: Set(input.rent_amount_minor),
+            deposit_amount_minor: Set(input.deposit_amount_minor),
+            document_body: Set(document_body),
+            created_by: Set(actor_id.to_string()),
+            created_at: Set(now),
+        }
+        .insert(&transaction)
+        .await
+        .map_err(persistence_error)?;
+
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            "created",
+            "contract_document",
+            &model.id,
+            serde_json::json!({
+                "contract_number": model.contract_number,
+                "property_id": model.property_id,
+                "tenant_id": model.tenant_id
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)?;
+        to_contract_document(model)
+    }
+}
+
+fn resolve_template(
+    content: &str,
+    values: &HashMap<&str, String>,
+) -> Result<String, ApplicationError> {
+    let mut rendered = String::with_capacity(content.len());
+    let mut remaining = content;
+    while let Some(open) = remaining.find("{{") {
+        rendered.push_str(&remaining[..open]);
+        let after_open = &remaining[open + 2..];
+        let close = after_open
+            .find("}}")
+            .ok_or_else(|| validation("The contract template contains an incomplete field."))?;
+        let key = after_open[..close].trim();
+        let value = values.get(key).ok_or_else(|| {
+            tracing::warn!(
+                field = key,
+                "Contract template contains an unsupported field"
+            );
+            validation("The contract template contains an unsupported field.")
+        })?;
+        rendered.push_str(value);
+        remaining = &after_open[close + 2..];
+    }
+    rendered.push_str(remaining);
+    if rendered.contains("}}") {
+        return Err(validation(
+            "The contract template contains an incomplete field.",
+        ));
+    }
+    Ok(rendered)
+}
+
+fn format_amount(amount_minor: i64, decimal_digits: i16, currency_code: &str) -> String {
+    let scale = 10_i64.pow(decimal_digits as u32);
+    let whole = amount_minor / scale;
+    if decimal_digits == 0 {
+        return format!("{whole} {currency_code}");
+    }
+    let fraction = amount_minor % scale;
+    format!(
+        "{whole}.{fraction:0width$} {currency_code}",
+        width = decimal_digits as usize
+    )
+}
+
+fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationError> {
+    Ok(ContractDocument {
+        id: model.id,
+        organization_id: model.organization_id,
+        contract_number: model.contract_number,
+        template_id: model.template_id,
+        template_version_id: model.template_version_id,
+        template_name: model.template_name,
+        template_locale: model.template_locale,
+        property_id: model.property_id,
+        property_name: model.property_name,
+        property_code: model.property_code,
+        unit_id: model.unit_id,
+        unit_number: model.unit_number,
+        tenant_id: model.tenant_id,
+        tenant_name: model.tenant_name,
+        start_date: model.start_date,
+        end_date: model.end_date,
+        currency_code: model.currency_code,
+        currency_decimal_digits: model.currency_decimal_digits,
+        rent_amount_minor: model.rent_amount_minor,
+        deposit_amount_minor: model.deposit_amount_minor,
+        document_body: model.document_body,
+        created_by: model.created_by,
+        created_at: model.created_at.to_rfc3339(),
+    })
+}
+
+fn validation(message: &'static str) -> ApplicationError {
+    crate::domain::DomainError::Validation(message).into()
+}
+
+fn persistence_error(error: sea_orm::DbErr) -> ApplicationError {
+    tracing::error!(%error, "Contract document persistence operation failed");
+    ApplicationError::Persistence
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::{
+            ContractDocumentInput, ContractDocumentService, ContractTemplateInput,
+            ContractTemplateService, IdentityService, OrganizationBootstrap,
+        },
+        domain::{AccessRole, ActorContext},
+        infrastructure::{SeaOrmContractTemplateRepository, SeaOrmIdentityRepository},
+        migration,
+    };
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    #[tokio::test]
+    async fn created_documents_keep_the_template_version_and_filled_content_snapshot() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect SQLite database");
+        migration::initialize(&database)
+            .await
+            .expect("initialize schema");
+        let identities = IdentityService::new(SeaOrmIdentityRepository::new(&database));
+        let (organization, admin) = identities
+            .bootstrap_admin(OrganizationBootstrap {
+                organization_name: "Contract documents",
+                name: "Administrator",
+                email: "contracts@example.com",
+                password: "contract-document-test-password",
+            })
+            .await
+            .expect("create organization and administrator");
+        let actor = ActorContext::new(admin.id, organization.id, AccessRole::Admin);
+        let property_id = Uuid::new_v4().to_string();
+        let unit_id = Uuid::new_v4().to_string();
+        let tenant_id = Uuid::new_v4().to_string();
+        database
+            .execute(Statement::from_string(
+                database.get_database_backend(),
+                format!(
+                    "INSERT INTO properties (id, organization_id, code, name, property_type, address_line_1, city, country_code) VALUES ('{property_id}', '{}', 'DOC-1', 'Snapshot property', 'residential', 'Main Street', 'Riyadh', 'SA')",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("insert property");
+        database
+            .execute(Statement::from_string(
+                database.get_database_backend(),
+                format!(
+                    "INSERT INTO property_units (id, organization_id, property_id, unit_number, unit_type, bedrooms, bathrooms) VALUES ('{unit_id}', '{}', '{property_id}', 'A-1', 'apartment', 2, 1)",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("insert unit");
+        database
+            .execute(Statement::from_string(
+                database.get_database_backend(),
+                format!(
+                    "INSERT INTO tenants (id, organization_id, full_name, email) VALUES ('{tenant_id}', '{}', 'Snapshot tenant', 'tenant@example.com')",
+                    organization.id
+                ),
+            ))
+            .await
+            .expect("insert tenant");
+
+        let templates =
+            ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database));
+        let template_input = ContractTemplateInput {
+            template_key: "snapshot-lease".to_string(),
+            name: "Snapshot lease".to_string(),
+            description: None,
+            lease_type: "residential".to_string(),
+            locale: "en".to_string(),
+            content_format: "markdown".to_string(),
+            content_body:
+                "{{tenant.full_name}} - {{property.name}} - {{unit.number}} - {{contract.number}}"
+                    .to_string(),
+            placeholders_json: Some("{}".to_string()),
+            change_note: None,
+        };
+        let template = templates
+            .create(actor, template_input.clone())
+            .await
+            .expect("create contract template");
+        let document =
+            ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
+                .create(
+                    actor,
+                    ContractDocumentInput {
+                        template_id: template.id.clone(),
+                        tenant_id,
+                        property_id: property_id.clone(),
+                        unit_id,
+                        start_date: "2026-01-01".to_string(),
+                        end_date: "2026-12-31".to_string(),
+                        currency_code: "SAR".to_string(),
+                        rent_amount_minor: 120_000,
+                        deposit_amount_minor: 0,
+                    },
+                )
+                .await
+                .expect("save generated contract document");
+
+        let mut edited_template = template_input;
+        edited_template.content_body = "A later template version".to_string();
+        edited_template.change_note = Some("Update after issue".to_string());
+        templates
+            .update(actor, &template.id, edited_template)
+            .await
+            .expect("update source template");
+
+        let saved = ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
+            .list(actor, Some(&property_id))
+            .await
+            .expect("list saved contract for property");
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].id, document.id);
+        assert_eq!(saved[0].template_version_id, template.versions[0].id);
+        assert_eq!(
+            saved[0].document_body,
+            format!(
+                "Snapshot tenant - Snapshot property - A-1 - {}",
+                document.contract_number
+            )
+        );
+    }
+}

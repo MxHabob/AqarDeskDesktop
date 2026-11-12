@@ -1,7 +1,23 @@
 use crate::{
     application::{ApplicationError, require_permission},
-    domain::{ActorContext, OrganizationId, Payment, PaymentId, PaymentInput, Permission},
+    domain::{
+        ActorContext, OrganizationId, Payment, PaymentId, PaymentInput, Permission, TenantId,
+    },
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaymentContract {
+    pub id: String,
+    pub contract_number: String,
+    pub property_name: String,
+    pub property_code: String,
+    pub unit_number: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub currency_code: String,
+    pub currency_decimal_digits: i16,
+    pub rent_amount_minor: i64,
+}
 
 #[async_trait::async_trait]
 pub trait PaymentRepository: Send + Sync {
@@ -9,6 +25,12 @@ pub trait PaymentRepository: Send + Sync {
     -> Result<Vec<Payment>, ApplicationError>;
 
     async fn insert(&self, payment: Payment) -> Result<Payment, ApplicationError>;
+
+    async fn contracts(
+        &self,
+        organization_id: OrganizationId,
+        tenant_id: TenantId,
+    ) -> Result<Vec<PaymentContract>, ApplicationError>;
 
     async fn void(
         &self,
@@ -45,6 +67,17 @@ impl<R: PaymentRepository> PaymentLedger<R> {
             input,
         )?;
         self.payments.insert(payment).await
+    }
+
+    pub async fn contracts(
+        &self,
+        actor: ActorContext,
+        tenant_id: TenantId,
+    ) -> Result<Vec<PaymentContract>, ApplicationError> {
+        require_permission(actor, Permission::RecordPayments)?;
+        self.payments
+            .contracts(actor.organization_id(), tenant_id)
+            .await
     }
 
     pub async fn void(

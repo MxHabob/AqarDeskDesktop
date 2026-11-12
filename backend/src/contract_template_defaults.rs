@@ -300,6 +300,7 @@ Guest: ________________________________    Date: __________
 
 ## تفاصيل المبلغ
 - المبلغ: {{payment.amount}} ({{payment.currency}})
+- توزيع الدفعة: {{payment.allocations}}
 - طريقة الدفع: {{payment.method}}
 - المرجع: {{payment.reference}}
 
@@ -328,6 +329,7 @@ Guest: ________________________________    Date: __________
 
 ## Payment details
 - Amount: {{payment.amount}} ({{payment.currency}})
+- Allocation: {{payment.allocations}}
 - Payment method: {{payment.method}}
 - Reference: {{payment.reference}}
 

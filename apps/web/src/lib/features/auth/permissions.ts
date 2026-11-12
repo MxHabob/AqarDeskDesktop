@@ -19,10 +19,12 @@ export type Permission =
 	| 'view_payments'
 	| 'record_payments'
 	| 'void_payments'
+	| 'view_contracts'
+	| 'create_contracts'
 	| 'manage_administration';
 
 export type AccessRole = 'admin' | 'staff' | 'readonly';
-export type BusinessView = 'properties' | 'units' | 'tenants' | 'owners' | 'payments';
+export type BusinessView = 'properties' | 'units' | 'tenants' | 'owners' | 'payments' | 'contracts';
 
 export type PermissionOption = {
 	key: Permission;
@@ -81,6 +83,13 @@ export const permissionGroups: PermissionGroup[] = [
 			option('record_payments', m.settings_permissions_record, m.nav_payments),
 			option('void_payments', m.settings_permissions_void, m.nav_payments)
 		]
+	},
+	{
+		label: m.settings_permissions_manage_contracts,
+		permissions: [
+			option('view_contracts', m.settings_permissions_view, m.nav_contracts),
+			option('create_contracts', m.settings_permissions_create, m.nav_contracts)
+		]
 	}
 ];
 
@@ -97,7 +106,8 @@ export const permissionDependencies: Partial<Record<Permission, readonly Permiss
 	update_tenants: ['view_tenants'],
 	archive_tenants: ['view_tenants'],
 	record_payments: ['view_payments', 'view_tenants'],
-	void_payments: ['view_payments']
+	void_payments: ['view_payments'],
+	create_contracts: ['view_contracts', 'view_properties', 'view_units', 'view_tenants']
 };
 
 const businessPermissions = permissionGroups.flatMap((group) =>
@@ -151,7 +161,8 @@ export function canViewBusinessView(
 		units: 'view_units',
 		tenants: 'view_tenants',
 		owners: 'view_owners',
-		payments: 'view_payments'
+		payments: 'view_payments',
+		contracts: 'view_contracts'
 	};
 	return hasPermission(role, permission[view], effectivePermissions);
 }

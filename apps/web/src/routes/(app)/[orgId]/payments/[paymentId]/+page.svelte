@@ -26,6 +26,7 @@
 	let templates = $state<ContractTemplate[]>([]);
 	let loading = $state(true);
 	const locale = $derived(getLocale());
+	const paymentCurrencyCode = $derived(payment?.currency_code ?? '');
 	const receiptTemplate = $derived(
 		templates.find(
 			(template) =>
@@ -36,22 +37,37 @@
 		)
 	);
 	const renderedTemplate = $derived.by(() => {
-		if (!receiptTemplate || !payment) return { content: '', unresolved: [] as string[] };
+		if (!receiptTemplate || !payment) {
+			return { content: '', unresolved: [] as string[], hasAllocationPlaceholder: false };
+		}
+		const currentPayment = payment;
+		const templateContent = receiptTemplate.versions[0]?.content_body ?? '';
+		const hasAllocationPlaceholder = templateContent.includes('{{payment.allocations}}');
 		const values: Record<string, string> = {
-			'payment.receipt_number': payment.id,
-			'payment.date': formatDate(payment.received_at, 'datetime', undefined, organization?.timezone),
+			'payment.receipt_number': currentPayment.id,
+			'payment.date': formatDate(currentPayment.received_at, 'datetime', undefined, organization?.timezone),
 			'payment.status':
-				payment.status === 'posted' ? m.payments_status_posted() : m.payments_status_void(),
-			'payment.tenant': payment.tenant_name,
-			'payment.amount': formatMoney(payment),
-			'payment.currency': payment.currency_code,
-			'payment.method': methodLabel(payment.payment_method),
-			'payment.reference': payment.external_reference || '—',
-			'payment.notes': payment.notes || '—',
+				currentPayment.status === 'posted' ? m.payments_status_posted() : m.payments_status_void(),
+			'payment.tenant': currentPayment.tenant_name,
+			'payment.amount': formatMoney(currentPayment),
+			'payment.allocations': currentPayment.allocations
+				.map(
+					(allocation) =>
+						`${allocation.contract_number} · ${allocation.property_name} (${allocation.unit_number}): ${formatCurrency(
+							allocation.amount_minor,
+							currentPayment.currency_code,
+							currencies.find((currency) => currency.code === currentPayment.currency_code)?.decimal_digits ?? 2
+						)}`
+				)
+				.join('\n') || '—',
+			'payment.currency': currentPayment.currency_code,
+			'payment.method': methodLabel(currentPayment.payment_method),
+			'payment.reference': currentPayment.external_reference || '—',
+			'payment.notes': currentPayment.notes || '—',
 			'organization.name': organization?.name ?? m.app_name()
 		};
 		const unresolved = new Set<string>();
-		const content = (receiptTemplate.versions[0]?.content_body ?? '').replace(
+		const content = templateContent.replace(
 			/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g,
 			(token, key: string) => {
 				if (!(key in values)) {
@@ -61,7 +77,7 @@
 				return values[key]!;
 			}
 		);
-		return { content, unresolved: [...unresolved] };
+		return { content, unresolved: [...unresolved], hasAllocationPlaceholder };
 	});
 
 	onMount(() => {
@@ -242,6 +258,7 @@
 										<strong class="break-words text-sm font-semibold">{field.value}</strong>
 									</div>
 								{/each}
+
 							</div>
 						{/if}
 						{#each section.paragraphs as paragraph, paragraphIndex (`${section.title}-paragraph-${paragraphIndex}`)}
@@ -249,6 +266,30 @@
 						{/each}
 					</section>
 				{/each}
+
+				{#if payment.allocations.length > 0 && !renderedTemplate.hasAllocationPlaceholder}
+					<section class="grid gap-3">
+						<h2 class="border-b border-slate-200 pb-2 text-base font-bold text-indigo-950">
+							{m.payments_allocation_column()}
+						</h2>
+						<div class="grid gap-3 sm:grid-cols-2">
+							{#each payment.allocations as allocation (allocation.contract_document_id)}
+								<div class="grid gap-1 border-b border-slate-200 pb-2">
+									<span class="text-xs text-slate-500">
+										{allocation.contract_number} · {allocation.property_name} ({allocation.unit_number})
+									</span>
+									<strong class="text-sm font-semibold">
+										{formatCurrency(
+											allocation.amount_minor,
+											paymentCurrencyCode,
+											currencies.find((currency) => currency.code === paymentCurrencyCode)?.decimal_digits ?? 2
+										)}
+									</strong>
+								</div>
+							{/each}
+						</div>
+					</section>
+				{/if}
 
 				{#if document.footer.length}
 					<div class="grid gap-2 border-t border-slate-200 pt-4 text-sm leading-7 text-slate-600">

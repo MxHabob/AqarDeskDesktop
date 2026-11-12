@@ -5,7 +5,8 @@ use crate::platform_runtime::{
 use aqardesk_backend::{
     application::{
         IdentityService, NewUser, OrganizationBootstrap, OrganizationSettingsService,
-        OwnerDirectory, PaymentLedger, PropertyCatalog, TenantDirectory, UnitCatalog, UserUpdate,
+        OwnerDirectory, PaymentContract, PaymentLedger, PropertyCatalog, TenantDirectory,
+        UnitCatalog, UserUpdate,
     },
     domain::{
         ActorContext, Owner, OwnerId, OwnerInput, Payment, PaymentInput, Permission, Property,
@@ -250,10 +251,52 @@ pub struct PaymentView {
     pub amount_minor: i64,
     pub currency_code: String,
     pub payment_method: String,
+    pub allocations: Vec<PaymentAllocationView>,
     pub external_reference: Option<String>,
     pub status: String,
     pub notes: Option<String>,
     pub voided_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaymentAllocationView {
+    pub contract_document_id: String,
+    pub contract_number: String,
+    pub property_name: String,
+    pub property_code: String,
+    pub unit_number: String,
+    pub amount_minor: i64,
+}
+
+impl From<PaymentContract> for PaymentContractView {
+    fn from(value: PaymentContract) -> Self {
+        Self {
+            id: value.id,
+            contract_number: value.contract_number,
+            property_name: value.property_name,
+            property_code: value.property_code,
+            unit_number: value.unit_number,
+            start_date: value.start_date,
+            end_date: value.end_date,
+            currency_code: value.currency_code,
+            currency_decimal_digits: value.currency_decimal_digits,
+            rent_amount_minor: value.rent_amount_minor,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaymentContractView {
+    pub id: String,
+    pub contract_number: String,
+    pub property_name: String,
+    pub property_code: String,
+    pub unit_number: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub currency_code: String,
+    pub currency_decimal_digits: i16,
+    pub rent_amount_minor: i64,
 }
 
 impl From<(Payment, String)> for PaymentView {
@@ -266,6 +309,18 @@ impl From<(Payment, String)> for PaymentView {
             amount_minor: value.amount.amount_minor(),
             currency_code: value.amount.currency().as_str().to_string(),
             payment_method: value.method.as_str().to_string(),
+            allocations: value
+                .allocations
+                .into_iter()
+                .map(|allocation| PaymentAllocationView {
+                    contract_document_id: allocation.contract_document_id,
+                    contract_number: allocation.contract_number,
+                    property_name: allocation.property_name,
+                    property_code: allocation.property_code,
+                    unit_number: allocation.unit_number,
+                    amount_minor: allocation.amount_minor,
+                })
+                .collect(),
             external_reference: value.external_reference,
             status: value.status.as_str().to_string(),
             notes: value.notes,
@@ -1177,6 +1232,30 @@ pub async fn platform_payments_record(
         .await
         .map_err(application_error)?;
     Ok(PaymentView::from((payment, tenant_name)))
+}
+
+#[tauri::command]
+pub async fn platform_payments_contracts(
+    state: State<'_, PlatformState>,
+    tenant_id: String,
+) -> Result<Vec<PaymentContractView>, String> {
+    let tenant_id = TenantId::parse(&tenant_id)
+        .map_err(|_| "The selected tenant identifier is invalid.".to_string())?;
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "payments")
+        .await?;
+    PaymentLedger::new(SeaOrmPaymentRepository::new(&database))
+        .contracts(actor, tenant_id)
+        .await
+        .map(|contracts| {
+            contracts
+                .into_iter()
+                .map(PaymentContractView::from)
+                .collect()
+        })
+        .map_err(application_error)
 }
 
 #[tauri::command]

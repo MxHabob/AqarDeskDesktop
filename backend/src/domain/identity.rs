@@ -103,11 +103,13 @@ pub enum Permission {
     ViewPayments,
     RecordPayments,
     VoidPayments,
+    ViewContracts,
+    CreateContracts,
     ManageAdministration,
 }
 
 impl Permission {
-    pub const BUSINESS: [Self; 18] = [
+    pub const BUSINESS: [Self; 20] = [
         Self::ViewProperties,
         Self::CreateProperties,
         Self::UpdateProperties,
@@ -126,6 +128,8 @@ impl Permission {
         Self::ViewPayments,
         Self::RecordPayments,
         Self::VoidPayments,
+        Self::ViewContracts,
+        Self::CreateContracts,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -148,6 +152,8 @@ impl Permission {
             Self::ViewPayments => "view_payments",
             Self::RecordPayments => "record_payments",
             Self::VoidPayments => "void_payments",
+            Self::ViewContracts => "view_contracts",
+            Self::CreateContracts => "create_contracts",
             Self::ManageAdministration => "manage_administration",
         }
     }
@@ -172,6 +178,8 @@ impl Permission {
             "view_payments" => Some(Self::ViewPayments),
             "record_payments" => Some(Self::RecordPayments),
             "void_payments" => Some(Self::VoidPayments),
+            "view_contracts" => Some(Self::ViewContracts),
+            "create_contracts" => Some(Self::CreateContracts),
             "manage_administration" => Some(Self::ManageAdministration),
             _ => None,
         }
@@ -198,6 +206,8 @@ impl Permission {
             Self::RecordPayments => 1 << 16,
             Self::VoidPayments => 1 << 17,
             Self::ManageAdministration => 1 << 18,
+            Self::ViewContracts => 1 << 19,
+            Self::CreateContracts => 1 << 20,
         }
     }
 }

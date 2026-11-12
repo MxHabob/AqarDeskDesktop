@@ -25,6 +25,21 @@ pub async fn contract_templates_list(
 }
 
 #[tauri::command]
+pub async fn contract_templates_available(
+    state: State<'_, PlatformState>,
+) -> Result<Vec<aqardesk_backend::application::ContractTemplate>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "contract_templates")
+        .await?;
+    ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
+        .list_active(actor)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
 pub async fn contract_templates_create(
     state: State<'_, PlatformState>,
     input: ContractTemplateInput,
