@@ -14,8 +14,8 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"i18n:lint": "bunx @inlang/cli lint",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check": "bun run i18n:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "bun run i18n:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"dependencies": {
 		"@aqardesk/sdk": "workspace:*",
