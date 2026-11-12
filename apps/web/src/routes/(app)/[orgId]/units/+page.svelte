@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { queryClient } from '#lib/core/query-client';
 	import { propertyQueryKeys } from '#lib/features/properties/queries';
@@ -32,9 +33,13 @@
 	const canArchive = $derived(
 		hasPermission(app.currentUser?.role, 'archive_units', app.currentUser?.permissions)
 	);
-	const unitsQuery = createQuery(() => ({
-		queryKey: unitQueryKeys.all(organizationId),
-		queryFn: desktopApi.listUnits,
+	const pageSize = 50;
+	const unitsQuery = createInfiniteQuery(() => ({
+		queryKey: unitQueryKeys.pages(organizationId),
+		queryFn: ({ pageParam }) => desktopApi.listUnitsPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canView
 	}));
 	const propertiesQuery = createQuery(() => ({
@@ -45,7 +50,7 @@
 	let open = $state(false);
 	let selectedUnit = $state<PropertyUnit | undefined>();
 	let saving = $state(false);
-	const units = $derived(unitsQuery.data ?? []);
+	const units = $derived(unitsQuery.data?.pages.flatMap((page) => page.items) ?? []);
 	const properties = $derived(propertiesQuery.data ?? []);
 	$effect(() => {
 		if (unitsQuery.error) app.setError(unitsQuery.error);
@@ -92,6 +97,8 @@
 			{units}
 			{properties}
 			loading={unitsQuery.isLoading || propertiesQuery.isLoading}
+			hasMore={unitsQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => unitsQuery.fetchNextPage())}
 			{canUpdate}
 			{canArchive}
 			canAdd={canCreate && properties.length > 0}

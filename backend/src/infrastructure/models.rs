@@ -168,6 +168,48 @@ pub mod payment_contract {
         pub currency_code: String,
         pub currency_decimal_digits: i16,
         pub rent_amount_minor: i64,
+        pub status: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod payment_property_contract {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_documents")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub property_id: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod property_dashboard_contract {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "contract_documents")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub property_id: String,
+        pub tenant_id: String,
+        pub currency_code: String,
+        pub currency_decimal_digits: i16,
+        pub rent_amount_minor: i64,
+        pub status: String,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

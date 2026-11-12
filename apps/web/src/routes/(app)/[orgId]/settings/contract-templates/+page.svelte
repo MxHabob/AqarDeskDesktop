@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import {
 		AqarDeskGrid,
@@ -8,6 +8,8 @@
 	} from '@aqardesk/svelte-grid';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
+	import { queryClient } from '#lib/core/query-client';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
@@ -15,9 +17,18 @@
 	import ContractTemplateSheet from '#lib/features/settings/contract-template-sheet.svelte';
 	import * as m from '#lib/paraglide/messages';
 
-	let templates = $state<ContractTemplate[]>([]);
 	const app = getAppContext();
-	let loading = $state(true);
+	const pageSize = 50;
+	const templatesQuery = createInfiniteQuery(() => ({
+		queryKey: ['contract-templates', app.currentUser?.organization_id ?? ''],
+		queryFn: ({ pageParam }) => desktopApi.listContractTemplatesPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
+		enabled: !!app.currentUser
+	}));
+	const templates = $derived(templatesQuery.data?.pages.flatMap((page) => page.items) ?? []);
+	const loading = $derived(templatesQuery.isLoading);
 	let busy = $state(false);
 	let selectedTemplate = $state<ContractTemplate | null>(null);
 	let editSheetOpen = $state(false);
@@ -108,19 +119,14 @@
 		}
 	]);
 
-	onMount(() => {
-		void load();
+	$effect(() => {
+		if (templatesQuery.error) toast.error(String(templatesQuery.error));
 	});
 
 	async function load() {
-		loading = true;
-		try {
-			templates = await desktopApi.listContractTemplates();
-		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
-		} finally {
-			loading = false;
-		}
+		await queryClient.invalidateQueries({
+			queryKey: ['contract-templates', app.currentUser?.organization_id ?? '']
+		});
 	}
 
 	async function save(input: ContractTemplateInput, initial?: ContractTemplate) {
@@ -186,6 +192,8 @@
 		readonly
 		rowIdKey="id"
 		height="100%"
+		hasMore={templatesQuery.hasNextPage}
+		onloadmore={() => fetchNextPageOrThrow(() => templatesQuery.fetchNextPage())}
 		emptyTitle={m.settings_template_empty()}
 		onaction={handleGridAction}
 	>

@@ -14,9 +14,19 @@
 		emptyDescription: string;
 		canAdd: boolean;
 		onAdd: () => void;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 	};
 
-	let { contracts, loading, emptyDescription, canAdd, onAdd }: Props = $props();
+	let {
+		contracts,
+		loading,
+		emptyDescription,
+		canAdd,
+		onAdd,
+		hasMore = false,
+		onloadmore
+	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const tenants = $derived.by(() => {
@@ -78,6 +88,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.tenants_empty()}
 		{emptyDescription}
 	>

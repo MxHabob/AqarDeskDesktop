@@ -1,6 +1,6 @@
 <script lang="ts">
 import { toast } from "@aqardesk/ui";
-import { setContext, type Snippet } from "svelte";
+import { setContext, tick, type Snippet } from "svelte";
 import {
   FilterBuilder,
   FilterDialogFrame,
@@ -12,6 +12,7 @@ import {
   type FilterValue,
   type UniversalFilter,
 } from "./filter-builder";
+import { drainPages } from "./data-source";
 import type {
   ActionItem,
   BulkResult,
@@ -196,7 +197,10 @@ let origin = $state<{ row: number; col: number } | null>(null);
 let dragging = $state(false);
 let skipBlur = $state(false);
 let isLoadingMore = $state(false);
+let isLoadingAllPages = $state(false);
 let loadMoreError = $state<unknown>(null);
+let loadMorePromise: Promise<void> | null = null;
+let loadAllPagesPromise: Promise<void> | null = null;
 let serverQueryTimer: ReturnType<typeof setTimeout> | null = null;
 let lastServerQueryKey = "";
 
@@ -213,6 +217,10 @@ const shouldRunClientQuery = $derived(
   clientQuery ||
     (!usesServerQuery &&
       (Boolean(search) || Boolean(filter) || sorts.length > 0)),
+);
+const hasActiveClientQuery = $derived(
+  shouldRunClientQuery &&
+    (Boolean(search.trim()) || countFilterConditions(filter) > 0 || sorts.length > 0),
 );
 
 const safeSource = $derived(Array.isArray(source) ? source : []);
@@ -309,6 +317,7 @@ function resetQueryView() {
 
 function notifyQueryChange() {
   resetQueryView();
+  loadMoreError = null;
   if (!usesServerQuery || !onquerychange) return;
   const query: DataQuery = {
     page: 1,
@@ -709,13 +718,16 @@ function onScroll() {
 }
 
 function requestMoreIfNeeded(force = false) {
+  if (loadMoreError) {
+    if (!force) return;
+    loadMoreError = null;
+  }
   if (
     (!bodyEl && !force) ||
     !hasMore ||
     !onloadmore ||
     loading ||
-    isLoadingMore ||
-    loadMoreError
+    isLoadingMore
   ) {
     return;
   }
@@ -725,19 +737,55 @@ function requestMoreIfNeeded(force = false) {
     if (remaining > rowSize * 8) return;
   }
 
+  void loadNextPage().catch(() => undefined);
+}
+
+function loadNextPage(): Promise<void> {
+  if (loadMorePromise) return loadMorePromise;
+  if (!hasMore || !onloadmore) return Promise.resolve();
+
   isLoadingMore = true;
   loadMoreError = null;
-  Promise.resolve()
+  loadMorePromise = Promise.resolve()
     .then(() => onloadmore?.())
+    .then(() => undefined)
     .catch((error: unknown) => {
       console.error("AqarDeskGrid failed to load the next row batch:", error);
       loadMoreError = error;
+      throw error;
     })
     .finally(() => {
       isLoadingMore = false;
-      if (!loadMoreError) requestAnimationFrame(() => requestMoreIfNeeded());
+      loadMorePromise = null;
+      if (!loadMoreError && !isLoadingAllPages) {
+        requestAnimationFrame(() => requestMoreIfNeeded());
+      }
     });
+  return loadMorePromise;
 }
+
+function loadAllRows(): Promise<void> {
+  if (loadAllPagesPromise) return loadAllPagesPromise;
+  if (!onloadmore) return Promise.resolve();
+
+  isLoadingAllPages = true;
+  loadAllPagesPromise = drainPages(
+    () => hasMore,
+    async () => {
+      await loadNextPage();
+      await tick();
+    },
+  ).finally(() => {
+    isLoadingAllPages = false;
+    loadAllPagesPromise = null;
+  });
+  return loadAllPagesPromise;
+}
+
+$effect(() => {
+  if (!hasActiveClientQuery || !hasMore || loadMoreError || isLoadingAllPages) return;
+  void loadAllRows().catch(() => undefined);
+});
 
 function setActive(row: number, col: number, extend = false) {
   const r = clampIndex(row, Math.max(0, displayRows.length - 1));
@@ -1265,7 +1313,14 @@ function onContext(row: number, col: number, e: MouseEvent) {
   };
 }
 
-function exportGrid(scope: "all" | "selected" | "filtered") {
+async function exportGrid(scope: "all" | "selected" | "filtered") {
+  if (scope !== "selected") {
+    try {
+      await loadAllRows();
+    } catch {
+      return;
+    }
+  }
   const contents = exportRows(
     displayRows,
     visibleCols,
@@ -1287,6 +1342,31 @@ function exportGrid(scope: "all" | "selected" | "filtered") {
       description: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+async function selectAllRows(selected: boolean, event: MouseEvent, columnId: string) {
+  event.stopPropagation();
+  if (selected) {
+    try {
+      await loadAllRows();
+    } catch {
+      return;
+    }
+  }
+  const selectedIds = displayRows.map((row, index) => rowKey(row, index));
+  if (!displayRows.some((row) => Object.hasOwn(row, "__selected"))) {
+    selection = selected ? selectScope(selectedIds, "filtered", [], []) : emptySelection();
+    onselection?.(selection);
+  }
+  onaction?.({
+    actionId: "select-all",
+    row: {},
+    rowIndex: -1,
+    prop: columnId,
+    originalEvent: event,
+    selected,
+    selectedIds,
+  });
 }
 
 function runMenu(id: string) {
@@ -1877,9 +1957,18 @@ export function scrollToColumnProp(prop: string) {
       </div>
     {:else}
       <div class="aqardesk-empty-wrap">
-        <div class="aqardesk-empty-title">{emptyTitle}</div>
-        {#if emptyDescription}
-          <div class="aqardesk-empty-desc">{emptyDescription}</div>
+        {#if isLoadingMore}
+          <div class="aqardesk-empty-title">
+            {rtl ? "جارٍ البحث في جميع السجلات…" : "Searching all records…"}
+          </div>
+          <div class="aqardesk-empty-desc" role="status">
+            {rtl ? "سيتم عرض النتائج بعد اكتمال التحميل." : "Results will appear as records load."}
+          </div>
+        {:else}
+          <div class="aqardesk-empty-title">{emptyTitle}</div>
+          {#if emptyDescription}
+            <div class="aqardesk-empty-desc">{emptyDescription}</div>
+          {/if}
         {/if}
       </div>
     {/if}
@@ -1891,8 +1980,12 @@ export function scrollToColumnProp(prop: string) {
         const node = el as HTMLDivElement;
         bodyEl = node;
         measure();
-        const ro = new ResizeObserver(measure);
+        const ro = new ResizeObserver(() => {
+          measure();
+          requestMoreIfNeeded();
+        });
         ro.observe(node);
+        requestAnimationFrame(() => requestMoreIfNeeded());
         return () => {
           ro.disconnect();
           if (bodyEl === node) bodyEl = null;
@@ -1939,30 +2032,8 @@ export function scrollToColumnProp(prop: string) {
                   {@attach (element) => {
                     (element as HTMLInputElement).indeterminate = isSomeSelected;
                   }}
-                  onclick={(e: MouseEvent) => {
-                    e.stopPropagation();
-                    const selected = !isAllSelected;
-                    const selectedIds = displayRows.map((row, idx) =>
-                      rowKey(row, idx),
-                    );
-                    if (!displayRows.some((row) => Object.hasOwn(row, "__selected"))) {
-                      if (selected) {
-                        selection = selectScope(selectedIds, "filtered", [], []);
-                      } else {
-                        selection = emptySelection();
-                      }
-                      onselection?.(selection);
-                    }
-                    onaction?.({
-                      actionId: "select-all",
-                      row: {},
-                      rowIndex: -1,
-                      prop: id,
-                      originalEvent: e,
-                      selected,
-                      selectedIds,
-                    });
-                  }}
+                  onclick={(event: MouseEvent) =>
+                    void selectAllRows(!isAllSelected, event, id)}
                 />
               {:else}
                 <span class="hlabel">{columnHeader(col)}</span>

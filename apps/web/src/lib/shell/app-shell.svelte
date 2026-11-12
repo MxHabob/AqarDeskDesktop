@@ -42,6 +42,7 @@
 			`/${currentUser.organization_id}/units`,
 			`/${currentUser.organization_id}/tenants`,
 			`/${currentUser.organization_id}/owners`,
+			`/${currentUser.organization_id}/contracts`,
 			`/${currentUser.organization_id}/payments`,
 			`/${currentUser.organization_id}/settings/users`,
 			`/${currentUser.organization_id}/settings/permissions`,

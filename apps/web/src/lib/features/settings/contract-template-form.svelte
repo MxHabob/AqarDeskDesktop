@@ -3,6 +3,16 @@
 	import { tick, untrack } from 'svelte';
 	import { z } from 'zod';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
+	import type { ContractDocumentStyle } from '#lib/api/desktop';
+	import {
+		buildPrintDocumentHtml,
+		contractDocumentFont,
+		contractDocumentPaperDimensions,
+		contractDocumentPaperSize,
+		contractDocumentStyleFromPlaceholders,
+		contractTemplatePlaceholdersWithDesign,
+		printHtmlDocument
+	} from '#lib/features/contracts/document-design';
 	import {
 		Button,
 		Input,
@@ -11,7 +21,8 @@
 		SelectItem,
 		SelectTrigger,
 		SelectValue,
-		SheetFooter
+		SheetFooter,
+		toast
 	} from '@aqardesk/ui';
 	import { Printer } from '@lucide/svelte';
 	import FormField from '#lib/shared/components/form-field.svelte';
@@ -43,6 +54,14 @@
 		change_note: ''
 	}));
 	let preview = $state<Values>({ ...defaultValues });
+	let design = $state<ContractDocumentStyle>(
+		untrack(() =>
+			contractDocumentStyleFromPlaceholders(
+				initial?.versions[0]?.placeholders_json,
+				initial?.lease_type === 'receipt' ? 'a5' : 'a4'
+			)
+		)
+	);
 	let contentEditor = $state<HTMLTextAreaElement>();
 	let contentArea = $state<HTMLDivElement>();
 	let documentMode = $state<'edit' | 'preview'>(
@@ -55,6 +74,15 @@
 	let activeVariableIndex = $state(0);
 	let variableMenuPosition = $state({ top: 0, left: 0 });
 	const previewDirection = $derived(preview.locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr');
+
+	function isDocumentFont(value: string): value is ContractDocumentStyle['font_family'] {
+		return ['Tahoma', 'Arial', 'Georgia', 'Noto Naskh Arabic'].includes(value);
+	}
+
+	function isDocumentFontSize(value: number): value is ContractDocumentStyle['font_size'] {
+		return value === 12 || value === 14 || value === 16 || value === 18;
+	}
+
 	const templateVariables = [
 		{ group: 'tenant', fields: [
 			{ key: 'tenant.full_name', label: m.contracts_variable_tenant_name() },
@@ -143,11 +171,11 @@
 				if (heading) {
 					const level = heading[1].length;
 					const size = level === 1 ? 'text-2xl' : level === 2 ? 'text-lg' : 'text-base';
-					return `<h${level} class="${size} pt-3 font-semibold leading-relaxed">${renderInlineMarkdown(heading[2])}</h${level}>`;
+					return `<h${level} class="${size} pt-3 font-semibold leading-relaxed" style="color:${design.accent_color}">${renderInlineMarkdown(heading[2])}</h${level}>`;
 				}
 				const listItem = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
 				if (listItem) {
-					return `<p class="ps-5 before:-ms-4 before:me-2 before:text-primary before:content-['•']">${renderInlineMarkdown(listItem[1])}</p>`;
+					return `<p><span style="color:${design.accent_color}">• </span>${renderInlineMarkdown(listItem[1])}</p>`;
 				}
 				return `<p class="whitespace-pre-wrap">${renderInlineMarkdown(line)}</p>`;
 			})
@@ -258,46 +286,28 @@
 	}
 
 	async function printTemplate() {
-		const previousMode = documentMode;
-		documentMode = 'preview';
-		await tick();
-		const printStyles = document.createElement('style');
-		printStyles.textContent = `
-			@media print {
-				@page { size: A4; margin: 0; }
-				body * { visibility: hidden !important; overflow: visible !important; }
-				#contract-template-preview,
-				#contract-template-preview * { visibility: visible !important; }
-				#contract-template-preview .contract-template-toolbar { display: none !important; }
-				#contract-template-preview .template-document-preview { display: block !important; }
-				#contract-template-preview .template-edit-surface { display: none !important; }
-				#contract-template-preview {
-					position: absolute !important;
-					inset: 0 !important;
-					width: 100% !important;
-					max-width: none !important;
-					min-height: 0 !important;
-					margin: 0 !important;
-					padding: 18mm !important;
-					border: 0 !important;
-					border-radius: 0 !important;
-					box-shadow: none !important;
-					background: #fff !important;
-					color: #172033 !important;
-				}
-				#template-content {
-					min-height: 0 !important;
-					height: auto !important;
-					resize: none !important;
-					color: #172033 !important;
-				}
-			}`;
-		document.head.append(printStyles);
-		window.addEventListener('afterprint', () => {
-			printStyles.remove();
-			documentMode = previousMode;
-		}, { once: true });
-		window.print();
+		const hasHeader =
+			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
+		const headerHtml = hasHeader
+			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? '<p class="contract-number">AQD-20261112-EXAMPLE</p>' : ''}</header>`
+			: '';
+		const footerHtml = design.show_footer
+			? `<footer>${escapeHtml(design.footer_text.trim() || m.settings_template_preview_disclaimer())}</footer>`
+			: '';
+		try {
+			await printHtmlDocument(
+				buildPrintDocumentHtml({
+					title: name || m.settings_template_new(),
+					direction: previewDirection,
+					design,
+					headerHtml,
+					bodyHtml: renderMarkdown(preview.content_body),
+					footerHtml
+				})
+			);
+		} catch (cause) {
+			toast.error(cause instanceof Error ? cause.message : String(cause));
+		}
 	}
 
 	const schema = z.object({
@@ -321,7 +331,10 @@
 				template_key: '',
 				name: name.trim(),
 				content_format: initial?.versions[0]?.content_format ?? '',
-				placeholders_json: initial?.versions[0]?.placeholders_json ?? null,
+				placeholders_json: contractTemplatePlaceholdersWithDesign(
+					initial?.versions[0]?.placeholders_json,
+					design
+				),
 				description: value.description.trim() || null,
 				change_note: value.change_note.trim() || null
 			});
@@ -348,10 +361,12 @@
 				<div class="grid gap-3">
 					<article
 						id="contract-template-preview"
-						class="w-full rounded-lg border border-border/70 bg-background shadow-sm"
+						class="mx-auto w-full rounded-lg border border-border/70 bg-background shadow-sm"
+						style={`max-width:${contractDocumentPaperDimensions(design.paper_size).width};font-family:${contractDocumentFont(design.font_family)}`}
 						dir={previewDirection}
 					>
-						<div class="contract-template-toolbar flex items-center justify-end gap-2 border-b border-border/70 px-4 py-2">
+						<div class="contract-template-toolbar flex items-center justify-between gap-2 border-b border-border/70 px-4 py-2">
+							<span class="text-xs text-muted-foreground">{m.contract_design_settings()}</span>
 							<Button
 								type="button"
 								size="sm"
@@ -421,10 +436,26 @@
 								</div>
 							{:else}
 								<div
-									class="template-document-preview min-h-[calc(100dvh-18rem)] space-y-3 px-8 py-8 text-sm leading-8 sm:px-16 sm:py-12"
+									class="template-document-preview min-h-[calc(100dvh-18rem)] space-y-3 leading-8"
+									style={`min-height:${contractDocumentPaperDimensions(design.paper_size).height};padding:${design.page_margin_mm}mm;font-size:${design.font_size}px;text-align:${design.alignment};background:#fff;color:#172033`}
 									dir={previewDirection}
 								>
+									{#if design.show_branding || design.show_contract_number}
+										<div class="flex flex-wrap items-end justify-between gap-2 border-b-2 pb-3" style={`border-color:${design.accent_color}`}>
+											{#if design.show_branding && design.brand_label.trim()}
+												<span class="text-sm font-bold" style={`color:${design.accent_color}`}>{design.brand_label}</span>
+											{/if}
+											{#if design.show_contract_number}
+												<span class="text-xs text-muted-foreground" dir="ltr">AQD-20261112-EXAMPLE</span>
+											{/if}
+										</div>
+									{/if}
 									{@html renderMarkdown(preview.content_body)}
+									{#if design.show_footer}
+										<footer class="mt-10 border-t pt-3 text-xs text-muted-foreground" style={`border-color:${design.accent_color}`}>
+											{design.footer_text.trim() || m.settings_template_preview_disclaimer()}
+										</footer>
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -439,6 +470,154 @@
 			{/snippet}
 		</form.Field>
 		</div>
+	<section class="grid gap-3 rounded-lg border border-border/70 p-4">
+		<h3 class="text-sm font-semibold">{m.contract_design_settings()}</h3>
+		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+			<FormField label={m.contract_design_paper()} id="contract-design-paper">
+				<Select
+					type="single"
+					value={design.paper_size}
+					items={[
+						{ value: 'a4', label: m.contract_design_paper_a4() },
+						{ value: 'a5', label: m.contract_design_paper_a5() },
+						{ value: 'letter', label: m.contract_design_paper_letter() }
+					]}
+					onValueChange={(value) => {
+						if (value === 'a4' || value === 'a5' || value === 'letter') {
+							design = { ...design, paper_size: value };
+						}
+					}}
+				>
+					<SelectTrigger id="contract-design-paper" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						<SelectItem value="a4" label={m.contract_design_paper_a4()}>{m.contract_design_paper_a4()}</SelectItem>
+						<SelectItem value="a5" label={m.contract_design_paper_a5()}>{m.contract_design_paper_a5()}</SelectItem>
+						<SelectItem value="letter" label={m.contract_design_paper_letter()}>{m.contract_design_paper_letter()}</SelectItem>
+					</SelectContent>
+				</Select>
+			</FormField>
+			<FormField label={m.contract_design_accent_color()} id="contract-design-color">
+				<Input
+					id="contract-design-color"
+					type="color"
+					value={design.accent_color}
+					class="h-9 w-full cursor-pointer p-1"
+					oninput={(event) => (design = { ...design, accent_color: event.currentTarget.value })}
+				/>
+			</FormField>
+			<FormField label={m.contract_design_font()} id="contract-design-font">
+				<Select
+					type="single"
+					value={design.font_family}
+					items={[
+						{ value: 'Tahoma', label: m.contract_design_font_tahoma() },
+						{ value: 'Arial', label: m.contract_design_font_arial() },
+						{ value: 'Georgia', label: m.contract_design_font_georgia() },
+						{ value: 'Noto Naskh Arabic', label: m.contract_design_font_naskh() }
+					]}
+					onValueChange={(value) => {
+						if (isDocumentFont(value)) {
+							design = { ...design, font_family: value };
+						}
+					}}
+				>
+					<SelectTrigger id="contract-design-font" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						<SelectItem value="Tahoma" label={m.contract_design_font_tahoma()}>{m.contract_design_font_tahoma()}</SelectItem>
+						<SelectItem value="Arial" label={m.contract_design_font_arial()}>{m.contract_design_font_arial()}</SelectItem>
+						<SelectItem value="Georgia" label={m.contract_design_font_georgia()}>{m.contract_design_font_georgia()}</SelectItem>
+						<SelectItem value="Noto Naskh Arabic" label={m.contract_design_font_naskh()}>{m.contract_design_font_naskh()}</SelectItem>
+					</SelectContent>
+				</Select>
+			</FormField>
+			<FormField label={m.contract_design_font_size()} id="contract-design-font-size">
+				<Select
+					type="single"
+					value={String(design.font_size)}
+					items={[12, 14, 16, 18].map((value) => ({ value: String(value), label: `${value}px` }))}
+					onValueChange={(value) => {
+						const size = Number(value);
+						if (isDocumentFontSize(size)) {
+							design = { ...design, font_size: size };
+						}
+					}}
+				>
+					<SelectTrigger id="contract-design-font-size" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						{#each [12, 14, 16, 18] as value}
+							<SelectItem value={String(value)} label={`${value}px`}>{value}px</SelectItem>
+						{/each}
+					</SelectContent>
+				</Select>
+			</FormField>
+			<FormField label={m.contract_design_alignment()} id="contract-design-alignment">
+				<Select
+					type="single"
+					value={design.alignment}
+					items={[
+						{ value: 'start', label: m.contract_design_alignment_start() },
+						{ value: 'justify', label: m.contract_design_alignment_justify() }
+					]}
+					onValueChange={(value) => {
+						if (value === 'start' || value === 'justify') design = { ...design, alignment: value };
+					}}
+				>
+					<SelectTrigger id="contract-design-alignment" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						<SelectItem value="start" label={m.contract_design_alignment_start()}>{m.contract_design_alignment_start()}</SelectItem>
+						<SelectItem value="justify" label={m.contract_design_alignment_justify()}>{m.contract_design_alignment_justify()}</SelectItem>
+					</SelectContent>
+				</Select>
+			</FormField>
+			<FormField label={m.contract_design_page_margin()} id="contract-design-margin">
+				<Input
+					id="contract-design-margin"
+					type="number"
+					min="12"
+					max="30"
+					step="1"
+					value={design.page_margin_mm}
+					oninput={(event) => {
+						const margin = Number(event.currentTarget.value);
+						if (Number.isInteger(margin) && margin >= 12 && margin <= 30) {
+							design = { ...design, page_margin_mm: margin };
+						}
+					}}
+				/>
+			</FormField>
+			<FormField label={m.contract_design_brand_label()} id="contract-design-brand-label">
+				<Input
+					id="contract-design-brand-label"
+					value={design.brand_label}
+					maxlength={100}
+					autocomplete="organization"
+					oninput={(event) => (design = { ...design, brand_label: event.currentTarget.value })}
+				/>
+			</FormField>
+			<FormField label={m.contract_design_footer_text()} id="contract-design-footer-text">
+				<Input
+					id="contract-design-footer-text"
+					value={design.footer_text}
+					maxlength={400}
+					oninput={(event) => (design = { ...design, footer_text: event.currentTarget.value })}
+				/>
+			</FormField>
+		</div>
+		<div class="flex flex-wrap gap-5">
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" checked={design.show_branding} onchange={(event) => (design = { ...design, show_branding: event.currentTarget.checked })} />
+				{m.contract_design_show_branding()}
+			</label>
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" checked={design.show_contract_number} onchange={(event) => (design = { ...design, show_contract_number: event.currentTarget.checked })} />
+				{m.contract_design_show_contract_number()}
+			</label>
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" checked={design.show_footer} onchange={(event) => (design = { ...design, show_footer: event.currentTarget.checked })} />
+				{m.contract_design_show_footer()}
+			</label>
+		</div>
+	</section>
 	</div>
 	<SheetFooter class="sticky bottom-0 z-20 !mt-0 !flex !shrink-0 !flex-col !justify-normal gap-3 border-t border-border bg-popover px-4 py-3 shadow-[0_-8px_20px_-16px_rgba(0,0,0,0.5)]">
 		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -458,6 +637,7 @@
 							onValueChange={(value) => {
 								updatePreview('lease_type', value);
 								field.handleChange(value);
+								if (value === 'receipt') design = { ...design, paper_size: 'a5' };
 							}}
 						>
 							<SelectTrigger id="template-lease-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>

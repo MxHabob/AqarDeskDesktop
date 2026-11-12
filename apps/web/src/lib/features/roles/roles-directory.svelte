@@ -22,12 +22,23 @@
 		roles: RolePermissionSet[];
 		loading: boolean;
 		busy: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		toolbarActions?: Snippet;
 		onEdit: (role: RolePermissionSet) => void;
 		onDelete: (role: RolePermissionSet) => void;
 	};
 
-	let { roles, loading, busy, toolbarActions, onEdit, onDelete }: Props = $props();
+	let {
+		roles,
+		loading,
+		busy,
+		hasMore = false,
+		onloadmore,
+		toolbarActions,
+		onEdit,
+		onDelete
+	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 
@@ -128,6 +139,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.settings_permissions_roles_empty()}
 		emptyDescription={m.settings_permissions_description()}
 		onaction={handleAction}

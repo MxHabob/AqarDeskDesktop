@@ -41,8 +41,8 @@
 		if (selected) onChange(selected);
 	}}
 >
-	<SelectTrigger {id} class="h-9 w-full rounded-md text-sm">
-		<SelectValue />
+	<SelectTrigger {id} class="h-9 w-full min-w-0 rounded-md text-sm">
+		<SelectValue class="min-w-0 flex-1 truncate" />
 	</SelectTrigger>
 	<SelectContent>
 		{#each available as currency (currency.code)}

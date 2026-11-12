@@ -1,18 +1,18 @@
 use crate::{
-    application::{ApplicationError, PaymentContract, PaymentRepository},
+    application::{ApplicationError, Page, PageRequest, PaymentContract, PaymentRepository},
     domain::{
         CurrencyCode, Money, OrganizationId, Payment, PaymentAllocation, PaymentId, PaymentMethod,
         PaymentStatus, TenantId, UserId,
     },
     infrastructure::{
         audit,
-        models::{payment, payment_allocation, payment_contract},
+        models::{payment, payment_allocation, payment_contract, payment_property_contract},
     },
 };
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, QueryFilter, QueryOrder, TransactionTrait,
+    IntoActiveModel, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -26,6 +26,68 @@ impl SeaOrmPaymentRepository {
         Self {
             database: database.clone(),
         }
+    }
+
+    async fn fetch_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+        payment_ids: Option<Vec<String>>,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        if payment_ids.as_ref().is_some_and(Vec::is_empty) {
+            return Ok(Page::from_items(Vec::new(), page.limit()));
+        }
+
+        let mut query = payment::Entity::find()
+            .filter(payment::Column::OrganizationId.eq(organization_id.to_string()));
+        if let Some(payment_ids) = payment_ids {
+            query = query.filter(payment::Column::Id.is_in(payment_ids));
+        }
+        let models = query
+            .order_by_desc(payment::Column::ReceivedAt)
+            .order_by_desc(payment::Column::Id)
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+
+        if models.is_empty() {
+            return Ok(Page::from_items(Vec::new(), page.limit()));
+        }
+        let payment_ids = models
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let allocations = payment_allocation::Entity::find()
+            .filter(payment_allocation::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(payment_allocation::Column::PaymentId.is_in(payment_ids))
+            .order_by_asc(payment_allocation::Column::ContractNumber)
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let mut allocations_by_payment = HashMap::<String, Vec<PaymentAllocation>>::new();
+        for allocation in allocations {
+            allocations_by_payment
+                .entry(allocation.payment_id)
+                .or_default()
+                .push(PaymentAllocation {
+                    contract_document_id: allocation.contract_document_id,
+                    contract_number: allocation.contract_number,
+                    property_name: allocation.property_name,
+                    property_code: allocation.property_code,
+                    unit_number: allocation.unit_number,
+                    amount_minor: allocation.amount_minor,
+                });
+        }
+        let payments = models
+            .into_iter()
+            .map(|model| {
+                let allocations = allocations_by_payment.remove(&model.id).unwrap_or_default();
+                restore_payment(model, allocations)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(payments, page.limit()))
     }
 }
 
@@ -77,6 +139,51 @@ impl PaymentRepository for SeaOrmPaymentRepository {
                 restore_payment(model, allocations)
             })
             .collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        self.fetch_page(organization_id, page, None).await
+    }
+
+    async fn list_page_for_property(
+        &self,
+        organization_id: OrganizationId,
+        property_id: &str,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        let contracts = payment_property_contract::Entity::find()
+            .filter(
+                payment_property_contract::Column::OrganizationId.eq(organization_id.to_string()),
+            )
+            .filter(payment_property_contract::Column::PropertyId.eq(property_id))
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let contract_ids = contracts
+            .into_iter()
+            .map(|contract| contract.id)
+            .collect::<Vec<_>>();
+        if contract_ids.is_empty() {
+            return Ok(Page::from_items(Vec::new(), page.limit()));
+        }
+        let allocations = payment_allocation::Entity::find()
+            .filter(payment_allocation::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(payment_allocation::Column::ContractDocumentId.is_in(contract_ids))
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let payment_ids = allocations
+            .into_iter()
+            .map(|allocation| allocation.payment_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+        self.fetch_page(organization_id, page, Some(payment_ids))
+            .await
     }
 
     async fn insert(&self, mut payment: Payment) -> Result<Payment, ApplicationError> {
@@ -167,6 +274,7 @@ impl PaymentRepository for SeaOrmPaymentRepository {
         payment_contract::Entity::find()
             .filter(payment_contract::Column::OrganizationId.eq(organization_id.to_string()))
             .filter(payment_contract::Column::TenantId.eq(tenant_id.to_string()))
+            .filter(payment_contract::Column::Status.eq("active"))
             .order_by_asc(payment_contract::Column::ContractNumber)
             .all(&self.database)
             .await

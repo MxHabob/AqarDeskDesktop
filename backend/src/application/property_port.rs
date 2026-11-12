@@ -1,5 +1,5 @@
 use crate::{
-    application::ApplicationError,
+    application::{ApplicationError, Page, PageRequest},
     domain::{OrganizationId, Property, PropertyId, UserId},
 };
 
@@ -9,6 +9,17 @@ pub trait PropertyRepository: Send + Sync {
         &self,
         organization_id: OrganizationId,
     ) -> Result<Vec<Property>, ApplicationError>;
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Property>, ApplicationError> {
+        Ok(Page::from_items(
+            self.list(organization_id).await?,
+            page.limit(),
+        ))
+    }
 
     async fn insert(
         &self,

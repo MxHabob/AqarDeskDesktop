@@ -12,6 +12,8 @@
 		tenants: Tenant[];
 		currencies: CurrencySettings[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		busy: boolean;
 		canRecord: boolean;
 		canVoid: boolean;
@@ -28,6 +30,8 @@
 		tenants,
 		currencies,
 		loading,
+		hasMore = false,
+		onloadmore,
 		busy,
 		canRecord,
 		canVoid,
@@ -149,6 +153,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.payments_empty_title()}
 		emptyDescription={emptyDescription ?? m.payments_empty_description()}
 		onaction={handleGridAction}

@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, OwnerRepository},
+    application::{ApplicationError, OwnerRepository, Page, PageRequest},
     domain::{OrganizationId, Owner, OwnerId, OwnerInput, UserId},
     infrastructure::{
         audit,
@@ -9,7 +9,7 @@ use crate::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, QueryFilter, QueryOrder, TransactionTrait,
+    IntoActiveModel, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -68,6 +68,54 @@ impl OwnerRepository for SeaOrmOwnerRepository {
                 restore_owner(model, phone)
             })
             .collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Owner>, ApplicationError> {
+        let models = owner::Entity::find()
+            .filter(owner::Column::OrganizationId.eq(organization_id.to_string()))
+            .order_by_asc(owner::Column::Name)
+            .order_by_asc(owner::Column::Id)
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        if models.is_empty() {
+            return Ok(Page::from_items(Vec::new(), page.limit()));
+        }
+
+        let owner_ids = models
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let phones = owner_phone::Entity::find()
+            .filter(owner_phone::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(owner_phone::Column::OwnerId.is_in(owner_ids))
+            .order_by_asc(owner_phone::Column::CreatedAt)
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let mut phones_by_owner = HashMap::new();
+        for phone in phones {
+            phones_by_owner
+                .entry(phone.owner_id.clone())
+                .or_insert(phone);
+        }
+        let owners = models
+            .into_iter()
+            .map(|model| {
+                let phone = phones_by_owner.get(&model.id).ok_or_else(|| {
+                    tracing::error!(owner_id = %model.id, "Persisted owner has no contact phone");
+                    ApplicationError::Persistence
+                })?;
+                restore_owner(model, phone)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(owners, page.limit()))
     }
 
     async fn insert(&self, owner: Owner, actor_id: UserId) -> Result<Owner, ApplicationError> {

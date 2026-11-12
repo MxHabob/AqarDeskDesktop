@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, PropertyRepository},
+    application::{ApplicationError, Page, PageRequest, PropertyRepository},
     domain::{OrganizationId, Property, PropertyId, PropertyInput, PropertyStatus, PropertyType},
     infrastructure::models::{owner, owner_phone},
 };
@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, TransactionTrait,
+    EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 
@@ -105,6 +105,33 @@ impl PropertyRepository for SeaOrmPropertyRepository {
                 restore_property(model, property_owners)
             })
             .collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Property>, ApplicationError> {
+        let models = Entity::find()
+            .filter(Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(Column::DeletedAt.is_null())
+            .order_by_asc(Column::Name)
+            .order_by_asc(Column::Id)
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+
+        let owners = load_property_owners(&self.database, &models).await?;
+        let properties = models
+            .into_iter()
+            .map(|model| {
+                let property_owners = owners.get(&model.id).cloned().unwrap_or_default();
+                restore_property(model, property_owners)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(properties, page.limit()))
     }
 
     async fn insert(

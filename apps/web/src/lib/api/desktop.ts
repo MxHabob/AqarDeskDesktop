@@ -52,11 +52,33 @@ export type ContractDocument = {
 	rent_amount_minor: number;
 	deposit_amount_minor: number;
 	document_body: string;
+	document_style: ContractDocumentStyle;
 	created_by: string;
 	created_at: string;
+	status: 'draft' | 'active' | 'amended' | 'terminated' | 'cancelled';
+	status_reason: string | null;
+	status_effective_date: string | null;
+	parent_contract_id: string | null;
+};
+
+export type ContractDocumentStyle = {
+	paper_size: 'a4' | 'a5' | 'letter';
+	accent_color: string;
+	font_family: 'Tahoma' | 'Arial' | 'Georgia' | 'Noto Naskh Arabic';
+	font_size: 12 | 14 | 16 | 18;
+	alignment: 'start' | 'justify';
+	page_margin_mm: number;
+	show_branding: boolean;
+	brand_label: string;
+	show_contract_number: boolean;
+	show_footer: boolean;
+	footer_text: string;
 };
 
 export type ContractDocumentInput = {
+	draft_id: string | null;
+	parent_contract_id: string | null;
+	status: 'draft' | 'active';
 	template_id: string;
 	tenant_id: string;
 	property_id: string;
@@ -66,6 +88,11 @@ export type ContractDocumentInput = {
 	currency_code: string;
 	rent_amount_minor: number;
 	deposit_amount_minor: number;
+};
+
+export type ContractEndInput = {
+	effective_date: string;
+	reason: string;
 };
 
 export type PaymentContract = {
@@ -192,6 +219,24 @@ export type DashboardSummary = {
 	payment_status_counts: { status: string; count: number }[];
 };
 
+export type PropertyDashboardSummary = {
+	contract_count: number;
+	tenant_count: number;
+	rent_by_currency: CurrencyAmountTotal[];
+	posted_allocations_by_currency: CurrencyAmountTotal[] | null;
+};
+
+export type CurrencyAmountTotal = {
+	currency_code: string;
+	currency_decimal_digits: number;
+	amount_minor: number;
+};
+
+export type ApiPage<T> = {
+	items: T[];
+	has_more: boolean;
+};
+
 export type DatabaseAdminStatus = {
 	mode: ConnectionMode;
 	database_path: string | null;
@@ -260,6 +305,8 @@ export const desktopApi = {
 	updateOrganizationSettings: (input: OrganizationSettingsInput) =>
 		invoke<OrganizationSettings>('organization_update_settings', { input }),
 	listCurrencies: () => invoke<CurrencySettings[]>('currencies_list'),
+	listCurrenciesPage: (limit: number, offset: number) =>
+		invoke<ApiPage<CurrencySettings>>('currencies_list_page', { limit, offset }),
 	createCurrency: (input: NewCurrencyInput) => invoke<void>('currencies_create', { input }),
 	updateCurrency: (currencyCode: string, input: CurrencyDetailsInput) =>
 		invoke<void>('currencies_update', { currencyCode, input }),
@@ -270,7 +317,11 @@ export const desktopApi = {
 		invoke<ProfileSettings>('profile_update_settings', { input }),
 	listAuditEvents: (limit = 50, offset = 0) =>
 		invoke<AuditEntry[]>('audit_list', { limit, offset }),
+	listUsersPage: (limit: number, offset: number) =>
+		invoke<ApiPage<User>>('platform_users_list_page', { limit, offset }),
 	listContractTemplates: () => invoke<ContractTemplate[]>('contract_templates_list'),
+	listContractTemplatesPage: (limit: number, offset: number) =>
+		invoke<ApiPage<ContractTemplate>>('contract_templates_list_page', { limit, offset }),
 	listAvailableContractTemplates: () =>
 		invoke<ContractTemplate[]>('contract_templates_available'),
 	createContractTemplate: (input: ContractTemplateInput) =>
@@ -281,14 +332,30 @@ export const desktopApi = {
 		invoke<void>('contract_templates_set_active', { templateId, isActive }),
 	listContractDocuments: (propertyId?: string) =>
 		invoke<ContractDocument[]>('contract_documents_list', { propertyId: propertyId ?? null }),
+	listContractDocumentsPage: (limit: number, offset: number, propertyId?: string) =>
+		invoke<ApiPage<ContractDocument>>('contract_documents_list_page', {
+			limit,
+			offset,
+			propertyId: propertyId ?? null
+		}),
 	listPaymentContracts: (tenantId: string) =>
 		invoke<PaymentContract[]>('platform_payments_contracts', { tenantId }),
 	createContractDocument: (input: ContractDocumentInput) =>
 		invoke<ContractDocument>('contract_documents_create', { input }),
+	deleteContractDraft: (contractId: string) =>
+		invoke<void>('contract_documents_delete_draft', { contractId }),
+	issueContractDraft: (contractId: string) =>
+		invoke<ContractDocument>('contract_documents_issue_draft', { contractId }),
+	endContract: (contractId: string, input: ContractEndInput) =>
+		invoke<ContractDocument>('contract_documents_end', { contractId, input }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
+	getPropertyDashboardSummary: (propertyId: string) =>
+		invoke<PropertyDashboardSummary>('dashboard_get_property_summary', { propertyId }),
 	listUsers: () => invoke<User[]>('platform_users_list'),
 	listRolePermissions: () =>
 		invoke<RolePermissionSet[]>('platform_role_permissions_list'),
+	listRolePermissionsPage: (limit: number, offset: number) =>
+		invoke<ApiPage<RolePermissionSet>>('platform_role_permissions_list_page', { limit, offset }),
 	updateRolePermissions: (roleId: string, permissions: Permission[]) =>
 		invoke<RolePermissionSet>('platform_role_permissions_update', { roleId, permissions }),
 	createRole: (name: string, permissions: Permission[]) =>
@@ -301,6 +368,8 @@ export const desktopApi = {
 	setUserActive: (userId: string, isActive: boolean) =>
 		invoke<void>('platform_users_set_active', { userId, isActive }),
 	listProperties: () => invoke<Property[]>('platform_properties_list'),
+	listPropertiesPage: (limit: number, offset: number) =>
+		invoke<ApiPage<Property>>('platform_properties_list_page', { limit, offset }),
 	createProperty: (input: PropertyInput) =>
 		invoke<Property>('platform_properties_create', { input }),
 	updateProperty: (propertyId: string, input: PropertyInput) =>
@@ -308,22 +377,38 @@ export const desktopApi = {
 	archiveProperty: (propertyId: string) =>
 		invoke<void>('platform_properties_archive', { propertyId }),
 	listOwners: () => invoke<Owner[]>('platform_owners_list'),
+	listOwnersPage: (limit: number, offset: number) =>
+		invoke<ApiPage<Owner>>('platform_owners_list_page', { limit, offset }),
 	createOwner: (input: OwnerInput) => invoke<Owner>('platform_owners_create', { input }),
 	updateOwner: (ownerId: string, input: OwnerInput) =>
 		invoke<Owner>('platform_owners_update', { ownerId, input }),
 	listUnits: () => invoke<PropertyUnit[]>('platform_units_list', { propertyId: null }),
+	listUnitsPage: (limit: number, offset: number, propertyId?: string) =>
+		invoke<ApiPage<PropertyUnit>>('platform_units_list_page', {
+			limit,
+			offset,
+			propertyId: propertyId ?? null
+		}),
 	createUnit: (input: PropertyUnitInput) =>
 		invoke<PropertyUnit>('platform_units_create', { input }),
 	updateUnit: (unitId: string, input: PropertyUnitInput) =>
 		invoke<PropertyUnit>('platform_units_update', { unitId, input }),
 	archiveUnit: (unitId: string) => invoke<void>('platform_units_archive', { unitId }),
 	listTenants: () => invoke<Tenant[]>('platform_tenants_list'),
+	listTenantsPage: (limit: number, offset: number) =>
+		invoke<ApiPage<Tenant>>('platform_tenants_list_page', { limit, offset }),
 	createTenant: (input: TenantInput) =>
 		invoke<Tenant>('platform_tenants_create', { input }),
 	updateTenant: (tenantId: string, input: TenantInput) =>
 		invoke<Tenant>('platform_tenants_update', { tenantId, input }),
 	archiveTenant: (tenantId: string) => invoke<void>('platform_tenants_archive', { tenantId }),
 	listPayments: () => invoke<Payment[]>('platform_payments_list'),
+	listPaymentsPage: (limit: number, offset: number, propertyId?: string) =>
+		invoke<ApiPage<Payment>>('platform_payments_list_page', {
+			limit,
+			offset,
+			propertyId: propertyId ?? null
+		}),
 	recordPayment: (input: PaymentInput) =>
 		invoke<Payment>('platform_payments_record', { input }),
 	voidPayment: (paymentId: string) => invoke<void>('platform_payments_void', { paymentId }),

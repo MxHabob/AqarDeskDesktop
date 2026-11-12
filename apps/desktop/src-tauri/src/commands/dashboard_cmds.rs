@@ -1,5 +1,5 @@
 use aqardesk_backend::{
-    application::{DashboardService, DashboardSummary},
+    application::{DashboardService, DashboardSummary, PropertyDashboardSummary},
     infrastructure::SeaOrmDashboardRepository,
 };
 use tauri::State;
@@ -21,6 +21,22 @@ pub async fn dashboard_get_summary(
         .await?;
     DashboardService::new(SeaOrmDashboardRepository::new(&database))
         .summary(actor, months)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn dashboard_get_property_summary(
+    state: State<'_, PlatformState>,
+    property_id: String,
+) -> Result<PropertyDashboardSummary, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
+    DashboardService::new(SeaOrmDashboardRepository::new(&database))
+        .property_summary(actor, &property_id)
         .await
         .map_err(application_error)
 }

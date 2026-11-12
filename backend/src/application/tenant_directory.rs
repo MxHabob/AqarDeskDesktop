@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    application::{ApplicationError, TenantRepository, require_permission},
+    application::{ApplicationError, Page, PageRequest, TenantRepository, require_permission},
     domain::{ActorContext, Permission, Tenant, TenantId, TenantInput},
 };
 
@@ -17,6 +17,15 @@ impl<R: TenantRepository> TenantDirectory<R> {
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Tenant>, ApplicationError> {
         require_permission(actor, Permission::ViewTenants)?;
         self.tenants.list(actor.organization_id()).await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        page: PageRequest,
+    ) -> Result<Page<Tenant>, ApplicationError> {
+        require_permission(actor, Permission::ViewTenants)?;
+        self.tenants.list_page(actor.organization_id(), page).await
     }
 
     pub async fn names(

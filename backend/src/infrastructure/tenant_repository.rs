@@ -1,12 +1,12 @@
 use crate::{
-    application::{ApplicationError, TenantRepository},
+    application::{ApplicationError, Page, PageRequest, TenantRepository},
     domain::{OrganizationId, Tenant, TenantId, TenantInput, UserId},
     infrastructure::{audit, models::tenant},
 };
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, QueryFilter, QueryOrder, TransactionTrait,
+    IntoActiveModel, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 
@@ -34,6 +34,28 @@ impl TenantRepository for SeaOrmTenantRepository {
             .map_err(persistence_error)?;
 
         models.into_iter().map(restore_tenant).collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Tenant>, ApplicationError> {
+        let models = tenant::Entity::find()
+            .filter(tenant::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(tenant::Column::DeletedAt.is_null())
+            .order_by_asc(tenant::Column::FullName)
+            .order_by_asc(tenant::Column::Id)
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let tenants = models
+            .into_iter()
+            .map(restore_tenant)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(tenants, page.limit()))
     }
 
     async fn names(

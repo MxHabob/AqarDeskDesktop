@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import type { PageProps } from './$types';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { queryClient } from '#lib/core/query-client';
@@ -29,12 +30,17 @@
 		hasPermission(app.currentUser?.role, 'create_contracts', app.currentUser?.permissions)
 	);
 	const canAddTenant = $derived(canCreateTenants && canCreateContracts);
-	const contractsQuery = createQuery(() => ({
-		queryKey: contractDocumentQueryKeys.property(organizationId, data.propertyId),
-		queryFn: () => desktopApi.listContractDocuments(data.propertyId),
+	const pageSize = 50;
+	const contractsQuery = createInfiniteQuery(() => ({
+		queryKey: contractDocumentQueryKeys.pages(organizationId, data.propertyId),
+		queryFn: ({ pageParam }) =>
+			desktopApi.listContractDocumentsPage(pageSize, pageParam, data.propertyId),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canViewTenants && canViewContracts
 	}));
-	const contracts = $derived(contractsQuery.data ?? []);
+	const contracts = $derived(contractsQuery.data?.pages.flatMap((page) => page.items) ?? []);
 	const loading = $derived(contractsQuery.isLoading);
 	let tenantSheetOpen = $state(false);
 	let savingTenant = $state(false);
@@ -70,6 +76,8 @@
 		<PropertyTenantsDirectory
 			{contracts}
 			{loading}
+			hasMore={contractsQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => contractsQuery.fetchNextPage())}
 			canAdd={canAddTenant}
 			onAdd={() => (tenantSheetOpen = true)}
 			emptyDescription={m.properties_tenants_empty_description()}

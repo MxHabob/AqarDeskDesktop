@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { queryClient } from '#lib/core/query-client';
 	import TenantSheet from '#lib/features/tenants/tenant-sheet.svelte';
@@ -28,15 +29,19 @@
 	const canArchive = $derived(
 		hasPermission(app.currentUser?.role, 'archive_tenants', app.currentUser?.permissions)
 	);
-	const tenantsQuery = createQuery(() => ({
-		queryKey: tenantQueryKeys.all(organizationId),
-		queryFn: desktopApi.listTenants,
+	const pageSize = 50;
+	const tenantsQuery = createInfiniteQuery(() => ({
+		queryKey: tenantQueryKeys.pages(organizationId),
+		queryFn: ({ pageParam }) => desktopApi.listTenantsPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canView
 	}));
 	let open = $state(false);
 	let selectedTenant = $state<Tenant | undefined>();
 	let saving = $state(false);
-	const tenants = $derived(tenantsQuery.data ?? []);
+	const tenants = $derived(tenantsQuery.data?.pages.flatMap((page) => page.items) ?? []);
 
 	async function saveTenant(values: TenantInput) {
 		saving = true;
@@ -81,6 +86,8 @@
 		<TenantsDirectory
 			{tenants}
 			loading={tenantsQuery.isLoading}
+			hasMore={tenantsQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => tenantsQuery.fetchNextPage())}
 			{canCreate}
 			{canUpdate}
 			{canArchive}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 	import type { AuditEntry } from '@aqardesk/sdk';
@@ -8,13 +8,22 @@
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatDate, formatGridCell } from '#lib/core/i18n';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import * as m from '#lib/paraglide/messages';
 
 	const pageSize = 50;
 	const app = getAppContext();
-	let entries = $state<AuditEntry[]>([]);
-	let loading = $state(true);
-	let hasMore = $state(false);
+	const auditQuery = createInfiniteQuery(() => ({
+		queryKey: ['audit-events', app.currentUser?.organization_id ?? ''],
+		queryFn: ({ pageParam }) => desktopApi.listAuditEvents(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.length === pageSize ? pages.length * pageSize : undefined,
+		enabled: !!app.currentUser
+	}));
+	const entries = $derived(auditQuery.data?.pages.flatMap((page) => page) ?? []);
+	const loading = $derived(auditQuery.isLoading);
+	const hasMore = $derived(auditQuery.hasNextPage);
 	let selectedEntry = $state<AuditEntry | null>(null);
 	let detailsOpen = $state(false);
 	const rtl = $derived(getLocale() === 'ar');
@@ -58,23 +67,9 @@
 		{ id: 'details_json', header: m.settings_audit_details(), width: 360 }
 	]);
 
-	onMount(() => {
-		void load(false);
+	$effect(() => {
+		if (auditQuery.error) toast.error(String(auditQuery.error));
 	});
-
-	async function load(more: boolean) {
-		if (!more) loading = true;
-		try {
-			const next = await desktopApi.listAuditEvents(pageSize, more ? entries.length : 0);
-			entries = more ? [...entries, ...next] : next;
-			hasMore = next.length === pageSize;
-		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
-			if (more) throw cause;
-		} finally {
-			loading = false;
-		}
-	}
 
 	function formatTimestamp(value: string) {
 		return formatDate(value, 'datetime', undefined, app.organizationTimezone) || value;
@@ -100,7 +95,7 @@
 		rowIdKey="id"
 		height="100%"
 		{hasMore}
-		onloadmore={() => load(true)}
+		onloadmore={() => fetchNextPageOrThrow(() => auditQuery.fetchNextPage())}
 		emptyTitle={m.settings_audit_empty()}
 		onaction={handleGridAction}
 	/>

@@ -1,6 +1,7 @@
 use crate::{
     application::{
         ApplicationError, ContractDocument, ContractDocumentInput, ContractDocumentRepository,
+        ContractDocumentStyle, Page, PageRequest,
     },
     infrastructure::{
         audit,
@@ -10,8 +11,8 @@ use crate::{
 use chrono::Utc;
 use sea_orm::entity::prelude::*;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
+    IntoActiveModel, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -143,8 +144,13 @@ pub struct Model {
     rent_amount_minor: i64,
     deposit_amount_minor: i64,
     document_body: String,
+    document_style_json: String,
     created_by: String,
     created_at: DateTimeUtc,
+    status: String,
+    status_reason: Option<String>,
+    status_effective_date: Option<String>,
+    parent_contract_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -186,6 +192,31 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             .collect()
     }
 
+    async fn list_page(
+        &self,
+        organization_id: &str,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        let mut query = Entity::find()
+            .filter(Column::OrganizationId.eq(organization_id))
+            .order_by_desc(Column::CreatedAt)
+            .order_by_desc(Column::Id);
+        if let Some(property_id) = property_id {
+            query = query.filter(Column::PropertyId.eq(property_id));
+        }
+        let documents = query
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?
+            .into_iter()
+            .map(to_contract_document)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(documents, page.limit()))
+    }
+
     async fn create(
         &self,
         organization_id: &str,
@@ -193,6 +224,32 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
         input: ContractDocumentInput,
     ) -> Result<ContractDocument, ApplicationError> {
         let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let existing_draft = if let Some(draft_id) = input.draft_id.as_deref() {
+            Some(
+                Entity::find_by_id(draft_id)
+                    .filter(Column::OrganizationId.eq(organization_id))
+                    .filter(Column::Status.eq("draft"))
+                    .one(&transaction)
+                    .await
+                    .map_err(persistence_error)?
+                    .ok_or(ApplicationError::NotFound)?,
+            )
+        } else {
+            None
+        };
+        let parent_contract = if let Some(parent_id) = input.parent_contract_id.as_deref() {
+            Some(
+                Entity::find_by_id(parent_id)
+                    .filter(Column::OrganizationId.eq(organization_id))
+                    .filter(Column::Status.eq("active"))
+                    .one(&transaction)
+                    .await
+                    .map_err(persistence_error)?
+                    .ok_or_else(|| validation("Only an active contract can be amended."))?,
+            )
+        } else {
+            None
+        };
         let property = property::Entity::find_by_id(&input.property_id)
             .filter(property::Column::OrganizationId.eq(organization_id))
             .filter(property::Column::DeletedAt.is_null())
@@ -237,6 +294,26 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             .content_body
             .filter(|content| !content.trim().is_empty())
             .ok_or_else(|| validation("The selected contract template has no content."))?;
+        let placeholders: serde_json::Value =
+            serde_json::from_str(&template_version.placeholders_json).map_err(|error| {
+                tracing::error!(%error, "Contract template settings are invalid");
+                validation("Contract template settings are invalid.")
+            })?;
+        let document_style: ContractDocumentStyle = serde_json::from_value(
+            placeholders
+                .get("design")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({})),
+        )
+        .map_err(|error| {
+            tracing::error!(%error, "Contract document design could not be decoded");
+            validation("Contract document design settings are invalid.")
+        })?;
+        document_style.validate()?;
+        let document_style_json = serde_json::to_string(&document_style).map_err(|error| {
+            tracing::error!(%error, "Contract document design could not be encoded");
+            ApplicationError::Persistence
+        })?;
         let organization = organization::Entity::find_by_id(organization_id)
             .one(&transaction)
             .await
@@ -266,18 +343,26 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             ApplicationError::Persistence
         })?;
         let now = Utc::now();
+        let amendment_effective_date = input.start_date.clone();
+        let status = input.status.clone();
+        let is_draft_update = input.draft_id.is_some();
         let today = now.with_timezone(&timezone).date_naive().to_string();
-        let contract_number = format!(
-            "AQD-{}-{}",
-            today.replace('-', ""),
-            Uuid::new_v4()
-                .simple()
-                .to_string()
-                .chars()
-                .take(8)
-                .collect::<String>()
-                .to_uppercase()
-        );
+        let contract_number = existing_draft
+            .as_ref()
+            .map(|draft| draft.contract_number.clone())
+            .unwrap_or_else(|| {
+                format!(
+                    "AQD-{}-{}",
+                    today.replace('-', ""),
+                    Uuid::new_v4()
+                        .simple()
+                        .to_string()
+                        .chars()
+                        .take(8)
+                        .collect::<String>()
+                        .to_uppercase()
+                )
+            });
         let property_address = [
             Some(property.address_line_1.as_str()),
             property.address_line_2.as_deref(),
@@ -360,9 +445,12 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             return Err(validation("The generated contract document is invalid."));
         }
 
-        let id = Uuid::new_v4().to_string();
-        let model = ActiveModel {
-            id: Set(id),
+        let id = existing_draft
+            .as_ref()
+            .map(|draft| draft.id.clone())
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let active_model = ActiveModel {
+            id: Set(id.clone()),
             organization_id: Set(organization_id.to_string()),
             contract_number: Set(contract_number),
             template_id: Set(template.id),
@@ -383,24 +471,234 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             rent_amount_minor: Set(input.rent_amount_minor),
             deposit_amount_minor: Set(input.deposit_amount_minor),
             document_body: Set(document_body),
-            created_by: Set(actor_id.to_string()),
-            created_at: Set(now),
-        }
-        .insert(&transaction)
-        .await
-        .map_err(persistence_error)?;
+            document_style_json: Set(document_style_json),
+            created_by: Set(existing_draft
+                .as_ref()
+                .map(|draft| draft.created_by.clone())
+                .unwrap_or_else(|| actor_id.to_string())),
+            created_at: Set(existing_draft
+                .as_ref()
+                .map_or(now, |draft| draft.created_at)),
+            status: Set(status.clone()),
+            status_reason: Set(None),
+            status_effective_date: Set(None),
+            parent_contract_id: Set(input.parent_contract_id.clone()),
+        };
+        let model = if existing_draft.is_some() {
+            active_model
+                .update(&transaction)
+                .await
+                .map_err(persistence_error)?
+        } else {
+            active_model
+                .insert(&transaction)
+                .await
+                .map_err(persistence_error)?
+        };
 
         audit::record(
             &transaction,
             organization_id,
             actor_id,
-            "created",
+            if is_draft_update {
+                "draft_updated"
+            } else if status == "draft" {
+                "draft_created"
+            } else {
+                "created"
+            },
             "contract_document",
             &model.id,
             serde_json::json!({
                 "contract_number": model.contract_number,
                 "property_id": model.property_id,
-                "tenant_id": model.tenant_id
+                "tenant_id": model.tenant_id,
+                "status": model.status,
+                "parent_contract_id": model.parent_contract_id
+            }),
+        )
+        .await?;
+        if status == "active" {
+            if let Some(parent) = parent_contract {
+                let mut parent = parent.into_active_model();
+                parent.status = Set("amended".to_string());
+                parent.status_reason = Set(Some(format!("Amended by {}", model.contract_number)));
+                parent.status_effective_date = Set(Some(amendment_effective_date));
+                parent
+                    .update(&transaction)
+                    .await
+                    .map_err(persistence_error)?;
+                audit::record(
+                    &transaction,
+                    organization_id,
+                    actor_id,
+                    "amended",
+                    "contract_document",
+                    &model
+                        .parent_contract_id
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_string(),
+                    serde_json::json!({ "amended_by": model.id }),
+                )
+                .await?;
+            }
+        }
+        transaction.commit().await.map_err(persistence_error)?;
+        to_contract_document(model)
+    }
+
+    async fn delete_draft(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+    ) -> Result<(), ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let contract = Entity::find_by_id(contract_id)
+            .filter(Column::OrganizationId.eq(organization_id))
+            .filter(Column::Status.eq("draft"))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            "draft_deleted",
+            "contract_document",
+            contract_id,
+            serde_json::json!({ "contract_number": contract.contract_number }),
+        )
+        .await?;
+        Entity::delete_by_id(contract_id)
+            .filter(Column::OrganizationId.eq(organization_id))
+            .exec(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        transaction.commit().await.map_err(persistence_error)
+    }
+
+    async fn issue_draft(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+    ) -> Result<ContractDocument, ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let contract = Entity::find_by_id(contract_id)
+            .filter(Column::OrganizationId.eq(organization_id))
+            .filter(Column::Status.eq("draft"))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        if let Some(parent_id) = contract.parent_contract_id.as_deref() {
+            let parent = Entity::find_by_id(parent_id)
+                .filter(Column::OrganizationId.eq(organization_id))
+                .filter(Column::Status.eq("active"))
+                .one(&transaction)
+                .await
+                .map_err(persistence_error)?
+                .ok_or_else(|| validation("The original contract is no longer active."))?;
+            let mut active_parent = parent.into_active_model();
+            active_parent.status = Set("amended".to_string());
+            active_parent.status_reason =
+                Set(Some(format!("Amended by {}", contract.contract_number)));
+            active_parent.status_effective_date = Set(Some(contract.start_date.clone()));
+            active_parent
+                .update(&transaction)
+                .await
+                .map_err(persistence_error)?;
+            audit::record(
+                &transaction,
+                organization_id,
+                actor_id,
+                "amended",
+                "contract_document",
+                parent_id,
+                serde_json::json!({ "amended_by": contract.id }),
+            )
+            .await?;
+        }
+        let mut active_contract = contract.into_active_model();
+        active_contract.status = Set("active".to_string());
+        active_contract.status_reason = Set(None);
+        active_contract.status_effective_date = Set(None);
+        let model = active_contract
+            .update(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            "issued",
+            "contract_document",
+            contract_id,
+            serde_json::json!({ "contract_number": model.contract_number }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)?;
+        to_contract_document(model)
+    }
+
+    async fn end(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+        input: crate::application::ContractEndInput,
+    ) -> Result<ContractDocument, ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let contract = Entity::find_by_id(contract_id)
+            .filter(Column::OrganizationId.eq(organization_id))
+            .filter(Column::Status.eq("active"))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let effective_date = chrono::NaiveDate::parse_from_str(&input.effective_date, "%Y-%m-%d")
+            .map_err(|_| validation("Contract end date is invalid."))?;
+        let start_date = chrono::NaiveDate::parse_from_str(&contract.start_date, "%Y-%m-%d")
+            .map_err(|error| {
+                tracing::error!(%error, "Persisted contract start date is invalid");
+                ApplicationError::Persistence
+            })?;
+        let end_date =
+            chrono::NaiveDate::parse_from_str(&contract.end_date, "%Y-%m-%d").map_err(|error| {
+                tracing::error!(%error, "Persisted contract end date is invalid");
+                ApplicationError::Persistence
+            })?;
+        if effective_date > end_date {
+            return Err(validation(
+                "Contract cancellation or termination cannot be after its end date.",
+            ));
+        }
+        let status = if effective_date <= start_date {
+            "cancelled"
+        } else {
+            "terminated"
+        };
+        let mut active = contract.into_active_model();
+        active.status = Set(status.to_string());
+        active.status_reason = Set(Some(input.reason.trim().to_string()));
+        active.status_effective_date = Set(Some(input.effective_date.clone()));
+        let model = active
+            .update(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        audit::record(
+            &transaction,
+            organization_id,
+            actor_id,
+            status,
+            "contract_document",
+            contract_id,
+            serde_json::json!({
+                "effective_date": input.effective_date,
+                "reason": input.reason.trim()
             }),
         )
         .await?;
@@ -455,6 +753,10 @@ fn format_amount(amount_minor: i64, decimal_digits: i16, currency_code: &str) ->
 }
 
 fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationError> {
+    let document_style = serde_json::from_str(&model.document_style_json).map_err(|error| {
+        tracing::error!(%error, "Saved contract document design could not be decoded");
+        ApplicationError::Persistence
+    })?;
     Ok(ContractDocument {
         id: model.id,
         organization_id: model.organization_id,
@@ -477,8 +779,13 @@ fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationErr
         rent_amount_minor: model.rent_amount_minor,
         deposit_amount_minor: model.deposit_amount_minor,
         document_body: model.document_body,
+        document_style,
         created_by: model.created_by,
         created_at: model.created_at.to_rfc3339(),
+        status: model.status,
+        status_reason: model.status_reason,
+        status_effective_date: model.status_effective_date,
+        parent_contract_id: model.parent_contract_id,
     })
 }
 
@@ -570,7 +877,10 @@ mod tests {
             content_body:
                 "{{tenant.full_name}} - {{property.name}} - {{unit.number}} - {{contract.number}}"
                     .to_string(),
-            placeholders_json: Some("{}".to_string()),
+            placeholders_json: Some(
+                r##"{"design":{"paper_size":"letter","accent_color":"#245A74","font_family":"Georgia","font_size":18,"alignment":"justify","page_margin_mm":22,"show_branding":true,"brand_label":"Example Realty","show_footer":false}}"##
+                    .to_string(),
+            ),
             change_note: None,
         };
         let template = templates
@@ -582,10 +892,13 @@ mod tests {
                 .create(
                     actor,
                     ContractDocumentInput {
+                        draft_id: None,
+                        parent_contract_id: None,
+                        status: "active".to_string(),
                         template_id: template.id.clone(),
-                        tenant_id,
+                        tenant_id: tenant_id.clone(),
                         property_id: property_id.clone(),
-                        unit_id,
+                        unit_id: unit_id.clone(),
                         start_date: "2026-01-01".to_string(),
                         end_date: "2026-12-31".to_string(),
                         currency_code: "SAR".to_string(),
@@ -598,25 +911,202 @@ mod tests {
 
         let mut edited_template = template_input;
         edited_template.content_body = "A later template version".to_string();
+        edited_template.placeholders_json = Some(
+            r##"{"design":{"paper_size":"a4","accent_color":"#C7962F","font_family":"Tahoma","font_size":16,"alignment":"start","page_margin_mm":18,"show_branding":true,"brand_label":"","show_footer":true}}"##
+                .to_string(),
+        );
         edited_template.change_note = Some("Update after issue".to_string());
         templates
             .update(actor, &template.id, edited_template)
             .await
             .expect("update source template");
 
+        let updated_document =
+            ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
+                .create(
+                    actor,
+                    ContractDocumentInput {
+                        draft_id: None,
+                        parent_contract_id: None,
+                        status: "active".to_string(),
+                        template_id: template.id.clone(),
+                        tenant_id: tenant_id.clone(),
+                        property_id: property_id.clone(),
+                        unit_id: unit_id.clone(),
+                        start_date: "2027-01-01".to_string(),
+                        end_date: "2027-12-31".to_string(),
+                        currency_code: "SAR".to_string(),
+                        rent_amount_minor: 120_000,
+                        deposit_amount_minor: 0,
+                    },
+                )
+                .await
+                .expect("new contract uses the updated template design");
         let saved = ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database))
             .list(actor, Some(&property_id))
             .await
             .expect("list saved contract for property");
-        assert_eq!(saved.len(), 1);
-        assert_eq!(saved[0].id, document.id);
-        assert_eq!(saved[0].template_version_id, template.versions[0].id);
+        assert_eq!(saved.len(), 2);
+        let original = saved
+            .iter()
+            .find(|item| item.id == document.id)
+            .expect("find original contract");
+        let updated = saved
+            .iter()
+            .find(|item| item.id == updated_document.id)
+            .expect("find contract created with updated template");
+        assert_eq!(original.template_version_id, template.versions[0].id);
         assert_eq!(
-            saved[0].document_body,
+            original.document_body,
             format!(
                 "Snapshot tenant - Snapshot property - A-1 - {}",
                 document.contract_number
             )
+        );
+        assert_eq!(original.document_style.paper_size, "letter");
+        assert_eq!(original.document_style.accent_color, "#245A74");
+        assert_eq!(original.document_style.brand_label, "Example Realty");
+        assert!(!original.document_style.show_footer);
+        assert_eq!(updated.document_style.paper_size, "a4");
+        assert_eq!(updated.document_style.accent_color, "#C7962F");
+
+        let contracts =
+            ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database));
+        let draft = contracts
+            .create(
+                actor,
+                ContractDocumentInput {
+                    draft_id: None,
+                    parent_contract_id: None,
+                    status: "draft".to_string(),
+                    template_id: template.id.clone(),
+                    tenant_id: tenant_id.clone(),
+                    property_id: property_id.clone(),
+                    unit_id: unit_id.clone(),
+                    start_date: "2027-01-01".to_string(),
+                    end_date: "2027-12-31".to_string(),
+                    currency_code: "SAR".to_string(),
+                    rent_amount_minor: 120_000,
+                    deposit_amount_minor: 0,
+                },
+            )
+            .await
+            .expect("save contract draft");
+        let edited_draft = contracts
+            .create(
+                actor,
+                ContractDocumentInput {
+                    draft_id: Some(draft.id.clone()),
+                    parent_contract_id: None,
+                    status: "draft".to_string(),
+                    template_id: template.id.clone(),
+                    tenant_id: tenant_id.clone(),
+                    property_id: property_id.clone(),
+                    unit_id: unit_id.clone(),
+                    start_date: "2027-01-01".to_string(),
+                    end_date: "2027-12-31".to_string(),
+                    currency_code: "SAR".to_string(),
+                    rent_amount_minor: 135_000,
+                    deposit_amount_minor: 0,
+                },
+            )
+            .await
+            .expect("update contract draft");
+        assert_eq!(edited_draft.id, draft.id);
+        assert_eq!(edited_draft.status, "draft");
+        assert_eq!(edited_draft.rent_amount_minor, 135_000);
+
+        let issued = contracts
+            .issue_draft(actor, &draft.id)
+            .await
+            .expect("issue contract draft");
+        assert_eq!(issued.status, "active");
+        let ended = contracts
+            .end(
+                actor,
+                &issued.id,
+                crate::application::ContractEndInput {
+                    effective_date: "2027-03-01".to_string(),
+                    reason: "Lease ended early".to_string(),
+                },
+            )
+            .await
+            .expect("end issued contract");
+        assert_eq!(ended.status, "terminated");
+        assert_eq!(ended.status_reason.as_deref(), Some("Lease ended early"));
+
+        let amendment_draft = contracts
+            .create(
+                actor,
+                ContractDocumentInput {
+                    draft_id: None,
+                    parent_contract_id: Some(updated_document.id.clone()),
+                    status: "draft".to_string(),
+                    template_id: template.id.clone(),
+                    tenant_id: tenant_id.clone(),
+                    property_id: property_id.clone(),
+                    unit_id: unit_id.clone(),
+                    start_date: "2027-07-01".to_string(),
+                    end_date: "2027-12-31".to_string(),
+                    currency_code: "SAR".to_string(),
+                    rent_amount_minor: 140_000,
+                    deposit_amount_minor: 0,
+                },
+            )
+            .await
+            .expect("save amendment draft");
+        let amendment = contracts
+            .issue_draft(actor, &amendment_draft.id)
+            .await
+            .expect("issue amendment");
+        assert_eq!(
+            amendment.parent_contract_id.as_deref(),
+            Some(updated_document.id.as_str())
+        );
+        let saved_after_amendment = contracts
+            .list(actor, Some(&property_id))
+            .await
+            .expect("list contracts after amendment");
+        assert_eq!(
+            saved_after_amendment
+                .iter()
+                .find(|item| item.id == updated_document.id)
+                .expect("find superseded contract")
+                .status,
+            "amended"
+        );
+
+        let delete_draft = contracts
+            .create(
+                actor,
+                ContractDocumentInput {
+                    draft_id: None,
+                    parent_contract_id: None,
+                    status: "draft".to_string(),
+                    template_id: template.id,
+                    tenant_id,
+                    property_id: property_id.clone(),
+                    unit_id,
+                    start_date: "2028-01-01".to_string(),
+                    end_date: "2028-12-31".to_string(),
+                    currency_code: "SAR".to_string(),
+                    rent_amount_minor: 120_000,
+                    deposit_amount_minor: 0,
+                },
+            )
+            .await
+            .expect("save draft for deletion");
+        contracts
+            .delete_draft(actor, &delete_draft.id)
+            .await
+            .expect("delete draft");
+        assert!(
+            contracts
+                .list(actor, Some(&property_id))
+                .await
+                .expect("list contracts after deleting draft")
+                .iter()
+                .all(|item| item.id != delete_draft.id)
         );
     }
 }

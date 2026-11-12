@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
-	import type { CurrencySettings, OrganizationSettings } from '@aqardesk/sdk';
+	import type { CurrencySettings } from '@aqardesk/sdk';
 	import { desktopApi, type CurrencyEditorInput } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
+	import { queryClient } from '#lib/core/query-client';
 	import CurrencySheet from '#lib/features/settings/currency-sheet.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
@@ -17,9 +19,23 @@
 		hasPermission(app.currentUser?.role, 'manage_administration', app.currentUser?.permissions)
 	);
 	const rtl = $derived(locale === 'ar');
-	let currencies = $state<CurrencySettings[]>([]);
-	let organization = $state<OrganizationSettings | null>(null);
-	let loading = $state(true);
+	const pageSize = 50;
+	const currenciesQuery = createInfiniteQuery(() => ({
+		queryKey: ['currencies', app.currentUser?.organization_id ?? '', 'pages'],
+		queryFn: ({ pageParam }) => desktopApi.listCurrenciesPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
+		enabled: !!app.currentUser
+	}));
+	const organizationQuery = createQuery(() => ({
+		queryKey: ['organization-settings', app.currentUser?.organization_id ?? ''],
+		queryFn: desktopApi.getOrganizationSettings,
+		enabled: !!app.currentUser
+	}));
+	const currencies = $derived(currenciesQuery.data?.pages.flatMap((page) => page.items) ?? []);
+	const organization = $derived(organizationQuery.data ?? null);
+	const loading = $derived(currenciesQuery.isLoading || organizationQuery.isLoading);
 	let busyCode = $state<string | null>(null);
 	let savingCurrency = $state(false);
 	let selectedCurrency = $state<CurrencySettings | null>(null);
@@ -122,24 +138,20 @@
 		}
 	]);
 
-	onMount(() => {
-		void load();
+	$effect(() => {
+		const error = currenciesQuery.error ?? organizationQuery.error;
+		if (error) toast.error(String(error));
 	});
 
 	async function load() {
-		loading = true;
-		try {
-			const [availableCurrencies, currentOrganization] = await Promise.all([
-				desktopApi.listCurrencies(),
-				desktopApi.getOrganizationSettings()
-			]);
-			currencies = availableCurrencies;
-			organization = currentOrganization;
-		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
-		} finally {
-			loading = false;
-		}
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: ['currencies', app.currentUser?.organization_id ?? '']
+			}),
+			queryClient.invalidateQueries({
+				queryKey: ['organization-settings', app.currentUser?.organization_id ?? '']
+			})
+		]);
 	}
 
 	async function toggle(currency: CurrencySettings) {
@@ -154,11 +166,9 @@
 				currency.code,
 				!currency.is_enabled_for_organization
 			);
-			currencies = currencies.map((item) =>
-				item.code === currency.code
-					? { ...item, is_enabled_for_organization: !item.is_enabled_for_organization }
-					: item
-			);
+			await queryClient.invalidateQueries({
+				queryKey: ['currencies', app.currentUser?.organization_id ?? '']
+			});
 			toast.success(m.settings_currency_change_success());
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -222,6 +232,8 @@
 		readonly
 		rowIdKey="code"
 		height="100%"
+		hasMore={currenciesQuery.hasNextPage}
+		onloadmore={() => fetchNextPageOrThrow(() => currenciesQuery.fetchNextPage())}
 		emptyTitle={m.settings_currencies_description()}
 		onaction={handleGridAction}
 	>

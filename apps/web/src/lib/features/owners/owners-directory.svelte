@@ -15,13 +15,15 @@
 	type Props = {
 		owners: Owner[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		canCreate: boolean;
 		canUpdate: boolean;
 		onAdd: () => void;
 		onEdit: (owner: Owner) => void;
 	};
 
-	let { owners, loading, canCreate, canUpdate, onAdd, onEdit }: Props = $props();
+	let { owners, loading, hasMore = false, onloadmore, canCreate, canUpdate, onAdd, onEdit }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
@@ -71,6 +73,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.owners_empty()}
 		emptyDescription={m.properties_owners()}
 		onaction={handleGridAction}

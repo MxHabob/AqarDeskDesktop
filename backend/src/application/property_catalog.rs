@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, PropertyRepository, require_permission},
+    application::{ApplicationError, Page, PageRequest, PropertyRepository, require_permission},
     domain::{ActorContext, Permission, Property, PropertyId, PropertyInput},
 };
 
@@ -15,6 +15,17 @@ impl<R: PropertyRepository> PropertyCatalog<R> {
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Property>, ApplicationError> {
         require_permission(actor, Permission::ViewProperties)?;
         self.properties.list(actor.organization_id()).await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        page: PageRequest,
+    ) -> Result<Page<Property>, ApplicationError> {
+        require_permission(actor, Permission::ViewProperties)?;
+        self.properties
+            .list_page(actor.organization_id(), page)
+            .await
     }
 
     pub async fn create(

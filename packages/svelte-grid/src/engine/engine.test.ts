@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { applyFilter } from "./filter";
+import { drainPages } from "../data-source";
 import { applySort, toggleSort } from "./sort";
 import {
   emptySelection,
@@ -226,6 +227,31 @@ describe("grouping", () => {
 });
 
 describe("query + coerce", () => {
+  test("drains pages sequentially until no more remain", async () => {
+    let remainingPages = 3;
+    const loaded: number[] = [];
+    await drainPages(
+      () => remainingPages > 0,
+      async () => {
+        loaded.push(remainingPages);
+        remainingPages--;
+      },
+    );
+    expect(loaded).toEqual([3, 2, 1]);
+  });
+
+  test("stops draining when a page request fails", async () => {
+    let remainingPages = 2;
+    await expect(
+      drainPages(
+        () => remainingPages > 0,
+        async () => {
+          throw new Error("page failed");
+        },
+      ),
+    ).rejects.toThrow("page failed");
+  });
+
   test("client query combines filter and sort", () => {
     const out = queryClient(rows(), cols, {
       filter: {

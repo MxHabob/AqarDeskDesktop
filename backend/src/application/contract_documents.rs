@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, require_permission},
+    application::{ApplicationError, Page, PageRequest, require_permission},
     domain::{ActorContext, Permission},
 };
 use chrono::NaiveDate;
@@ -28,12 +28,78 @@ pub struct ContractDocument {
     pub rent_amount_minor: i64,
     pub deposit_amount_minor: i64,
     pub document_body: String,
+    pub document_style: ContractDocumentStyle,
     pub created_by: String,
     pub created_at: String,
+    pub status: String,
+    pub status_reason: Option<String>,
+    pub status_effective_date: Option<String>,
+    pub parent_contract_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ContractDocumentStyle {
+    pub paper_size: String,
+    pub accent_color: String,
+    pub font_family: String,
+    pub font_size: u8,
+    pub alignment: String,
+    pub page_margin_mm: u8,
+    pub show_branding: bool,
+    pub brand_label: String,
+    pub show_contract_number: bool,
+    pub show_footer: bool,
+    pub footer_text: String,
+}
+
+impl Default for ContractDocumentStyle {
+    fn default() -> Self {
+        Self {
+            paper_size: "a4".to_string(),
+            accent_color: "#C7962F".to_string(),
+            font_family: "Tahoma".to_string(),
+            font_size: 16,
+            alignment: "start".to_string(),
+            page_margin_mm: 18,
+            show_branding: true,
+            brand_label: String::new(),
+            show_contract_number: true,
+            show_footer: true,
+            footer_text: String::new(),
+        }
+    }
+}
+
+impl ContractDocumentStyle {
+    pub fn validate(&self) -> Result<(), ApplicationError> {
+        if !matches!(self.paper_size.as_str(), "a4" | "a5" | "letter")
+            || !matches!(
+                self.font_family.as_str(),
+                "Tahoma" | "Arial" | "Georgia" | "Noto Naskh Arabic"
+            )
+            || !matches!(self.font_size, 12 | 14 | 16 | 18)
+            || !matches!(self.alignment.as_str(), "start" | "justify")
+            || !(12..=30).contains(&self.page_margin_mm)
+            || self.brand_label.chars().count() > 100
+            || self.footer_text.chars().count() > 400
+            || self.accent_color.len() != 7
+            || !self.accent_color.starts_with('#')
+            || !self.accent_color[1..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(validation("Contract document design settings are invalid."));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDocumentInput {
+    pub draft_id: Option<String>,
+    pub parent_contract_id: Option<String>,
+    pub status: String,
     pub template_id: String,
     pub tenant_id: String,
     pub property_id: String,
@@ -45,6 +111,12 @@ pub struct ContractDocumentInput {
     pub deposit_amount_minor: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractEndInput {
+    pub effective_date: String,
+    pub reason: String,
+}
+
 #[async_trait::async_trait]
 pub trait ContractDocumentRepository: Send + Sync {
     async fn list(
@@ -53,11 +125,45 @@ pub trait ContractDocumentRepository: Send + Sync {
         property_id: Option<&str>,
     ) -> Result<Vec<ContractDocument>, ApplicationError>;
 
+    async fn list_page(
+        &self,
+        organization_id: &str,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        Ok(Page::from_items(
+            self.list(organization_id, property_id).await?,
+            page.limit(),
+        ))
+    }
+
     async fn create(
         &self,
         organization_id: &str,
         actor_id: &str,
         input: ContractDocumentInput,
+    ) -> Result<ContractDocument, ApplicationError>;
+
+    async fn delete_draft(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+    ) -> Result<(), ApplicationError>;
+
+    async fn issue_draft(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+    ) -> Result<ContractDocument, ApplicationError>;
+
+    async fn end(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        contract_id: &str,
+        input: ContractEndInput,
     ) -> Result<ContractDocument, ApplicationError>;
 }
 
@@ -81,6 +187,18 @@ impl<R: ContractDocumentRepository> ContractDocumentService<R> {
             .await
     }
 
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        require_permission(actor, Permission::ViewContracts)?;
+        self.repository
+            .list_page(&actor.organization_id().to_string(), property_id, page)
+            .await
+    }
+
     pub async fn create(
         &self,
         actor: ActorContext,
@@ -93,6 +211,54 @@ impl<R: ContractDocumentRepository> ContractDocumentService<R> {
             .create(
                 &actor.organization_id().to_string(),
                 &actor.user_id().to_string(),
+                input,
+            )
+            .await
+    }
+
+    pub async fn delete_draft(
+        &self,
+        actor: ActorContext,
+        contract_id: &str,
+    ) -> Result<(), ApplicationError> {
+        require_permission(actor, Permission::CreateContracts)?;
+        self.repository
+            .delete_draft(
+                &actor.organization_id().to_string(),
+                &actor.user_id().to_string(),
+                contract_id,
+            )
+            .await
+    }
+
+    pub async fn issue_draft(
+        &self,
+        actor: ActorContext,
+        contract_id: &str,
+    ) -> Result<ContractDocument, ApplicationError> {
+        require_permission(actor, Permission::CreateContracts)?;
+        self.repository
+            .issue_draft(
+                &actor.organization_id().to_string(),
+                &actor.user_id().to_string(),
+                contract_id,
+            )
+            .await
+    }
+
+    pub async fn end(
+        &self,
+        actor: ActorContext,
+        contract_id: &str,
+        input: ContractEndInput,
+    ) -> Result<ContractDocument, ApplicationError> {
+        require_permission(actor, Permission::CreateContracts)?;
+        validate_end(&input)?;
+        self.repository
+            .end(
+                &actor.organization_id().to_string(),
+                &actor.user_id().to_string(),
+                contract_id,
                 input,
             )
             .await
@@ -122,6 +288,31 @@ fn validate(input: &ContractDocumentInput) -> Result<(), ApplicationError> {
     {
         return Err(validation("Contract currency or amounts are invalid."));
     }
+    if !matches!(input.status.as_str(), "draft" | "active")
+        || input
+            .draft_id
+            .as_ref()
+            .is_some_and(|id| id.trim().is_empty())
+        || input
+            .parent_contract_id
+            .as_ref()
+            .is_some_and(|id| id.trim().is_empty())
+        || (input.draft_id.is_some() && input.status != "draft")
+    {
+        return Err(validation("Contract state or relationship is invalid."));
+    }
+    Ok(())
+}
+
+fn validate_end(input: &ContractEndInput) -> Result<(), ApplicationError> {
+    if NaiveDate::parse_from_str(&input.effective_date, "%Y-%m-%d").is_err()
+        || input.reason.trim().is_empty()
+        || input.reason.trim().len() > 1000
+    {
+        return Err(validation(
+            "Contract end date and reason are required and must be valid.",
+        ));
+    }
     Ok(())
 }
 
@@ -132,6 +323,35 @@ fn validation(message: &'static str) -> ApplicationError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_document_style_is_valid_and_deserializes_legacy_settings() {
+        let style = serde_json::from_str::<ContractDocumentStyle>("{}")
+            .expect("legacy template settings use the default design");
+        style.validate().expect("default design is valid");
+        assert_eq!(style.paper_size, "a4");
+        assert_eq!(style.font_size, 16);
+    }
+
+    #[test]
+    fn document_style_accepts_a5_paper_size() {
+        let style = ContractDocumentStyle {
+            paper_size: "a5".to_string(),
+            ..ContractDocumentStyle::default()
+        };
+        style.validate().expect("A5 is a supported paper size");
+    }
+
+    #[test]
+    fn document_style_rejects_unsafe_or_unsupported_values() {
+        let mut style = ContractDocumentStyle::default();
+        style.accent_color = "red;display:none".to_string();
+        assert!(style.validate().is_err());
+
+        style = ContractDocumentStyle::default();
+        style.page_margin_mm = 31;
+        assert!(style.validate().is_err());
+    }
 
     struct UnreachableRepository;
 
@@ -153,10 +373,36 @@ mod tests {
         ) -> Result<ContractDocument, ApplicationError> {
             unreachable!()
         }
+
+        async fn delete_draft(&self, _: &str, _: &str, _: &str) -> Result<(), ApplicationError> {
+            unreachable!()
+        }
+
+        async fn issue_draft(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+        ) -> Result<ContractDocument, ApplicationError> {
+            unreachable!()
+        }
+
+        async fn end(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+            _: ContractEndInput,
+        ) -> Result<ContractDocument, ApplicationError> {
+            unreachable!()
+        }
     }
 
     fn input() -> ContractDocumentInput {
         ContractDocumentInput {
+            draft_id: None,
+            parent_contract_id: None,
+            status: "active".to_string(),
             template_id: "template".to_string(),
             tenant_id: "tenant".to_string(),
             property_id: "property".to_string(),

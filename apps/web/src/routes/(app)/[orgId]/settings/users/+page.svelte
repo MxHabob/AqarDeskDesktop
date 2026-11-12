@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
-	import { userQueries, userQueryKeys } from '#lib/features/users/queries';
+	import { userQueryKeys } from '#lib/features/users/queries';
 	import { roleQueryKeys } from '#lib/features/roles/queries';
 	import AddUserSheet from '#lib/features/users/add-user-sheet.svelte';
 	import EditUserSheet from '#lib/features/users/edit-user-sheet.svelte';
@@ -12,14 +12,19 @@
 	import type { UserFormValues } from '#lib/features/users/user-form.svelte';
 	import { toast } from '@aqardesk/ui';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 
 	const app = getAppContext();
-	const usersQuery = createQuery(() => ({
-		queryKey: userQueryKeys.all(app.currentUser?.organization_id ?? ''),
-		queryFn: userQueries.list,
+	const pageSize = 50;
+	const usersQuery = createInfiniteQuery(() => ({
+		queryKey: userQueryKeys.pages(app.currentUser?.organization_id ?? ''),
+		queryFn: ({ pageParam }) => desktopApi.listUsersPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: hasPermission(app.currentUser?.role, 'manage_administration', app.currentUser?.permissions)
 	}));
-	const users = $derived(usersQuery.data ?? []);
+	const users = $derived(usersQuery.data?.pages.flatMap((page) => page.items) ?? []);
 	const rolesQuery = createQuery(() => ({
 		queryKey: roleQueryKeys.all(app.currentUser?.organization_id ?? ''),
 		queryFn: desktopApi.listRolePermissions,
@@ -42,6 +47,8 @@
 	<UsersDirectory
 		{users}
 		loading={usersQuery.isLoading}
+		hasMore={usersQuery.hasNextPage}
+		onloadmore={() => fetchNextPageOrThrow(() => usersQuery.fetchNextPage())}
 		busy={app.busy}
 		onToggle={(user: User) => void app.setUserActive(user)}
 		onEdit={(user: User) => {

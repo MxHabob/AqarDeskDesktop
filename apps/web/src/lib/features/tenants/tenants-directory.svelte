@@ -10,6 +10,8 @@
 	type Props = {
 		tenants: Tenant[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		canCreate: boolean;
 		canUpdate: boolean;
 		canArchive: boolean;
@@ -17,7 +19,7 @@
 		onEdit: (tenant: Tenant) => void;
 		onArchive: (tenant: Tenant) => void;
 	};
-	let { tenants, loading, canCreate, canUpdate, canArchive, onAdd, onEdit, onArchive }: Props = $props();
+	let { tenants, loading, hasMore = false, onloadmore, canCreate, canUpdate, canArchive, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
@@ -60,6 +62,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.tenants_empty()}
 		emptyDescription={m.dashboard_tenants_description()}
 		onaction={handleGridAction}

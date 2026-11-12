@@ -1,18 +1,34 @@
 <script lang="ts">
-	import { Plus, Printer } from '@lucide/svelte';
+	import { MoreHorizontal, Plus, Printer } from '@lucide/svelte';
 	import {
 		Button,
 		Sheet,
 		SheetContent,
 		SheetFooter,
 		SheetHeader,
-		SheetTitle
+		SheetTitle,
+		Input,
+		Textarea,
+		toast
 	} from '@aqardesk/ui';
+	import {
+		DropdownMenu,
+		DropdownMenuContent,
+		DropdownMenuItem,
+		DropdownMenuSeparator,
+		DropdownMenuTrigger
+	} from '@aqardesk/ui/components/ui/dropdown-menu';
 	import type { ContractDocument } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
+	import {
+		buildPrintDocumentHtml,
+		contractDocumentFont,
+		contractDocumentPaperDimensions,
+		printHtmlDocument
+	} from '#lib/features/contracts/document-design';
 	import {
 		AqarDeskGrid,
 		type AqarDeskColumnDef,
@@ -22,24 +38,42 @@
 	type Props = {
 		contracts: ContractDocument[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		selectedContract?: ContractDocument | null;
 		canCreate?: boolean;
 		createDisabled?: boolean;
 		onCreate?: () => void;
+		onEditDraft?: (contract: ContractDocument) => void;
+		onIssueDraft?: (contract: ContractDocument) => Promise<boolean>;
+		onDeleteDraft?: (contract: ContractDocument) => Promise<boolean>;
+		onAmend?: (contract: ContractDocument) => void;
+		onEnd?: (contractId: string, effectiveDate: string, reason: string) => Promise<boolean>;
 	};
 
 	let {
 		contracts,
 		loading,
+		hasMore = false,
+		onloadmore,
 		selectedContract = null,
 		canCreate = false,
 		createDisabled = false,
-		onCreate
+		onCreate,
+		onEditDraft,
+		onIssueDraft,
+		onDeleteDraft,
+		onAmend,
+		onEnd
 	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	let selected = $state<ContractDocument | undefined>();
 	let viewerOpen = $state(false);
+	let endSheetOpen = $state(false);
+	let effectiveDate = $state('');
+	let endReason = $state('');
+	let ending = $state(false);
 
 	$effect(() => {
 		if (selectedContract) openContract(selectedContract);
@@ -51,6 +85,12 @@
 		{ id: 'property_name', header: m.properties_name(), width: 180 },
 		{ id: 'unit_number', header: m.contracts_select_unit(), width: 140 },
 		{ id: 'template_name', header: m.contracts_template(), width: 190 },
+		{
+			id: 'status',
+			header: m.contracts_status(),
+			width: 130,
+			accessor: (row) => contractStatusLabel(String(row.status ?? ''))
+		},
 		{ id: 'start_date', header: m.contracts_start_date(), width: 130 },
 		{ id: 'end_date', header: m.contracts_end_date(), width: 130 },
 		{
@@ -70,6 +110,17 @@
 			}
 		}
 	]);
+
+	function contractStatusLabel(status: string) {
+		switch (status) {
+			case 'draft': return m.contracts_status_draft();
+			case 'active': return m.contracts_status_active();
+			case 'amended': return m.contracts_status_amended();
+			case 'terminated': return m.contracts_status_terminated();
+			case 'cancelled': return m.contracts_status_cancelled();
+			default: return status;
+		}
+	}
 
 	function openContract(contract: ContractDocument | undefined) {
 		if (!contract) return;
@@ -96,24 +147,99 @@
 			});
 	}
 
-	function printDocument() {
+	function escapeHtml(value: string) {
+		return value
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
+	}
+
+	async function printDocument() {
 		if (!selected) return;
-		const printStyles = document.createElement('style');
-		printStyles.textContent = `
-			@media print {
-				@page { size: A4; margin: 0; }
-				body * { visibility: hidden !important; overflow: visible !important; }
-				#issued-contract, #issued-contract * { visibility: visible !important; }
-				#issued-contract {
-					position: absolute !important; inset: 0 !important; width: 100% !important;
-					max-width: none !important; min-height: 0 !important; margin: 0 !important;
-					padding: 18mm !important; border: 0 !important; border-radius: 0 !important;
-					box-shadow: none !important; background: #fff !important; color: #172033 !important;
+		const design = selected.document_style;
+		const hasHeader =
+			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
+		const headerHtml = hasHeader
+			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? `<p class="contract-number">${escapeHtml(selected.contract_number)}</p>` : ''}</header>`
+			: '';
+		const bodyHtml = documentBlocks(selected.document_body)
+			.map((block) => {
+				if (block.kind === 'heading') {
+					return `<h2>${escapeHtml(block.text.replace(/^#{1,3}\s+/, ''))}</h2>`;
 				}
-			}`;
-		document.head.append(printStyles);
-		window.addEventListener('afterprint', () => printStyles.remove(), { once: true });
-		window.print();
+				if (block.kind === 'list-item') {
+					return `<p><span class="bullet">• </span>${escapeHtml(block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, ''))}</p>`;
+				}
+				return `<p>${escapeHtml(block.text)}</p>`;
+			})
+			.join('');
+		const footerHtml = design.show_footer
+			? `<footer>${escapeHtml(design.footer_text.trim() || m.contracts_disclaimer())}</footer>`
+			: '';
+		try {
+			await printHtmlDocument(
+				buildPrintDocumentHtml({
+					title: selected.template_name,
+					direction: selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr',
+					design,
+					headerHtml,
+					bodyHtml,
+					footerHtml
+				})
+			);
+		} catch (cause) {
+			toast.error(cause instanceof Error ? cause.message : String(cause));
+		}
+	}
+
+	async function issueDraft() {
+		if (!selected || !onIssueDraft) return;
+		if (await onIssueDraft(selected)) viewerOpen = false;
+	}
+
+	function editDraft() {
+		if (!selected || !onEditDraft) return;
+		onEditDraft(selected);
+		viewerOpen = false;
+	}
+
+	function startAmendment() {
+		if (!selected || !onAmend) return;
+		onAmend(selected);
+		viewerOpen = false;
+	}
+
+	async function deleteDraft() {
+		if (!selected || !onDeleteDraft) return;
+		if (!window.confirm(m.contracts_delete_draft_confirm())) return;
+		if (await onDeleteDraft(selected)) viewerOpen = false;
+	}
+
+	async function endContract() {
+		if (!selected || !onEnd) return;
+		if (!effectiveDate || !endReason.trim()) {
+			toast.error(m.contracts_end_required());
+			return;
+		}
+		ending = true;
+		try {
+			if (!(await onEnd(selected.id, effectiveDate, endReason.trim()))) return;
+			endSheetOpen = false;
+			viewerOpen = false;
+			effectiveDate = '';
+			endReason = '';
+		} finally {
+			ending = false;
+		}
+	}
+
+	function openEndSheet() {
+		effectiveDate = '';
+		endReason = '';
+		endSheetOpen = true;
+		viewerOpen = false;
 	}
 </script>
 
@@ -126,6 +252,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.contracts_empty_title()}
 		emptyDescription={m.contracts_empty_description()}
 		onaction={handleGridAction}
@@ -142,48 +270,113 @@
 </div>
 
 <Sheet bind:open={viewerOpen}>
-	<SheetContent side="end" class="max-w-3xl">
+	<SheetContent
+		side="end"
+		class="!p-0 max-w-none"
+		contentClass="!data-[side=end]:end-0 !data-[side=end]:right-0 !data-[side=end]:h-dvh !data-[side=end]:w-screen"
+	>
 		<SheetHeader class="shrink-0 px-4 py-4">
 			<SheetTitle>{selected?.template_name ?? m.contracts_preview()}</SheetTitle>
 			{#if selected}
 				<p class="text-xs text-muted-foreground" dir="ltr">{selected.contract_number}</p>
+				<p class="text-xs text-muted-foreground">{m.contracts_design_snapshot_notice()}</p>
 			{/if}
 		</SheetHeader>
 		{#if selected}
-			<div class="min-h-0 flex-1 overflow-y-auto p-4">
+			<div class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none">
 				<article
 					id="issued-contract"
 					dir={selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
-					class="mx-auto min-h-[29.7cm] w-full max-w-[21cm] rounded-md border border-border/70 bg-background px-8 py-10 shadow-sm sm:px-14 sm:py-16"
+					class="mx-auto w-full rounded-md border border-border/70 bg-white text-slate-900 shadow-sm"
+					style={`max-width:${contractDocumentPaperDimensions(selected.document_style.paper_size).width};min-height:${contractDocumentPaperDimensions(selected.document_style.paper_size).height};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
 				>
-					<header class="mb-8 border-b-2 border-primary/60 pb-5">
-						<p class="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">AqarDesk</p>
-						<h3 class="mt-3 text-2xl font-semibold leading-relaxed">{selected.template_name}</h3>
-						<p class="mt-2 text-xs text-muted-foreground" dir="ltr">{selected.contract_number}</p>
-					</header>
-					<div class="grid gap-3 text-sm leading-8">
+					{#if (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
+						<header class="mb-8 border-b-2 pb-5" style={`border-color:${selected.document_style.accent_color}`}>
+							{#if selected.document_style.show_branding && selected.document_style.brand_label.trim()}
+								<p class="text-sm font-bold" style={`color:${selected.document_style.accent_color}`}>
+									{selected.document_style.brand_label}
+								</p>
+							{/if}
+							{#if selected.document_style.show_contract_number}
+								<p class="text-sm text-muted-foreground" dir="ltr">{selected.contract_number}</p>
+							{/if}
+						</header>
+					{/if}
+					<div class="grid gap-3 leading-8">
 						{#each documentBlocks(selected.document_body) as block, index (`${block.kind}-${index}`)}
 							{#if block.kind === 'heading'}
-								<h4 class="pt-2 text-base font-semibold">{block.text.replace(/^#{1,3}\s+/, '')}</h4>
+								<h4 class="border-b pb-2 pt-4 text-lg font-semibold" style={`border-color:${selected.document_style.accent_color};color:${selected.document_style.accent_color}`}>{block.text.replace(/^#{1,3}\s+/, '')}</h4>
 							{:else if block.kind === 'list-item'}
-								<p class="before:me-2 before:text-primary before:content-['•']">{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
+								<p><span style={`color:${selected.document_style.accent_color}`}>• </span>{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
 							{:else}
 								<p class="whitespace-pre-wrap">{block.text}</p>
 							{/if}
 						{/each}
 					</div>
-					<footer class="mt-12 border-t border-border pt-3 text-[10px] leading-5 text-muted-foreground">
-						{m.contracts_disclaimer()}
-					</footer>
+					{#if selected.document_style.show_footer}
+						<footer class="mt-12 border-t pt-3 text-xs leading-6 text-muted-foreground" style={`border-color:${selected.document_style.accent_color}`}>
+							{selected.document_style.footer_text.trim() || m.contracts_disclaimer()}
+						</footer>
+					{/if}
 				</article>
 			</div>
-			<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+			<SheetFooter class="shrink-0 flex-row flex-wrap items-center justify-between gap-2 border-t border-border bg-popover px-4 py-3">
 				<Button variant="outline" onclick={() => (viewerOpen = false)}>{m.common_cancel()}</Button>
-				<Button onclick={printDocument}>
-					<Printer size={15} class="me-2" />
-					{m.contracts_print()}
-				</Button>
+				<DropdownMenu dir={rtl ? 'rtl' : 'ltr'}>
+					<DropdownMenuTrigger>
+						{#snippet child({ props }: { props: Record<string, unknown> })}
+							<Button {...props} variant="default" class="min-w-32">
+								<MoreHorizontal size={16} class="me-2" />
+								{m.contracts_actions()}
+							</Button>
+						{/snippet}
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" side="top" class="min-w-52">
+						{#if canCreate && selected.status === 'draft'}
+							<DropdownMenuItem onclick={editDraft}>{m.contracts_edit_draft()}</DropdownMenuItem>
+							<DropdownMenuItem onclick={issueDraft}>{m.contracts_issue_draft()}</DropdownMenuItem>
+							<DropdownMenuItem class="text-destructive focus:text-destructive" onclick={deleteDraft}>
+								{m.contracts_delete_draft()}
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+						{:else if canCreate && selected.status === 'active'}
+							<DropdownMenuItem onclick={startAmendment}>{m.contracts_amend()}</DropdownMenuItem>
+							<DropdownMenuItem class="text-destructive focus:text-destructive" onclick={openEndSheet}>
+								{m.contracts_end()}
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+						{/if}
+						<DropdownMenuItem onclick={printDocument}>
+							<Printer size={15} class="me-2" />
+							{m.contracts_print()}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</SheetFooter>
 		{/if}
+	</SheetContent>
+</Sheet>
+
+<Sheet bind:open={endSheetOpen}>
+	<SheetContent side="end" class="max-w-lg">
+		<SheetHeader class="shrink-0 px-4 py-4">
+			<SheetTitle>{m.contracts_end()}</SheetTitle>
+		</SheetHeader>
+		<div class="grid gap-4 p-4">
+			<label class="grid gap-2 text-sm" for="contract-end-effective-date">
+				<span>{m.contracts_end_date()}</span>
+				<Input id="contract-end-effective-date" type="date" bind:value={effectiveDate} />
+			</label>
+			<label class="grid gap-2 text-sm" for="contract-end-reason">
+				<span>{m.contracts_end_reason()}</span>
+				<Textarea id="contract-end-reason" bind:value={endReason} maxlength={1000} rows={4} />
+			</label>
+		</div>
+		<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+			<Button variant="outline" onclick={() => (endSheetOpen = false)} disabled={ending}>{m.common_cancel()}</Button>
+			<Button variant="destructive" onclick={endContract} disabled={ending}>
+				{ending ? m.common_processing() : m.contracts_end()}
+			</Button>
+		</SheetFooter>
 	</SheetContent>
 </Sheet>

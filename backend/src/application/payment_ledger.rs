@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, require_permission},
+    application::{ApplicationError, Page, PageRequest, require_permission},
     domain::{
         ActorContext, OrganizationId, Payment, PaymentId, PaymentInput, Permission, TenantId,
     },
@@ -23,6 +23,24 @@ pub struct PaymentContract {
 pub trait PaymentRepository: Send + Sync {
     async fn list(&self, organization_id: OrganizationId)
     -> Result<Vec<Payment>, ApplicationError>;
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        Ok(Page::from_items(
+            self.list(organization_id).await?,
+            page.limit(),
+        ))
+    }
+
+    async fn list_page_for_property(
+        &self,
+        organization_id: OrganizationId,
+        property_id: &str,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError>;
 
     async fn insert(&self, payment: Payment) -> Result<Payment, ApplicationError>;
 
@@ -52,6 +70,27 @@ impl<R: PaymentRepository> PaymentLedger<R> {
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Payment>, ApplicationError> {
         require_permission(actor, Permission::ViewPayments)?;
         self.payments.list(actor.organization_id()).await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        require_permission(actor, Permission::ViewPayments)?;
+        self.payments.list_page(actor.organization_id(), page).await
+    }
+
+    pub async fn list_page_for_property(
+        &self,
+        actor: ActorContext,
+        property_id: &str,
+        page: PageRequest,
+    ) -> Result<Page<Payment>, ApplicationError> {
+        require_permission(actor, Permission::ViewPayments)?;
+        self.payments
+            .list_page_for_property(actor.organization_id(), property_id, page)
+            .await
     }
 
     pub async fn record(

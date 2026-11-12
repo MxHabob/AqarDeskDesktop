@@ -1,7 +1,7 @@
 use aqardesk_backend::{
     application::{
         CurrencyCatalog, CurrencyInput, NewCurrencyInput, OrganizationSettingsInput,
-        OrganizationSettingsService,
+        OrganizationSettingsService, Page, PageRequest,
     },
     infrastructure::{SeaOrmCurrencyRepository, SeaOrmOrganizationSettingsRepository},
 };
@@ -52,6 +52,30 @@ pub async fn currencies_list(
         .list(actor)
         .await
         .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn currencies_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<Page<aqardesk_backend::application::CurrencySettings>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_operational(&actor.organization_id().to_string())
+        .await?;
+    let page = PageRequest::new(limit, offset).map_err(application_error)?;
+    let currencies = CurrencyCatalog::new(SeaOrmCurrencyRepository::new(&database))
+        .list(actor)
+        .await
+        .map_err(application_error)?;
+    let items = currencies
+        .into_iter()
+        .skip(usize::try_from(page.offset()).unwrap_or(usize::MAX))
+        .take(usize::try_from(page.fetch_limit()).unwrap_or(usize::MAX))
+        .collect();
+    Ok(Page::from_items(items, page.limit()))
 }
 
 #[tauri::command]
