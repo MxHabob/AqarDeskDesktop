@@ -74,6 +74,7 @@ jobs:
           sparse-checkout: |
             scripts/prepare-tauri-updater-config.mjs
             scripts/stage-release-artifacts.mjs
+            scripts/validate-license-build-config.mjs
           sparse-checkout-cone-mode: false
 
       - name: Setup Bun
@@ -104,11 +105,27 @@ jobs:
           node -e "if (!process.env.TAURI_SIGNING_PRIVATE_KEY?.trim()) throw new Error('Set the TAURI_SIGNING_PRIVATE_KEY repository secret before creating a release.')"
           node release-tooling/scripts/prepare-tauri-updater-config.mjs
 
+      - name: Validate Mulverse license configuration
+        env:
+          MULVERSE_LICENSE_API_BASE_URL: ${{ vars.MULVERSE_LICENSE_API_BASE_URL }}
+          MULVERSE_LICENSE_PRODUCT_CODE: ${{ vars.MULVERSE_LICENSE_PRODUCT_CODE }}
+          MULVERSE_LICENSE_PRODUCT_ID: ${{ vars.MULVERSE_LICENSE_PRODUCT_ID }}
+          MULVERSE_LICENSE_KEY_PREFIX: ${{ vars.MULVERSE_LICENSE_KEY_PREFIX }}
+          MULVERSE_LICENSE_PUBLIC_KEY_ID: ${{ vars.MULVERSE_LICENSE_PUBLIC_KEY_ID }}
+          MULVERSE_LICENSE_PUBLIC_KEY_B64: ${{ vars.MULVERSE_LICENSE_PUBLIC_KEY_B64 }}
+        run: node release-tooling/scripts/validate-license-build-config.mjs
+
       - name: Build signed desktop bundle
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          MULVERSE_LICENSE_API_BASE_URL: ${{ vars.MULVERSE_LICENSE_API_BASE_URL }}
+          MULVERSE_LICENSE_PRODUCT_CODE: ${{ vars.MULVERSE_LICENSE_PRODUCT_CODE }}
+          MULVERSE_LICENSE_PRODUCT_ID: ${{ vars.MULVERSE_LICENSE_PRODUCT_ID }}
+          MULVERSE_LICENSE_KEY_PREFIX: ${{ vars.MULVERSE_LICENSE_KEY_PREFIX }}
+          MULVERSE_LICENSE_PUBLIC_KEY_ID: ${{ vars.MULVERSE_LICENSE_PUBLIC_KEY_ID }}
+          MULVERSE_LICENSE_PUBLIC_KEY_B64: ${{ vars.MULVERSE_LICENSE_PUBLIC_KEY_B64 }}
         run: bun run tauri:build -- --config src-tauri/target/tauri-updater-release.conf.json --target ${{ matrix.target }}
 
       - name: Stage updater bundle and signature

@@ -7,6 +7,7 @@ import { createUpdaterManifest } from "./create-tauri-updater-manifest.mjs";
 import { mergeUpdaterManifests } from "./merge-release-artifacts.mjs";
 import { normalizeUpdaterPublicKey } from "./prepare-tauri-updater-config.mjs";
 import { stage } from "./stage-release-artifacts.mjs";
+import { validateLicenseBuildConfig } from "./validate-license-build-config.mjs";
 
 const base = {
   repository: "MxHabob/AqarDeskDesktop",
@@ -122,4 +123,24 @@ test("stages signed bundles from the Cargo workspace target directory", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("validates the public Mulverse license configuration required by release builds", () => {
+  const config = {
+    MULVERSE_LICENSE_API_BASE_URL: "https://api.mulverse.com",
+    MULVERSE_LICENSE_PRODUCT_CODE: "AQARDESK",
+    MULVERSE_LICENSE_PRODUCT_ID: "123e4567-e89b-42d3-a456-426614174000",
+    MULVERSE_LICENSE_KEY_PREFIX: "AQAR",
+    MULVERSE_LICENSE_PUBLIC_KEY_ID: "aqar-prod-1",
+    MULVERSE_LICENSE_PUBLIC_KEY_B64: Buffer.alloc(32, 1).toString("base64"),
+  };
+  assert.doesNotThrow(() => validateLicenseBuildConfig(config));
+  assert.throws(
+    () => validateLicenseBuildConfig({ ...config, MULVERSE_LICENSE_PUBLIC_KEY_B64: "" }),
+    /MULVERSE_LICENSE_PUBLIC_KEY_B64/,
+  );
+  assert.throws(
+    () => validateLicenseBuildConfig({ ...config, MULVERSE_LICENSE_API_BASE_URL: "http://api.mulverse.com" }),
+    /HTTPS URL/,
+  );
 });

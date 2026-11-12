@@ -39,3 +39,18 @@ Before the first release, configure these repository settings:
 Keep the private key and its password out of the repository. Releases fail
 early when the signing key is missing, the tag/version disagree, or release
 notes still contain preparation placeholders.
+
+Production desktop builds also require these GitHub Actions repository
+variables, obtained from the Mulverse product configuration:
+
+- `MULVERSE_LICENSE_API_BASE_URL`
+- `MULVERSE_LICENSE_PRODUCT_CODE`
+- `MULVERSE_LICENSE_PRODUCT_ID`
+- `MULVERSE_LICENSE_KEY_PREFIX`
+- `MULVERSE_LICENSE_PUBLIC_KEY_ID`
+- `MULVERSE_LICENSE_PUBLIC_KEY_B64`
+
+The release workflow validates these values and compiles them into the desktop
+application. The verification key must be the base64 encoding of the matching
+32-byte Ed25519 public key; never put the private signing key in the desktop
+build.
