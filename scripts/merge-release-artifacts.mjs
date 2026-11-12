@@ -9,6 +9,10 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  normalizeUpdaterPathPrefix,
+  normalizeUpdaterPublicUrl,
+} from "./prepare-tauri-updater-config.mjs";
 
 const expectedPlatforms = ["windows-x86_64", "darwin-aarch64"];
 
@@ -22,13 +26,22 @@ function walkFiles(directory) {
   return files;
 }
 
-export function mergeUpdaterManifests({ manifests, version, tag, repository, files }) {
+export function mergeUpdaterManifests({
+  manifests,
+  version,
+  tag,
+  publicUrl,
+  pathPrefix = "aqardesk",
+  files,
+}) {
   if (manifests.length !== expectedPlatforms.length) {
     throw new Error(`Expected ${expectedPlatforms.length} updater manifests; found ${manifests.length}.`);
   }
-  if (!/^[^/]+\/[^/]+$/.test(repository ?? "") || !/^v\d+\.\d+\.\d+$/.test(tag ?? "") || tag !== `v${version}`) {
-    throw new Error("Invalid release repository, tag, or version.");
+  if (!/^v\d+\.\d+\.\d+$/.test(tag ?? "") || tag !== `v${version}`) {
+    throw new Error("Invalid release tag or version.");
   }
+  const updaterUrl = normalizeUpdaterPublicUrl(publicUrl);
+  const prefix = normalizeUpdaterPathPrefix(pathPrefix);
   const artifactPatterns = {
     "windows-x86_64": /-setup\.exe$/,
     "darwin-aarch64": /\.app\.tar\.gz$/,
@@ -55,12 +68,7 @@ export function mergeUpdaterManifests({ manifests, version, tag, repository, fil
       const encodedFilename = url.pathname.split("/").pop();
       const filename = decodeURIComponent(encodedFilename);
       if (
-        url.origin !== "https://github.com" ||
-        url.username ||
-        url.password ||
-        url.search ||
-        url.hash ||
-        url.pathname !== `/${repository}/releases/download/${tag}/${encodedFilename}` ||
+        entry.url !== `${updaterUrl}/${prefix}/releases/${tag}/${encodeURIComponent(filename)}` ||
         !artifactPatterns[platform].test(filename) ||
         !files.has(filename)
       ) {
@@ -94,7 +102,8 @@ function run() {
   if (!/^v\d+\.\d+\.\d+$/.test(tag ?? "") || tag !== `v${version}`) {
     throw new Error(`Invalid release tag/version pair: ${tag} / ${version}.`);
   }
-  const repository = process.env.GITHUB_REPOSITORY;
+  const publicUrl = process.env.TAURI_UPDATER_PUBLIC_URL;
+  const pathPrefix = process.env.TAURI_UPDATER_PATH_PREFIX ?? "aqardesk";
   const releaseRoot = path.resolve("release-artifacts");
   if (!statSync(releaseRoot, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error("Downloaded release artifacts are missing.");
@@ -117,7 +126,14 @@ function run() {
       }
     }
   }
-  const merged = mergeUpdaterManifests({ manifests, version, tag, repository, files: assetNames });
+  const merged = mergeUpdaterManifests({
+    manifests,
+    version,
+    tag,
+    publicUrl,
+    pathPrefix,
+    files: assetNames,
+  });
   const packageDir = path.resolve("release-package");
   if (statSync(packageDir, { throwIfNoEntry: false })) {
     throw new Error("release-package already exists. Remove the previous generated package before retrying.");

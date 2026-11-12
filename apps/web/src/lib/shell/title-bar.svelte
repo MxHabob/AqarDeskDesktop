@@ -35,16 +35,21 @@
 	let appWindow: TauriWindow | null = $state(null);
 	let isMaximized = $state(false);
 
+	async function getAppWindow() {
+		if (appWindow) return appWindow;
+		const { getCurrentWindow } = await import('@tauri-apps/api/window');
+		appWindow = getCurrentWindow();
+		return appWindow;
+	}
+
 	onMount(() => {
 		let disposed = false;
 		let unlistenResize: (() => void) | undefined;
 
 		void (async () => {
 			try {
-				const { getCurrentWindow } = await import('@tauri-apps/api/window');
-				const win = getCurrentWindow();
+				const win = await getAppWindow();
 				if (disposed) return;
-				appWindow = win;
 				isMaximized = await win.isMaximized();
 				unlistenResize = await win.onResized(async () => {
 					isMaximized = await win.isMaximized();
@@ -62,19 +67,19 @@
 	});
 
 	async function toggleMaximize() {
-		if (!appWindow) return;
 		try {
-			await appWindow.toggleMaximize();
-			isMaximized = await appWindow.isMaximized();
+			const win = await getAppWindow();
+			await win.toggleMaximize();
+			isMaximized = await win.isMaximized();
 		} catch (error) {
 			console.error('Unable to resize the application window.', error);
 		}
 	}
 
 	async function controlWindow(action: 'minimize' | 'close') {
-		if (!appWindow) return;
 		try {
-			await appWindow[action]();
+			const win = await getAppWindow();
+			await win[action]();
 		} catch (error) {
 			console.error(`Unable to ${action} the application window.`, error);
 		}

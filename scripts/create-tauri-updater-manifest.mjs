@@ -2,6 +2,10 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  normalizeUpdaterPathPrefix,
+  normalizeUpdaterPublicUrl,
+} from "./prepare-tauri-updater-config.mjs";
 
 const targets = {
   "x86_64-pc-windows-msvc": {
@@ -14,10 +18,20 @@ const targets = {
   },
 };
 
-export function createUpdaterManifest({ repository, tag, version, target, artifactName, signature, notes }) {
+export function createUpdaterManifest({
+  publicUrl,
+  pathPrefix = "aqardesk",
+  tag,
+  version,
+  target,
+  artifactName,
+  signature,
+  notes,
+}) {
   const targetConfig = targets[target];
   if (!targetConfig) throw new Error(`Unsupported updater target: ${target ?? "(missing)"}.`);
-  if (!/^[^/]+\/[^/]+$/.test(repository ?? "")) throw new Error(`Invalid GitHub repository: ${repository}.`);
+  const updaterUrl = normalizeUpdaterPublicUrl(publicUrl);
+  const prefix = normalizeUpdaterPathPrefix(pathPrefix);
   if (!/^v\d+\.\d+\.\d+$/.test(tag ?? "") || tag !== `v${version}`) {
     throw new Error(`Release tag ${tag} does not match version ${version}.`);
   }
@@ -36,7 +50,7 @@ export function createUpdaterManifest({ repository, tag, version, target, artifa
     notes: notes.replace(/\r\n?/g, "\n").trim(),
     platforms: {
       [targetConfig.platform]: {
-        url: `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(artifactName)}`,
+        url: `${updaterUrl}/${prefix}/releases/${tag}/${encodeURIComponent(artifactName)}`,
         signature: signature.trim(),
       },
     },
@@ -60,7 +74,8 @@ function run() {
   const signature = readFileSync(signaturePath, "utf8");
   const tag = process.env.RELEASE_TAG;
   const manifest = createUpdaterManifest({
-    repository: process.env.GITHUB_REPOSITORY,
+    publicUrl: process.env.TAURI_UPDATER_PUBLIC_URL,
+    pathPrefix: process.env.TAURI_UPDATER_PATH_PREFIX ?? "aqardesk",
     tag,
     version: process.env.RELEASE_VERSION,
     target,

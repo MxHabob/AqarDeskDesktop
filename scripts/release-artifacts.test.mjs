@@ -5,18 +5,23 @@ import path from "node:path";
 import test from "node:test";
 import { createUpdaterManifest } from "./create-tauri-updater-manifest.mjs";
 import { mergeUpdaterManifests } from "./merge-release-artifacts.mjs";
-import { normalizeUpdaterPublicKey } from "./prepare-tauri-updater-config.mjs";
+import {
+  normalizeUpdaterPathPrefix,
+  normalizeUpdaterPublicKey,
+  normalizeUpdaterPublicUrl,
+} from "./prepare-tauri-updater-config.mjs";
 import { stage } from "./stage-release-artifacts.mjs";
+import { createR2UploadPlan } from "./upload-updater-to-r2.mjs";
 import { validateLicenseBuildConfig } from "./validate-license-build-config.mjs";
 
 const base = {
-  repository: "MxHabob/AqarDeskDesktop",
+  publicUrl: "https://updates.example.com",
   tag: "v1.2.3",
   version: "1.2.3",
   notes: "# AqarDesk Desktop v1.2.3\n\n## Summary\n\nRelease.",
 };
 
-test("creates platform updater metadata with signed release URLs", () => {
+test("creates platform updater metadata with versioned public R2 URLs", () => {
   const manifest = createUpdaterManifest({
     ...base,
     target: "x86_64-pc-windows-msvc",
@@ -24,7 +29,7 @@ test("creates platform updater metadata with signed release URLs", () => {
     signature: " signed-signature \n",
   });
   assert.deepEqual(manifest.platforms["windows-x86_64"], {
-    url: "https://github.com/MxHabob/AqarDeskDesktop/releases/download/v1.2.3/AqarDesk_1.2.3_x64-setup.exe",
+    url: "https://updates.example.com/aqardesk/releases/v1.2.3/AqarDesk_1.2.3_x64-setup.exe",
     signature: "signed-signature",
   });
 });
@@ -61,7 +66,7 @@ test("merges complete Windows and macOS updater metadata", () => {
     manifests: [windows, mac],
     version: base.version,
     tag: base.tag,
-    repository: base.repository,
+    publicUrl: base.publicUrl,
     files: new Set([
       "AqarDesk_1.2.3_x64-setup.exe",
       "AqarDesk_1.2.3_x64-setup.exe.sig",
@@ -84,7 +89,7 @@ test("rejects incomplete or conflicting updater metadata", () => {
       manifests: [windows, windows],
       version: base.version,
       tag: base.tag,
-      repository: base.repository,
+      publicUrl: base.publicUrl,
       files: new Set(["AqarDesk_1.2.3_x64-setup.exe", "AqarDesk_1.2.3_x64-setup.exe.sig"]),
     }),
     /duplicate updater platform/,
@@ -105,6 +110,73 @@ test("validates the public updater key before generating build configuration", (
   );
   assert.throws(() => normalizeUpdaterPublicKey(Buffer.from(tauriKey).toString("base64")), /valid minisign public key/);
   assert.throws(() => normalizeUpdaterPublicKey("not-a-minisign-key"), /Tauri-generated \.pub key/);
+});
+
+test("requires a public HTTPS origin for updater downloads", () => {
+  assert.equal(normalizeUpdaterPublicUrl("https://updates.example.com/"), "https://updates.example.com");
+  assert.throws(() => normalizeUpdaterPublicUrl("http://updates.example.com"), /HTTPS/);
+  assert.throws(() => normalizeUpdaterPublicUrl("https://updates.example.com/updates"), /without a path/);
+});
+
+test("isolates updater files with a safe shared-bucket prefix", () => {
+  assert.equal(normalizeUpdaterPathPrefix(" aqardesk "), "aqardesk");
+  assert.equal(normalizeUpdaterPathPrefix("apps/aqardesk"), "apps/aqardesk");
+  assert.throws(() => normalizeUpdaterPathPrefix("../orbis"), /lowercase letters/);
+});
+
+test("plans versioned R2 bundle uploads before publishing the latest manifest", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-r2-release-"));
+  const windowsName = "AqarDesk_1.2.3_x64-setup.exe";
+  const macName = "AqarDesk.app.tar.gz";
+  const windows = createUpdaterManifest({
+    ...base,
+    target: "x86_64-pc-windows-msvc",
+    artifactName: windowsName,
+    signature: "windows-signature",
+  });
+  const mac = createUpdaterManifest({
+    ...base,
+    target: "aarch64-apple-darwin",
+    artifactName: macName,
+    signature: "mac-signature",
+  });
+  const manifest = mergeUpdaterManifests({
+    manifests: [windows, mac],
+    version: base.version,
+    tag: base.tag,
+    publicUrl: base.publicUrl,
+    files: new Set([
+      windowsName,
+      `${windowsName}.sig`,
+      macName,
+      `${macName}.sig`,
+    ]),
+  });
+  writeFileSync(path.join(root, windowsName), "windows bundle");
+  writeFileSync(path.join(root, macName), "mac bundle");
+  writeFileSync(path.join(root, "latest.json"), JSON.stringify(manifest));
+
+  try {
+    const plan = createR2UploadPlan({
+      publicUrl: base.publicUrl,
+      accountId: "a".repeat(32),
+      bucket: "aqardesk-updates",
+      tag: base.tag,
+      packageDir: root,
+    });
+    assert.equal(plan.length, 3);
+    assert.deepEqual(
+      plan.map((item) => item.destination),
+      [
+        `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${windowsName}`,
+        `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${macName}`,
+        "s3://aqardesk-updates/aqardesk/latest.json",
+      ],
+    );
+    assert.equal(plan.at(-1).cacheControl, "no-cache, no-store, must-revalidate");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("stages signed bundles from the Cargo workspace target directory", () => {

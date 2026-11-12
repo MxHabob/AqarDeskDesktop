@@ -36,8 +36,41 @@ export function normalizeUpdaterPublicKey(rawValue) {
   return encoded;
 }
 
+export function normalizeUpdaterPublicUrl(rawValue) {
+  if (!rawValue?.trim()) {
+    throw new Error("TAURI_UPDATER_PUBLIC_URL is required for production releases.");
+  }
+  let url;
+  try {
+    url = new URL(rawValue.trim());
+  } catch {
+    throw new Error("TAURI_UPDATER_PUBLIC_URL must be an HTTPS URL for the public R2 domain.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error("TAURI_UPDATER_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment.");
+  }
+  return url.origin;
+}
+
+export function normalizeUpdaterPathPrefix(rawValue = "aqardesk") {
+  const prefix = rawValue.trim().replace(/^\/+|\/+$/g, "");
+  if (!prefix || prefix.split("/").some((segment) => !/^[a-z0-9][a-z0-9-]*$/.test(segment))) {
+    throw new Error("TAURI_UPDATER_PATH_PREFIX must contain lowercase letters, numbers, and hyphens separated by slashes.");
+  }
+  return prefix;
+}
+
 function prepare() {
   const publicKey = normalizeUpdaterPublicKey(process.env.TAURI_UPDATER_PUBLIC_KEY);
+  const publicUrl = normalizeUpdaterPublicUrl(process.env.TAURI_UPDATER_PUBLIC_URL);
+  const pathPrefix = normalizeUpdaterPathPrefix(process.env.TAURI_UPDATER_PATH_PREFIX ?? "aqardesk");
   const configPath = path.resolve(
     process.env.TAURI_UPDATER_CONFIG_PATH ??
       "apps/desktop/src-tauri/target/tauri-updater-release.conf.json",
@@ -47,7 +80,12 @@ function prepare() {
     configPath,
     `${JSON.stringify({
       bundle: { createUpdaterArtifacts: true },
-      plugins: { updater: { pubkey: publicKey } },
+      plugins: {
+        updater: {
+          pubkey: publicKey,
+          endpoints: [`${publicUrl}/${pathPrefix}/latest.json`],
+        },
+      },
     }, null, 2)}\n`,
     { mode: 0o600 },
   );
