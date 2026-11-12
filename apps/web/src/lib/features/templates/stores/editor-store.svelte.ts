@@ -79,6 +79,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
   // ── Selection ────────────────────────────────────────────
   let selectedIds = $state<string[]>([]);
   let activePageIndex = $state(0);
+  let revealActivePage = true;
   let editingNodeId = $state<string | null>(null);
 
   // ── Viewport ─────────────────────────────────────────────
@@ -213,6 +214,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
   }
 
   function syncActivePage(previousPageId?: string): void {
+    revealActivePage = false;
     const currentPages = getPages(document);
     const selectedPageId = selectedIds.length
       ? findNodePath(document, selectedIds[0]!)[0]
@@ -260,11 +262,18 @@ export function createEditorStore(initialDoc: TemplateDocument) {
 
   // ── Page Management ──────────────────────────────────────
 
-  function setActivePage(index: number): void {
+  function setActivePage(index: number, scrollIntoView = true): void {
     if (index >= 0 && index < pages.length) {
+      if (activePageIndex !== index) revealActivePage = scrollIntoView;
       activePageIndex = index;
       selectedIds = [];
     }
+  }
+
+  function consumeActivePageReveal(): boolean {
+    const shouldReveal = revealActivePage;
+    revealActivePage = true;
+    return shouldReveal;
   }
 
   function addPage(index?: number): void {
@@ -274,6 +283,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
       children: [],
     };
     executeCommand(new AddPageCommand(newPage, index));
+    revealActivePage = true;
     activePageIndex = index ?? pages.length; // will be updated after execute
     selectedIds = [];
   }
@@ -286,6 +296,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     duplicate.locked = false;
 
     executeCommand(new AddPageCommand(duplicate, index + 1));
+    revealActivePage = true;
     activePageIndex = index + 1;
     selectedIds = [];
   }
@@ -308,6 +319,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
       execute: (doc) => ({ ...doc, pages: nextPages }),
       undo: (doc) => ({ ...doc, pages: previousPages }),
     });
+    revealActivePage = true;
 
     if (activePageIndex === index) {
       activePageIndex = nextIndex;
@@ -322,6 +334,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     const pageCountBefore = getPages(document).length;
     if (pageCountBefore <= 1 || index < 0 || index >= pageCountBefore) return;
     executeCommand(new RemovePageCommand(index));
+    revealActivePage = true;
     if (activePageIndex > index) activePageIndex -= 1;
     else if (activePageIndex === index)
       activePageIndex = Math.min(index, pageCountBefore - 2);
@@ -572,6 +585,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     }
 
     document = nextDocument;
+    revealActivePage = false;
     activePageIndex = targetPageIndex;
     if (!hasExistingLiveEdit) commitLiveMove();
   }
@@ -899,6 +913,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
 
     // Pages
     setActivePage,
+    consumeActivePageReveal,
     addPage,
     duplicatePage,
     movePage,

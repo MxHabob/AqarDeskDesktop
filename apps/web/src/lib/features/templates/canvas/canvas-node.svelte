@@ -37,7 +37,7 @@ const isVisible = $derived(node.visible !== false);
 const opacity = $derived(node.opacity ?? 1);
 
 function activateNodePage() {
-  if (store.activePageIndex !== index) store.setActivePage(index);
+  if (store.activePageIndex !== index) store.setActivePage(index, false);
 }
 
 // Position calculation (mm → px)

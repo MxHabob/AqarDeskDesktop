@@ -95,6 +95,7 @@ $effect(() => {
   const container = containerEl;
   if (!container || activePageIndex === previousActivePageIndex) return;
   previousActivePageIndex = activePageIndex;
+  if (!store.consumeActivePageReveal()) return;
 
   const pageTop = offsetY + activePageIndex * pageStridePx;
   if (pageTop < scrollTop) {
@@ -207,7 +208,7 @@ function handleMouseDown(e: MouseEvent) {
     Number.isInteger(pageIndex) &&
     store.activePageIndex !== pageIndex
   ) {
-    store.setActivePage(pageIndex);
+    store.setActivePage(pageIndex, false);
   }
 
   // Left click on empty canvas area → rubber band selection or clear
@@ -369,7 +370,7 @@ function handleDrop(e: DragEvent) {
   ) {
     return;
   }
-  store.setActivePage(pageIndex);
+  store.setActivePage(pageIndex, false);
   const docPos = screenToDoc(screenX, pageLocalY, {
     ...vp,
     panX: 0,
@@ -590,7 +591,7 @@ function handleDrop(e: DragEvent) {
         type="button"
         class="min-w-0 truncate px-2 text-start text-xs font-medium text-muted-foreground hover:text-foreground"
         aria-current={store.activePageIndex === index ? "page" : undefined}
-        onclick={() => store.setActivePage(index)}
+        onclick={() => store.setActivePage(index, false)}
       >
         {page.name || `${m.template_page_label()} ${index + 1}`}
       </button>
