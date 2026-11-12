@@ -20,9 +20,18 @@ import SnapLinesOverlay from "./snap-lines-overlay.svelte";
 let {
   store,
   pageSizePx,
+  pageIndex,
+  onMoveAcrossPage,
 }: {
   store: EditorStore;
   pageSizePx: { width: number; height: number };
+  pageIndex: number;
+  onMoveAcrossPage: (
+    nodeIds: string[],
+    sourcePageIndex: number,
+    clientX: number,
+    clientY: number,
+  ) => void;
 } = $props();
 
 const vp = $derived(store.viewport);
@@ -262,7 +271,12 @@ function onDragMove(e: MouseEvent) {
   }
 }
 
-function onDragEnd() {
+function onDragEnd(e: MouseEvent) {
+  if (isDragging) onDragMove(e);
+  if (isDragging && dragHandle === "move") {
+    onMoveAcrossPage(store.selectedIds, pageIndex, e.clientX, e.clientY);
+  }
+
   // Commit the drag as a single history entry
   store.commitLiveMove();
   isDragging = false;

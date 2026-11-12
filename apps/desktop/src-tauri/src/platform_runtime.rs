@@ -107,7 +107,8 @@ pub struct ConnectionInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedSession {
     pub user_id: String,
-    pub api_token: Option<String>,
+    #[serde(default, alias = "api_token")]
+    pub session_token: Option<String>,
     pub connection_key: String,
 }
 
@@ -116,7 +117,7 @@ pub struct PlatformState {
     pub config: RwLock<Option<ConnectionConfig>>,
     pub database: RwLock<Option<Arc<Database>>>,
     pub current_user: RwLock<Option<aqardesk_backend::domain::UserAccount>>,
-    pub api_token: RwLock<Option<String>>,
+    pub session_token: RwLock<Option<String>>,
     pub http: reqwest::Client,
     pub license: Arc<LicenseRuntime>,
     pub license_quota_lock: Mutex<()>,
@@ -140,7 +141,7 @@ impl PlatformState {
             app_data_dir,
             database: RwLock::new(None),
             current_user: RwLock::new(None),
-            api_token: RwLock::new(None),
+            session_token: RwLock::new(None),
             http,
             license,
             license_quota_lock: Mutex::new(()),

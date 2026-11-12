@@ -14,16 +14,31 @@ let {
   node,
   store,
   pageSizePx,
+  pageLocked = false,
+  onMoveAcrossPage,
+  index = 0,
 }: {
   node: TemplateNode;
   store: EditorStore;
   pageSizePx: { width: number; height: number };
+  pageLocked?: boolean;
+  onMoveAcrossPage?: (
+    nodeIds: string[],
+    sourcePageIndex: number,
+    clientX: number,
+    clientY: number,
+  ) => void;
+  index?: number;
 } = $props();
 
 const vp = $derived(store.viewport);
 const isSelected = $derived(store.selectedIds.includes(node.id));
 const isVisible = $derived(node.visible !== false);
 const opacity = $derived(node.opacity ?? 1);
+
+function activateNodePage() {
+  if (store.activePageIndex !== index) store.setActivePage(index);
+}
 
 // Position calculation (mm → px)
 const pos = $derived(getNodePosition());
@@ -69,12 +84,15 @@ function getNodePosition() {
 // Click handler → select this node
 function handleClick(e: MouseEvent) {
   e.stopPropagation();
-  if (isEditing) return;
+  activateNodePage();
+  if (pageLocked || isEditing) return;
   store.select(node.id, e.ctrlKey || e.metaKey);
 }
 
 function handleNodeMouseDown(e: MouseEvent) {
+  activateNodePage();
   if (
+    pageLocked ||
     e.button !== 0 ||
     isEditing ||
     node.locked ||
@@ -114,10 +132,13 @@ function handleNodeMouseDown(e: MouseEvent) {
     ]);
   };
 
-  const handleUp = () => {
+  const handleUp = (upEvent: MouseEvent) => {
     window.removeEventListener("mousemove", handleMove);
     window.removeEventListener("mouseup", handleUp);
-    if (didMove) store.commitLiveMove();
+    if (didMove) {
+      onMoveAcrossPage?.([node.id], index, upEvent.clientX, upEvent.clientY);
+      store.commitLiveMove();
+    }
   };
 
   window.addEventListener("mousemove", handleMove);
@@ -632,7 +653,14 @@ function getTotalDisplayText(col: any): string {
       <!-- Render children recursively -->
       {#if "children" in node && Array.isArray((node as any).children)}
         {#each (node as any).children as child (child.id)}
-          <CanvasNode node={child} {store} {pageSizePx} />
+          <CanvasNode
+            node={child}
+            {store}
+            {pageSizePx}
+            {pageLocked}
+            {onMoveAcrossPage}
+            {index}
+          />
         {/each}
       {/if}
 

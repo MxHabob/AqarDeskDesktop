@@ -38,7 +38,9 @@ pub use dashboard::{
 };
 pub use errors::ApplicationError;
 pub use identity_management::IdentityService;
-pub use identity_port::{IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate};
+pub use identity_port::{
+    AuthenticatedSession, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+};
 pub use organization_settings::{
     OrganizationSettings, OrganizationSettingsInput, OrganizationSettingsRepository,
     OrganizationSettingsService,

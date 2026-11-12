@@ -14,7 +14,14 @@ import type {
   ImageNode,
 } from "@docforge/core";
 import { getPages, getPrimaryPage } from "@docforge/core";
-import { findNode, addNode, removeNode, cloneNode } from "@docforge/core";
+import {
+  findNode,
+  findNodePath,
+  addNode,
+  moveNode,
+  removeNode,
+  cloneNode,
+} from "@docforge/core";
 import type {
   ViewportTransform,
   BoundingBox,
@@ -184,8 +191,10 @@ export function createEditorStore(initialDoc: TemplateDocument) {
   function undo(): void {
     if (undoStack.length === 0) return;
     const entry = undoStack[undoStack.length - 1]!;
+    const activePageId = getPages(document)[activePageIndex]?.id;
     const docAfter = JSON.stringify(document);
     document = JSON.parse(entry.docBefore) as TemplateDocument;
+    syncActivePage(activePageId);
     isDirty = JSON.stringify(document) !== savedSnapshot;
     undoStack = undoStack.slice(0, -1);
     redoStack = [...redoStack, { cmd: entry.cmd, docAfter }];
@@ -194,11 +203,26 @@ export function createEditorStore(initialDoc: TemplateDocument) {
   function redo(): void {
     if (redoStack.length === 0) return;
     const entry = redoStack[redoStack.length - 1]!;
+    const activePageId = getPages(document)[activePageIndex]?.id;
     const docBefore = JSON.stringify(document);
     document = JSON.parse(entry.docAfter) as TemplateDocument;
+    syncActivePage(activePageId);
     isDirty = JSON.stringify(document) !== savedSnapshot;
     redoStack = redoStack.slice(0, -1);
     undoStack = [...undoStack, { cmd: entry.cmd, docBefore }];
+  }
+
+  function syncActivePage(previousPageId?: string): void {
+    const currentPages = getPages(document);
+    const selectedPageId = selectedIds.length
+      ? findNodePath(document, selectedIds[0]!)[0]
+      : undefined;
+    const pageId = selectedPageId ?? previousPageId;
+    const pageIndex = currentPages.findIndex((page) => page.id === pageId);
+    activePageIndex =
+      pageIndex >= 0
+        ? pageIndex
+        : Math.min(activePageIndex, Math.max(0, currentPages.length - 1));
   }
 
   // ── Selection ────────────────────────────────────────────
@@ -251,14 +275,56 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     };
     executeCommand(new AddPageCommand(newPage, index));
     activePageIndex = index ?? pages.length; // will be updated after execute
+    selectedIds = [];
+  }
+
+  function duplicatePage(index: number): void {
+    const sourcePage = getPages(document)[index];
+    if (!sourcePage) return;
+    const duplicate = cloneNode(sourcePage);
+    if (duplicate.type !== "Page") return;
+    duplicate.locked = false;
+
+    executeCommand(new AddPageCommand(duplicate, index + 1));
+    activePageIndex = index + 1;
+    selectedIds = [];
+  }
+
+  function movePage(index: number, direction: -1 | 1): void {
+    const previousPages = getPages(document);
+    const nextIndex = index + direction;
+    if (index < 0 || index >= previousPages.length) return;
+    if (nextIndex < 0 || nextIndex >= previousPages.length) return;
+
+    const nextPages = [...previousPages];
+    const [page] = nextPages.splice(index, 1);
+    if (!page) return;
+    nextPages.splice(nextIndex, 0, page);
+
+    executeCommand({
+      type: "move-page",
+      description: m.shared_ui_move_elements(),
+      descriptionAr: m.shared_ui_move_elements(),
+      execute: (doc) => ({ ...doc, pages: nextPages }),
+      undo: (doc) => ({ ...doc, pages: previousPages }),
+    });
+
+    if (activePageIndex === index) {
+      activePageIndex = nextIndex;
+    } else if (index < activePageIndex && nextIndex >= activePageIndex) {
+      activePageIndex -= 1;
+    } else if (index > activePageIndex && nextIndex <= activePageIndex) {
+      activePageIndex += 1;
+    }
   }
 
   function removePage(index: number): void {
-    if (pages.length <= 1) return;
+    const pageCountBefore = getPages(document).length;
+    if (pageCountBefore <= 1 || index < 0 || index >= pageCountBefore) return;
     executeCommand(new RemovePageCommand(index));
-    if (activePageIndex >= pages.length - 1) {
-      activePageIndex = Math.max(0, pages.length - 2);
-    }
+    if (activePageIndex > index) activePageIndex -= 1;
+    else if (activePageIndex === index)
+      activePageIndex = Math.min(index, pageCountBefore - 2);
     selectedIds = [];
   }
 
@@ -467,6 +533,47 @@ export function createEditorStore(initialDoc: TemplateDocument) {
         ),
       );
     }
+  }
+
+  function moveNodesToPage(
+    updates: { id: string; x: number; y: number }[],
+    targetPageIndex: number,
+  ): void {
+    const targetPage = getPages(document)[targetPageIndex];
+    if (!targetPage || updates.length === 0) return;
+
+    const selectedIds = new Set(updates.map(({ id }) => id));
+    const rootUpdates = updates.filter(({ id }) => {
+      const path = findNodePath(document, id);
+      return !path.slice(1, -1).some((ancestorId) => selectedIds.has(ancestorId));
+    });
+    const hasExistingLiveEdit = liveEdit !== null;
+    if (!hasExistingLiveEdit) beginLiveMove();
+
+    let nextDocument = document;
+    for (const update of rootUpdates) {
+      const path = findNodePath(nextDocument, update.id);
+      if (path.length < 2 || path[0] === targetPage.id) continue;
+
+      const currentTarget = getPages(nextDocument).find(
+        (page) => page.id === targetPage.id,
+      );
+      if (!currentTarget) continue;
+
+      nextDocument = moveNode(
+        nextDocument,
+        update.id,
+        currentTarget.id,
+        currentTarget.children.length,
+      );
+      nextDocument = new MoveNodeCommand(update.id, update.x, update.y).execute(
+        nextDocument,
+      );
+    }
+
+    document = nextDocument;
+    activePageIndex = targetPageIndex;
+    if (!hasExistingLiveEdit) commitLiveMove();
   }
 
   function resizeSelected(w: number | string, h?: number | string): void {
@@ -793,6 +900,8 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     // Pages
     setActivePage,
     addPage,
+    duplicatePage,
+    movePage,
     removePage,
 
     // Nodes
@@ -803,6 +912,7 @@ export function createEditorStore(initialDoc: TemplateDocument) {
     setPageBackground,
     clearPageBackground,
     moveNodes,
+    moveNodesToPage,
     resizeSelected,
     beginLiveMove,
     deleteSelected,

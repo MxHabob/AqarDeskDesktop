@@ -389,20 +389,15 @@ pub(crate) async fn active_actor(state: &PlatformState) -> Result<ActorContext, 
     if config.mode == ConnectionMode::Api {
         return Err("API authentication is provided by the configured server.".to_string());
     }
-    let session_user = state
-        .current_user
-        .read()
-        .await
-        .clone()
-        .ok_or_else(|| "Sign in before continuing.".to_string())?;
-    let current_user = match local_identity(state)
-        .await?
-        .current_user(session_user.id)
-        .await
-    {
-        Ok(user) => user,
-        Err(aqardesk_backend::application::ApplicationError::Authentication) => {
+    let Some(token) = state.session_token.read().await.clone() else {
+        *state.current_user.write().await = None;
+        return Err("Sign in before continuing.".to_string());
+    };
+    let current_user = match local_identity(state).await?.resume_session(&token).await {
+        Ok(Some(user)) => user,
+        Ok(None) => {
             *state.current_user.write().await = None;
+            *state.session_token.write().await = None;
             platform_runtime::clear_session()?;
             return Err("The session is no longer valid. Sign in again.".to_string());
         }
@@ -420,34 +415,38 @@ pub(crate) async fn active_actor(state: &PlatformState) -> Result<ActorContext, 
 async fn restore_local_session(state: &PlatformState) -> Result<Option<UserAccount>, String> {
     let config = state.config().await?;
     if config.mode == ConnectionMode::Api {
+        *state.current_user.write().await = None;
+        *state.session_token.write().await = None;
         return Ok(None);
     }
     let Some(saved) = platform_runtime::load_session()? else {
         *state.current_user.write().await = None;
+        *state.session_token.write().await = None;
         return Ok(None);
     };
     if saved.connection_key != config_key(&config)? {
         *state.current_user.write().await = None;
+        *state.session_token.write().await = None;
         platform_runtime::clear_session()?;
         return Ok(None);
     }
-    let user_id = match UserId::parse(&saved.user_id) {
-        Ok(user_id) => user_id,
-        Err(_) => {
-            *state.current_user.write().await = None;
-            platform_runtime::clear_session()?;
-            return Ok(None);
-        }
+    let Some(token) = saved.session_token.filter(|token| !token.is_empty()) else {
+        *state.current_user.write().await = None;
+        *state.session_token.write().await = None;
+        platform_runtime::clear_session()?;
+        return Ok(None);
     };
-    let user = match local_identity(state).await?.current_user(user_id).await {
-        Ok(user) => user,
-        Err(aqardesk_backend::application::ApplicationError::Authentication) => {
+    let user = match local_identity(state).await?.resume_session(&token).await {
+        Ok(Some(user)) if user.id.to_string() == saved.user_id => user,
+        Ok(_) | Err(aqardesk_backend::application::ApplicationError::Authentication) => {
             *state.current_user.write().await = None;
+            *state.session_token.write().await = None;
             platform_runtime::clear_session()?;
             return Ok(None);
         }
         Err(error) => return Err(application_error(error)),
     };
+    *state.session_token.write().await = Some(token);
     *state.current_user.write().await = Some(user.clone());
     Ok(Some(user))
 }
@@ -466,13 +465,27 @@ pub async fn platform_connection_set_config(
 ) -> Result<ConnectionView, String> {
     let existing = state.config.read().await.clone();
     let config = platform_runtime::make_config(input, existing.as_ref(), &state.app_data_dir)?;
-    platform_runtime::save_config(&state.app_data_dir, &config)?;
     let changed = existing.as_ref() != Some(&config);
+    if changed {
+        if let Some(token) = state.session_token.read().await.clone() {
+            if existing
+                .as_ref()
+                .is_some_and(|existing| existing.mode != ConnectionMode::Api)
+            {
+                local_identity(&state)
+                    .await?
+                    .end_session(&token)
+                    .await
+                    .map_err(application_error)?;
+            }
+        }
+    }
+    platform_runtime::save_config(&state.app_data_dir, &config)?;
     *state.config.write().await = Some(config.clone());
     *state.database.write().await = None;
     if changed {
         *state.current_user.write().await = None;
-        *state.api_token.write().await = None;
+        *state.session_token.write().await = None;
         platform_runtime::clear_session()?;
     }
     Ok(ConnectionView::from(&config))
@@ -578,7 +591,12 @@ pub async fn platform_auth_bootstrap_admin(
         .await
         .map_err(application_error)?
         .1;
-    persist_local_session(&state, &user).await?;
+    let token = local_identity(&state)
+        .await?
+        .start_session(user.id)
+        .await
+        .map_err(application_error)?;
+    persist_local_session(&state, &user, &token).await?;
     Ok(user)
 }
 
@@ -591,36 +609,73 @@ pub async fn platform_auth_login(
     if state.config().await?.mode == ConnectionMode::Api {
         return Err("API authentication is provided by the configured server.".to_string());
     }
-    let user = local_identity(&state)
+    let session = local_identity(&state)
         .await?
         .login(&email, &password)
         .await
         .map_err(application_error)?;
-    persist_local_session(&state, &user).await?;
-    Ok(user)
+    persist_local_session(&state, &session.user, &session.token).await?;
+    Ok(session.user)
 }
 
-async fn persist_local_session(state: &PlatformState, user: &UserAccount) -> Result<(), String> {
+async fn persist_local_session(
+    state: &PlatformState,
+    user: &UserAccount,
+    token: &str,
+) -> Result<(), String> {
     let config = state
         .config
         .read()
         .await
         .clone()
         .ok_or_else(|| "Choose and save a database connection first.".to_string())?;
-    platform_runtime::save_session(&SavedSession {
+    let saved_session = SavedSession {
         user_id: user.id.to_string(),
-        api_token: None,
+        session_token: Some(token.to_string()),
         connection_key: config_key(&config)?,
-    })?;
+    };
+    if let Err(save_error) = platform_runtime::save_session(&saved_session) {
+        match local_identity(state).await {
+            Ok(identity) => {
+                if let Err(revoke_error) = identity.end_session(token).await {
+                    tracing::error!(
+                        %revoke_error,
+                        "Could not revoke a session that could not be saved securely"
+                    );
+                }
+            }
+            Err(revoke_error) => {
+                tracing::error!(
+                    %revoke_error,
+                    "Could not connect to revoke an unsaved session"
+                );
+            }
+        }
+        return Err(save_error);
+    }
+    *state.session_token.write().await = Some(token.to_string());
     *state.current_user.write().await = Some(user.clone());
     Ok(())
 }
 
 #[tauri::command]
 pub async fn platform_auth_logout(state: State<'_, PlatformState>) -> Result<(), String> {
+    let token = state.session_token.read().await.clone();
+    let revocation = if let Some(token) = token {
+        match local_identity(&state).await {
+            Ok(identity) => identity
+                .end_session(&token)
+                .await
+                .map_err(application_error),
+            Err(error) => Err(error),
+        }
+    } else {
+        Ok(())
+    };
     *state.current_user.write().await = None;
-    *state.api_token.write().await = None;
-    platform_runtime::clear_session()
+    *state.session_token.write().await = None;
+    platform_runtime::clear_session()?;
+    revocation
 }
 
 #[tauri::command]
