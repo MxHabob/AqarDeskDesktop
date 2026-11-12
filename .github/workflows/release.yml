@@ -41,7 +41,7 @@ jobs:
           TAG_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           git fetch origin main --tags --force
-          echo "workflow_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "workflow_sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
           node scripts/validate-release.mjs
 
   build:
@@ -71,7 +71,9 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.workflow_sha }}
           path: release-tooling
-          sparse-checkout: scripts/prepare-tauri-updater-config.mjs
+          sparse-checkout: |
+            scripts/prepare-tauri-updater-config.mjs
+            scripts/stage-release-artifacts.mjs
           sparse-checkout-cone-mode: false
 
       - name: Setup Bun
@@ -87,7 +89,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri -> target
+          workspaces: . -> target
           shared-key: aqardesk-tauri-${{ matrix.target }}
 
       - name: Install JavaScript dependencies
@@ -113,7 +115,7 @@ jobs:
         env:
           TAURI_TARGET: ${{ matrix.target }}
           TAURI_BUNDLE: ${{ matrix.bundle }}
-        run: node scripts/stage-release-artifacts.mjs
+        run: node release-tooling/scripts/stage-release-artifacts.mjs
 
       - name: Create updater metadata
         env:

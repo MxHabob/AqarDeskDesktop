@@ -14,16 +14,20 @@ const releaseTargets = {
   },
 };
 
-function stage() {
-  const target = process.env.TAURI_TARGET;
+function stage({
+  root = process.cwd(),
+  target = process.env.TAURI_TARGET,
+  bundle: requestedBundle = process.env.TAURI_BUNDLE,
+} = {}) {
   const config = releaseTargets[target];
   if (!config) throw new Error(`Unsupported desktop release target: ${target ?? "(missing)"}.`);
-  if (process.env.TAURI_BUNDLE !== config.bundle) {
+  if (requestedBundle !== config.bundle) {
     throw new Error(`Expected ${config.bundle} bundle directory for ${target}.`);
   }
 
   const bundleDir = path.resolve(
-    `apps/desktop/src-tauri/target/${target}/release/bundle/${config.bundle}`,
+    root,
+    `target/${target}/release/bundle/${config.bundle}`,
   );
   if (!statSync(bundleDir, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(`Tauri bundle directory does not exist: ${bundleDir}.`);
@@ -39,7 +43,7 @@ function stage() {
     throw new Error(`Updater signature is missing: ${signaturePath}.`);
   }
 
-  const destination = path.resolve("ci-artifacts");
+  const destination = path.resolve(root, "ci-artifacts");
   mkdirSync(destination, { recursive: true });
   copyFileSync(path.join(bundleDir, bundle), path.join(destination, bundle));
   copyFileSync(signaturePath, path.join(destination, `${bundle}.sig`));
@@ -55,4 +59,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   }
 }
 
-export { releaseTargets };
+export { releaseTargets, stage };

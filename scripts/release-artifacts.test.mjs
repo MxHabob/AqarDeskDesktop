@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { createUpdaterManifest } from "./create-tauri-updater-manifest.mjs";
 import { mergeUpdaterManifests } from "./merge-release-artifacts.mjs";
 import { normalizeUpdaterPublicKey } from "./prepare-tauri-updater-config.mjs";
+import { stage } from "./stage-release-artifacts.mjs";
 
 const base = {
   repository: "MxHabob/AqarDeskDesktop",
@@ -100,4 +104,22 @@ test("validates the public updater key before generating build configuration", (
   );
   assert.throws(() => normalizeUpdaterPublicKey(Buffer.from(tauriKey).toString("base64")), /valid minisign public key/);
   assert.throws(() => normalizeUpdaterPublicKey("not-a-minisign-key"), /Tauri-generated \.pub key/);
+});
+
+test("stages signed bundles from the Cargo workspace target directory", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-stage-release-"));
+  const target = "x86_64-pc-windows-msvc";
+  const bundleName = "AqarDesk_1.2.3_x64-setup.exe";
+  const bundleDir = path.join(root, "target", target, "release", "bundle", "nsis");
+  mkdirSync(bundleDir, { recursive: true });
+  writeFileSync(path.join(bundleDir, bundleName), "bundle");
+  writeFileSync(path.join(bundleDir, `${bundleName}.sig`), "signature");
+
+  try {
+    stage({ root, target, bundle: "nsis" });
+    assert.equal(readFileSync(path.join(root, "ci-artifacts", bundleName), "utf8"), "bundle");
+    assert.equal(readFileSync(path.join(root, "ci-artifacts", `${bundleName}.sig`), "utf8"), "signature");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
