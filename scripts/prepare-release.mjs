@@ -48,6 +48,12 @@ function updateTomlPackageVersion(source, version) {
   return source.replace(pattern, (_match, prefix, _current, suffix) => `${prefix}${version}${suffix}`);
 }
 
+function updateJsonVersion(source, version) {
+  const pattern = /^([ \t]*"version"\s*:\s*")([^"]+)(")/m;
+  if (!pattern.test(source)) throw new Error("Could not find root version in desktop JSON configuration.");
+  return source.replace(pattern, (_match, prefix, _current, suffix) => `${prefix}${version}${suffix}`);
+}
+
 function updateCargoLockVersion(source, version) {
   const pattern = /(^\[\[package\]\]\r?\nname = "aqardesk-desktop"\r?\nversion = ")([^"]+)(")/m;
   if (!pattern.test(source)) throw new Error("Could not find aqardesk-desktop in Cargo.lock.");
@@ -134,11 +140,14 @@ function prepare() {
   const versionArgs = args.filter((arg) => arg !== "--dry-run");
   if (versionArgs.length > 1) throw new Error("Provide one version bump type or one explicit SemVer version.");
 
-  const packageJson = JSON.parse(read(files.package));
+  const packageContents = read(files.package);
+  const packageJson = JSON.parse(packageContents);
   const cargo = read(files.cargo);
   const cargoLock = read(files.cargoLock);
-  const tauri = JSON.parse(read(files.tauri));
-  const devTauri = JSON.parse(read(files.devTauri));
+  const tauriContents = read(files.tauri);
+  const tauri = JSON.parse(tauriContents);
+  const devTauriContents = read(files.devTauri);
+  const devTauri = JSON.parse(devTauriContents);
   const currentVersions = {
     package: packageJson.version,
     cargo: /^\[package\][\s\S]*?^version\s*=\s*"([^"]+)"/m.exec(cargo)?.[1],
@@ -174,11 +183,11 @@ function prepare() {
   if (fs.existsSync(notesPath)) throw new Error(`Release notes already exist: releases/${tag}.md.`);
 
   const updated = {
-    [files.package]: `${JSON.stringify({ ...packageJson, version: nextVersion }, null, 2)}\n`,
+    [files.package]: updateJsonVersion(packageContents, nextVersion),
     [files.cargo]: updateTomlPackageVersion(cargo, nextVersion),
     [files.cargoLock]: updateCargoLockVersion(cargoLock, nextVersion),
-    [files.tauri]: `${JSON.stringify({ ...tauri, version: nextVersion }, null, 2)}\n`,
-    [files.devTauri]: `${JSON.stringify({ ...devTauri, version: nextVersion }, null, 2)}\n`,
+    [files.tauri]: updateJsonVersion(tauriContents, nextVersion),
+    [files.devTauri]: updateJsonVersion(devTauriContents, nextVersion),
   };
 
   if (dryRun) {

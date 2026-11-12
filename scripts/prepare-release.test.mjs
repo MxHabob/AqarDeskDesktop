@@ -70,11 +70,14 @@ test("prepares a release in a clean repository and synchronizes all app versions
     write("scripts/prepare-release.mjs", readFileSync(
       fileURLToPath(new URL("./prepare-release.mjs", import.meta.url)),
     ));
-    write("apps/desktop/package.json", JSON.stringify({ version: "1.0.0" }));
+    write("apps/desktop/package.json", JSON.stringify({ version: "1.0.0" }, null, 2));
     write("apps/desktop/src-tauri/Cargo.toml", '[package]\nname = "aqardesk-desktop"\nversion = "1.0.0"\n');
     write("Cargo.lock", '[[package]]\nname = "aqardesk-desktop"\nversion = "1.0.0"\n');
-    write("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ version: "1.0.0" }));
-    write("apps/desktop/src-tauri/tauri.dev.conf.json", JSON.stringify({ version: "1.0.0" }));
+    write("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ version: "1.0.0" }, null, 2));
+    write(
+      "apps/desktop/src-tauri/tauri.dev.conf.json",
+      '{\n  "version": "1.0.0",\n  "schemes": ["aqardesk-dev"]\n}\n',
+    );
     runGit("init", "--quiet");
     runGit("config", "user.name", "Release Test");
     runGit("config", "user.email", "release-test@example.invalid");
@@ -95,6 +98,7 @@ test("prepares a release in a clean repository and synchronizes all app versions
     assert.match(readFileSync(path.join(root, "Cargo.lock"), "utf8"), /version = "1\.0\.1"/);
     assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.conf.json"), "utf8")).version, "1.0.1");
     assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.dev.conf.json"), "utf8")).version, "1.0.1");
+    assert.match(readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.dev.conf.json"), "utf8"), /"schemes": \["aqardesk-dev"\]/);
     assert.match(readFileSync(path.join(root, "releases/v1.0.1.md"), "utf8"), /Add user-facing changes/);
   } finally {
     rmSync(root, { recursive: true, force: true });
