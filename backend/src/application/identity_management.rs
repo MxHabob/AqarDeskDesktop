@@ -1,10 +1,15 @@
 use crate::{
     application::{
-        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, Page, PageRequest,
-        UserUpdate, require_admin,
+        ApplicationError, AuthenticatedSession, IdentityRepository, NewUser, OrganizationBootstrap,
+        Page, PageRequest, UserUpdate, require_admin,
     },
-    domain::{AccessRole, ActorContext, Organization, Permission, RolePermissionSet, UserAccount},
+    domain::{
+        AccessRole, ActorContext, Organization, Permission, RolePermissionSet, UserAccount, UserId,
+    },
 };
+use chrono::{Duration, Utc};
+
+const SESSION_LIFETIME_DAYS: i64 = 30;
 
 pub struct IdentityService<R> {
     identities: R,
@@ -46,18 +51,27 @@ impl<R: IdentityRepository> IdentityService<R> {
         &self,
         email: &str,
         password: &str,
-    ) -> Result<UserAccount, ApplicationError> {
-        self.identities.authenticate(email.trim(), password).await
+    ) -> Result<AuthenticatedSession, ApplicationError> {
+        let user = self.identities.authenticate(email.trim(), password).await?;
+        let token = self.start_session(user.id).await?;
+        Ok(AuthenticatedSession { user, token })
     }
 
-    pub async fn current_user(
-        &self,
-        user_id: crate::domain::UserId,
-    ) -> Result<UserAccount, ApplicationError> {
+    pub async fn start_session(&self, user_id: UserId) -> Result<String, ApplicationError> {
         self.identities
-            .get_active_user(user_id)
-            .await?
-            .ok_or(ApplicationError::Authentication)
+            .create_session(user_id, Utc::now() + Duration::days(SESSION_LIFETIME_DAYS))
+            .await
+    }
+
+    pub async fn resume_session(
+        &self,
+        token: &str,
+    ) -> Result<Option<UserAccount>, ApplicationError> {
+        self.identities.resume_session(token).await
+    }
+
+    pub async fn end_session(&self, token: &str) -> Result<(), ApplicationError> {
+        self.identities.revoke_session(token).await
     }
 
     pub async fn list_users(
@@ -324,10 +338,17 @@ mod tests {
         async fn authenticate(&self, _: &str, _: &str) -> Result<UserAccount, ApplicationError> {
             unreachable!()
         }
-        async fn get_active_user(
+        async fn create_session(
             &self,
             _: UserId,
-        ) -> Result<Option<UserAccount>, ApplicationError> {
+            _: chrono::DateTime<Utc>,
+        ) -> Result<String, ApplicationError> {
+            unreachable!()
+        }
+        async fn resume_session(&self, _: &str) -> Result<Option<UserAccount>, ApplicationError> {
+            unreachable!()
+        }
+        async fn revoke_session(&self, _: &str) -> Result<(), ApplicationError> {
             unreachable!()
         }
         async fn list_users(

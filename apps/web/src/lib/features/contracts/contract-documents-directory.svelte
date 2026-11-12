@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { MoreHorizontal, Plus, Printer } from '@lucide/svelte';
 	import {
 		Button,
@@ -19,16 +20,15 @@
 		DropdownMenuTrigger
 	} from '@aqardesk/ui/components/ui/dropdown-menu';
 	import type { ContractDocument } from '#lib/api/desktop';
+	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
 	import {
-		buildPrintDocumentHtml,
-		contractDocumentFont,
-		contractDocumentPaperDimensions,
-		printHtmlDocument
-	} from '#lib/features/contracts/document-design';
+		docForgeDocumentFromContract,
+		serializeDocForgeTemplate
+	} from '#lib/features/contracts/docforge-template';
 	import {
 		AqarDeskGrid,
 		type AqarDeskColumnDef,
@@ -74,9 +74,21 @@
 	let effectiveDate = $state('');
 	let endReason = $state('');
 	let ending = $state(false);
+	let contractPdfUrl = $state<string | null>(null);
+	let contractPdfLoading = $state(false);
+	let contractPdfError = $state<string | null>(null);
+	let contractPdfFrame = $state<HTMLIFrameElement | null>(null);
+	let contractPdfRequest = 0;
 
 	$effect(() => {
-		if (selectedContract) openContract(selectedContract);
+		if (selectedContract && selectedContract.id !== selected?.id) {
+			openContract(selectedContract);
+		}
+	});
+
+	onDestroy(() => {
+		contractPdfRequest += 1;
+		revokeContractPdf();
 	});
 
 	const columns: AqarDeskColumnDef[] = $derived([
@@ -126,72 +138,61 @@
 		if (!contract) return;
 		selected = contract;
 		viewerOpen = true;
+		void generateContractPdf(contract);
+	}
+
+	async function generateContractPdf(contract = selected) {
+		if (!contract) return;
+		const request = ++contractPdfRequest;
+		contractPdfLoading = true;
+		contractPdfError = null;
+		revokeContractPdf();
+		try {
+			const documentJson = serializeDocForgeTemplate(
+				docForgeDocumentFromContract(contract, m.contracts_disclaimer())
+			);
+			const bytes = await desktopApi.documentPreviewPdf(documentJson);
+			if (request !== contractPdfRequest) return;
+			const pdfBytes = new Uint8Array(bytes);
+			if (
+				pdfBytes.length < 5 ||
+				pdfBytes[0] !== 0x25 ||
+				pdfBytes[1] !== 0x50 ||
+				pdfBytes[2] !== 0x44 ||
+				pdfBytes[3] !== 0x46 ||
+				pdfBytes[4] !== 0x2d
+			) {
+				throw new Error('DocForge returned an invalid PDF document.');
+			}
+			contractPdfUrl = URL.createObjectURL(
+				new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+			);
+		} catch (cause) {
+			if (request !== contractPdfRequest) return;
+			contractPdfError = cause instanceof Error ? cause.message : String(cause);
+			toast.error(contractPdfError);
+		} finally {
+			if (request === contractPdfRequest) contractPdfLoading = false;
+		}
+	}
+
+	function revokeContractPdf() {
+		if (contractPdfUrl) URL.revokeObjectURL(contractPdfUrl);
+		contractPdfUrl = null;
+	}
+
+	function printDocument() {
+		if (!contractPdfUrl) return;
+		if (!contractPdfFrame?.contentWindow) {
+			toast.error(m.documents_pdf_viewer_unavailable());
+			return;
+		}
+		contractPdfFrame.contentWindow.print();
 	}
 
 	function handleGridAction(event: GridActionEvent) {
 		const contract = contracts.find((item) => item.id === String(event.row.id ?? ''));
 		if (event.actionId === 'open' || event.actionId === 'dblclick') openContract(contract);
-	}
-
-	function documentBlocks(content: string) {
-		return content
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.map((line) => {
-				const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-				if (heading) return { kind: 'heading', text: heading[2] };
-				const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
-				if (item) return { kind: 'list-item', text: item[1] };
-				return { kind: 'paragraph', text: line };
-			});
-	}
-
-	function escapeHtml(value: string) {
-		return value
-			.replaceAll('&', '&amp;')
-			.replaceAll('<', '&lt;')
-			.replaceAll('>', '&gt;')
-			.replaceAll('"', '&quot;')
-			.replaceAll("'", '&#39;');
-	}
-
-	async function printDocument() {
-		if (!selected) return;
-		const design = selected.document_style;
-		const hasHeader =
-			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
-		const headerHtml = hasHeader
-			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? `<p class="contract-number">${escapeHtml(selected.contract_number)}</p>` : ''}</header>`
-			: '';
-		const bodyHtml = documentBlocks(selected.document_body)
-			.map((block) => {
-				if (block.kind === 'heading') {
-					return `<h2>${escapeHtml(block.text.replace(/^#{1,3}\s+/, ''))}</h2>`;
-				}
-				if (block.kind === 'list-item') {
-					return `<p><span class="bullet">• </span>${escapeHtml(block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, ''))}</p>`;
-				}
-				return `<p>${escapeHtml(block.text)}</p>`;
-			})
-			.join('');
-		const footerHtml = design.show_footer
-			? `<footer>${escapeHtml(design.footer_text.trim() || m.contracts_disclaimer())}</footer>`
-			: '';
-		try {
-			await printHtmlDocument(
-				buildPrintDocumentHtml({
-					title: selected.template_name,
-					direction: selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr',
-					design,
-					headerHtml,
-					bodyHtml,
-					footerHtml
-				})
-			);
-		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
-		}
 	}
 
 	async function issueDraft() {
@@ -283,42 +284,26 @@
 			{/if}
 		</SheetHeader>
 		{#if selected}
-			<div class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none">
-				<article
-					id="issued-contract"
-					dir={selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
-					class="mx-auto w-full rounded-md border border-border/70 bg-white text-slate-900 shadow-sm"
-					style={`max-width:${contractDocumentPaperDimensions(selected.document_style.paper_size).width};min-height:${contractDocumentPaperDimensions(selected.document_style.paper_size).height};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
-				>
-					{#if (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
-						<header class="mb-8 border-b-2 pb-5" style={`border-color:${selected.document_style.accent_color}`}>
-							{#if selected.document_style.show_branding && selected.document_style.brand_label.trim()}
-								<p class="text-sm font-bold" style={`color:${selected.document_style.accent_color}`}>
-									{selected.document_style.brand_label}
-								</p>
-							{/if}
-							{#if selected.document_style.show_contract_number}
-								<p class="text-sm text-muted-foreground" dir="ltr">{selected.contract_number}</p>
-							{/if}
-						</header>
-					{/if}
-					<div class="grid gap-3 leading-8">
-						{#each documentBlocks(selected.document_body) as block, index (`${block.kind}-${index}`)}
-							{#if block.kind === 'heading'}
-								<h4 class="border-b pb-2 pt-4 text-lg font-semibold" style={`border-color:${selected.document_style.accent_color};color:${selected.document_style.accent_color}`}>{block.text.replace(/^#{1,3}\s+/, '')}</h4>
-							{:else if block.kind === 'list-item'}
-								<p><span style={`color:${selected.document_style.accent_color}`}>• </span>{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
-							{:else}
-								<p class="whitespace-pre-wrap">{block.text}</p>
-							{/if}
-						{/each}
+			<div class="relative min-h-0 flex-1 overflow-hidden bg-muted/40">
+				{#if contractPdfLoading}
+					<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
+						{m.common_loading()}
 					</div>
-					{#if selected.document_style.show_footer}
-						<footer class="mt-12 border-t pt-3 text-xs leading-6 text-muted-foreground" style={`border-color:${selected.document_style.accent_color}`}>
-							{selected.document_style.footer_text.trim() || m.contracts_disclaimer()}
-						</footer>
-					{/if}
-				</article>
+				{:else if contractPdfError}
+					<div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+						<p class="text-sm text-destructive" role="alert">{contractPdfError}</p>
+						<Button variant="outline" onclick={() => void generateContractPdf()}>
+							{m.common_retry()}
+						</Button>
+					</div>
+				{:else if contractPdfUrl}
+					<iframe
+						bind:this={contractPdfFrame}
+						src={contractPdfUrl}
+						title={selected.template_name}
+						class="h-full w-full border-0"
+					></iframe>
+				{/if}
 			</div>
 			<SheetFooter class="shrink-0 flex-row flex-wrap items-center justify-between gap-2 border-t border-border bg-popover px-4 py-3">
 				<Button variant="outline" onclick={() => (viewerOpen = false)}>{m.common_cancel()}</Button>

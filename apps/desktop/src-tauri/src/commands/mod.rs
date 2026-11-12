@@ -3,6 +3,7 @@ pub mod contract_document_cmds;
 pub mod contract_template_cmds;
 pub mod dashboard_cmds;
 pub mod database_admin_cmds;
+pub mod document_pdf_cmds;
 pub mod license_cmds;
 pub mod organization_settings_cmds;
 pub mod profile_cmds;
@@ -23,6 +24,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         contract_document_cmds::contract_documents_delete_draft,
         contract_document_cmds::contract_documents_issue_draft,
         contract_document_cmds::contract_documents_end,
+        document_pdf_cmds::document_preview_pdf,
         database_admin_cmds::database_admin_get_status,
         database_admin_cmds::database_admin_list_backups,
         database_admin_cmds::database_admin_backup,

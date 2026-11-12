@@ -6,6 +6,7 @@ export type ViewKey =
 	| 'owners'
 	| 'contracts'
 	| 'payments'
+	| 'templates'
 	| 'users'
 	| 'settings'
 	| 'databases'

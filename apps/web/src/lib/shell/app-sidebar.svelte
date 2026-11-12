@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Building2,
+		Files,
 		LayoutDashboard,
 		ScrollText,
 		Settings2
@@ -43,6 +44,12 @@
 			active: ['contracts', 'payments']
 		},
 		{
+			key: 'templates',
+			label: m.nav_templates(),
+			icon: Files,
+			active: ['templates']
+		},
+		{
 			key: 'settings',
 			label: m.nav_settings(),
 			icon: Settings2,
@@ -60,6 +67,7 @@
 				return canViewBusinessView(currentUser.role, 'contracts', currentUser.permissions) ||
 					canViewBusinessView(currentUser.role, 'payments', currentUser.permissions);
 			}
+			if (item.key === 'templates') return currentUser.role === 'admin';
 			return true;
 		})
 	);

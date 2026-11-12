@@ -34,6 +34,7 @@
 	let draft = $state<OrganizationSettingsInput>({
 		name: '',
 		legal_name: null,
+		logo_data_url: null,
 		default_currency: '',
 		timezone: ''
 	});
@@ -45,6 +46,7 @@
 			saved !== null &&
 			(draft.name !== saved.name ||
 				(draft.legal_name ?? '') !== (saved.legal_name ?? '') ||
+				(draft.logo_data_url ?? '') !== (saved.logo_data_url ?? '') ||
 				draft.default_currency !== saved.default_currency ||
 				draft.timezone !== saved.timezone)
 	);
@@ -53,6 +55,7 @@
 	const schema = z.object({
 		name: z.string().trim().min(1, m.settings_organization_name()),
 		legal_name: z.string().nullable(),
+		logo_data_url: z.string().max(1_500_000).nullable(),
 		default_currency: z.string().refine(
 			(code) =>
 				currencies.some(
@@ -82,6 +85,7 @@
 			draft = {
 				name: organization.name,
 				legal_name: organization.legal_name,
+				logo_data_url: organization.logo_data_url ?? null,
 				default_currency: organization.default_currency,
 				timezone: organization.timezone
 			};
@@ -90,6 +94,28 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function readOrganizationLogo(event: Event) {
+		const input = event.currentTarget;
+		if (!(input instanceof HTMLInputElement)) return;
+		const file = input.files?.[0];
+		if (!file) return;
+		if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_048_576) {
+			toast.error(m.settings_organization_logo_invalid());
+			input.value = '';
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			if (typeof reader.result !== 'string') {
+				toast.error(m.settings_organization_logo_invalid());
+				return;
+			}
+			draft.logo_data_url = reader.result;
+		};
+		reader.onerror = () => toast.error(m.settings_organization_logo_invalid());
+		reader.readAsDataURL(file);
 	}
 
 	async function save() {
@@ -115,6 +141,7 @@
 				draft = {
 					name: organization.name,
 					legal_name: organization.legal_name,
+					logo_data_url: organization.logo_data_url ?? null,
 					default_currency: organization.default_currency,
 					timezone: organization.timezone
 				};
@@ -140,6 +167,7 @@
 			draft = {
 				name: saved.name,
 				legal_name: saved.legal_name,
+				logo_data_url: saved.logo_data_url ?? null,
 				default_currency: saved.default_currency,
 				timezone: saved.timezone
 			};
@@ -178,6 +206,34 @@
 					copyValue={saved.id}
 				>
 					<Input id="organization-id" value={saved.id} readonly dir="ltr" class="w-full font-mono text-xs" />
+				</SettingsFieldRow>
+				<SettingsFieldRow
+					label={m.settings_organization_logo()}
+					id="organization-logo"
+					description={m.settings_organization_logo_description()}
+				>
+					<div class="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+						<Input
+							id="organization-logo"
+							type="file"
+							accept="image/png,image/jpeg,image/webp"
+							onchange={readOrganizationLogo}
+							disabled={!canEditOrganization}
+							class="w-full"
+						/>
+						{#if draft.logo_data_url}
+							<div class="flex items-center gap-3">
+								<img src={draft.logo_data_url} alt={m.settings_organization_logo()} class="size-12 rounded-md border border-border bg-white object-contain p-1" />
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									disabled={!canEditOrganization}
+									onclick={() => (draft.logo_data_url = null)}
+								>{m.settings_organization_logo_remove()}</Button>
+							</div>
+						{/if}
+					</div>
 				</SettingsFieldRow>
 				<SettingsFieldRow
 					label={m.settings_organization_name()}

@@ -29,6 +29,7 @@ tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 aqardesk-backend = { path = "../../../backend" }
+docforge-engine = { path = "../../../packages/docforge-engine" }
 sea-orm = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createInfiniteQuery } from '@tanstack/svelte-query';
-	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import { toast } from '@aqardesk/ui';
 	import type { CurrencySettings, Payment, PaymentInput, Tenant } from '@aqardesk/sdk';
@@ -93,9 +92,6 @@
 		}
 	}
 
-	function openPayment(payment: Payment) {
-		void goto(`/${organizationId}/payments/${payment.id}`);
-	}
 </script>
 
 {#if app.currentUser && canView}
@@ -112,7 +108,6 @@
 			{canVoid}
 			onRecord={record}
 			onVoid={(payment) => void voidPayment(payment)}
-			onOpen={openPayment}
 		/>
 	</div>
 {/if}

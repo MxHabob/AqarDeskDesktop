@@ -4,6 +4,7 @@
 	import { formatCurrency, formatGridCell } from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import PaymentSheet from '#lib/features/payments/payment-sheet.svelte';
+	import PaymentReceiptSheet from '#lib/features/payments/payment-receipt-sheet.svelte';
 	import * as m from '#lib/paraglide/messages';
 	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 
@@ -22,7 +23,6 @@
 		emptyDescription?: string;
 		onRecord?: (input: PaymentInput) => Promise<boolean>;
 		onVoid?: (payment: Payment) => void;
-		onOpen: (payment: Payment) => void;
 	};
 
 	let {
@@ -39,11 +39,15 @@
 		recordDisabledMessage,
 		emptyDescription,
 		onRecord,
-		onVoid,
-		onOpen
+		onVoid
 	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
+	let selectedPaymentId = $state<string | null>(null);
+	let receiptOpen = $state(false);
+	const selectedPayment = $derived(
+		payments.find((payment) => payment.id === selectedPaymentId) ?? null
+	);
 	const enabledCurrencies = $derived(
 		currencies.filter((currency) => currency.is_active && currency.is_enabled_for_organization)
 	);
@@ -139,7 +143,10 @@
 	function handleGridAction(event: GridActionEvent) {
 		const payment = payments.find((item) => item.id === String(event.row.id ?? ''));
 		if (!payment) return;
-		if (event.actionId === 'dblclick' || event.actionId === 'open') onOpen(payment);
+		if (event.actionId === 'dblclick' || event.actionId === 'open') {
+			selectedPaymentId = payment.id;
+			receiptOpen = true;
+		}
 		if (event.actionId === 'void') onVoid?.(payment);
 	}
 </script>
@@ -178,3 +185,5 @@
 		{/snippet}
 	</AqarDeskGrid>
 </div>
+
+<PaymentReceiptSheet bind:open={receiptOpen} payment={selectedPayment} />

@@ -387,7 +387,7 @@ pub async fn database_admin_restore(
         return Err("Could not clear the saved sign-in, so the restore was cancelled and the original database was restored.".to_string());
     }
     *state.current_user.write().await = None;
-    *state.api_token.write().await = None;
+    *state.session_token.write().await = None;
     remove_file_if_present(&previous_path);
     operation_result(active_path)
 }

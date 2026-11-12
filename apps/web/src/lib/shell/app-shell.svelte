@@ -31,10 +31,14 @@
 		active !== 'overview' &&
 			active !== 'account' &&
 			active !== 'billing' &&
+			active !== 'templates' &&
 			!page.params.propertyId
 	);
 	const settingsPath = $derived(`/${currentUser.organization_id}/settings`);
 	const routePath = $derived(deLocalizeUrl(page.url).pathname);
+	const templateEditorRoute = $derived(
+		routePath.startsWith(`/${currentUser.organization_id}/templates/`)
+	);
 	const rootWorkspace = $derived(routePath === `/${currentUser.organization_id}`);
 	const gridWorkspace = $derived(
 		[
@@ -48,9 +52,11 @@
 			`/${currentUser.organization_id}/settings/permissions`,
 			`/${currentUser.organization_id}/settings/currencies`,
 			`/${currentUser.organization_id}/settings/audit`,
-			`/${currentUser.organization_id}/settings/contract-templates`
+			`/${currentUser.organization_id}/settings/contract-templates`,
+			`/${currentUser.organization_id}/templates`
 		].includes(routePath) ||
-			routePath.startsWith(`/${currentUser.organization_id}/properties/`)
+			routePath.startsWith(`/${currentUser.organization_id}/properties/`) ||
+			routePath.startsWith(`/${currentUser.organization_id}/templates/`)
 	);
 	const settingsSection = $derived(routePath.slice(settingsPath.length).replace(/^\/+/, ''));
 	const settingsNavigation = $derived(
@@ -72,7 +78,6 @@
 									{ key: 'users', label: m.settings_user_management() },
 									{ key: 'permissions', label: m.settings_permissions() },
 									{ key: 'currencies', label: m.settings_currencies() },
-									{ key: 'contract-templates', label: m.settings_contract_templates() },
 									{ key: 'databases', label: m.nav_database_management() },
 									{ key: 'audit', label: m.settings_audit() }
 								]
@@ -99,9 +104,11 @@
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 overflow-hidden bg-background font-sans text-foreground">
-	<div class="hidden h-full md:flex">
-		<AppSidebar {active} {currentUser} {organizationName} {onSelect} {onLogout} />
-	</div>
+	{#if !templateEditorRoute}
+		<div class="hidden h-full md:flex">
+			<AppSidebar {active} {currentUser} {organizationName} {onSelect} {onLogout} />
+		</div>
+	{/if}
 	<MainViewport name={sidebarPersistId} bind:sidebarSize showLeft={showContextNavigation}>
 		{#snippet left()}
 			<SidebarNav
@@ -116,7 +123,7 @@
 		{/snippet}
 		{#snippet middle()}
 			<div class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-				{#if !desktopShell}
+				{#if !desktopShell && !templateEditorRoute}
 					<header class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card px-4 sm:px-6">
 						<div class="flex min-w-0 items-center gap-3">
 							<span class="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
@@ -134,14 +141,18 @@
 					</header>
 				{/if}
 				<main
-					class={gridWorkspace
+					class={templateEditorRoute
+						? 'flex min-h-0 flex-1 flex-col overflow-hidden p-0'
+						: gridWorkspace
 						? 'flex min-h-0 flex-1 flex-col overflow-hidden p-3 scrollbar-none sm:p-4'
 						: rootWorkspace
 							? 'min-h-0 flex-1 overflow-y-auto p-3 scrollbar-none sm:p-4'
 							: 'min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none sm:p-6 lg:p-6'}
 				>
 					<div
-						class={gridWorkspace
+						class={templateEditorRoute
+							? 'flex min-h-0 w-full flex-1 flex-col'
+							: gridWorkspace
 							? 'flex min-h-0 w-full flex-1 flex-col gap-3'
 							: 'grid min-h-full w-full content-start gap-4'}
 					>

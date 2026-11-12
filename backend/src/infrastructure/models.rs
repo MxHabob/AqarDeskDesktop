@@ -228,6 +228,7 @@ pub mod organization {
         pub id: String,
         pub name: String,
         pub legal_name: Option<String>,
+        pub logo_data_url: Option<String>,
         pub default_currency: String,
         pub timezone: String,
         pub created_at: DateTimeUtc,
@@ -328,6 +329,27 @@ pub mod role_permission {
         pub is_enabled: bool,
         pub updated_at: DateTimeUtc,
         pub updated_by: Option<String>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod user_session {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "user_sessions")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub user_id: String,
+        pub token_hash: String,
+        pub created_at: DateTimeUtc,
+        pub expires_at: DateTimeUtc,
+        pub revoked_at: Option<DateTimeUtc>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -39,6 +39,7 @@ impl OrganizationSettingsRepository for SeaOrmOrganizationSettingsRepository {
             id: organization.id,
             name: organization.name,
             legal_name: organization.legal_name,
+            logo_data_url: organization.logo_data_url,
             default_currency: organization.default_currency,
             timezone: organization.timezone,
         })
@@ -89,6 +90,7 @@ impl OrganizationSettingsRepository for SeaOrmOrganizationSettingsRepository {
         let mut active = current.into_active_model();
         active.name = Set(input.name);
         active.legal_name = Set(input.legal_name);
+        active.logo_data_url = Set(input.logo_data_url);
         active.default_currency = Set(input.default_currency);
         active.timezone = Set(input.timezone);
         active.updated_at = Set(Utc::now());
@@ -111,6 +113,7 @@ impl OrganizationSettingsRepository for SeaOrmOrganizationSettingsRepository {
             id: updated.id,
             name: updated.name,
             legal_name: updated.legal_name,
+            logo_data_url: updated.logo_data_url,
             default_currency: updated.default_currency,
             timezone: updated.timezone,
         })

@@ -299,7 +299,12 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
                 tracing::error!(%error, "Contract template settings are invalid");
                 validation("Contract template settings are invalid.")
             })?;
-        let document_style: ContractDocumentStyle = serde_json::from_value(
+        let organization = organization::Entity::find_by_id(organization_id)
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        let mut document_style: ContractDocumentStyle = serde_json::from_value(
             placeholders
                 .get("design")
                 .cloned()
@@ -309,16 +314,12 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             tracing::error!(%error, "Contract document design could not be decoded");
             validation("Contract document design settings are invalid.")
         })?;
+        document_style.organization_logo_data_url = organization.logo_data_url.clone();
         document_style.validate()?;
         let document_style_json = serde_json::to_string(&document_style).map_err(|error| {
             tracing::error!(%error, "Contract document design could not be encoded");
             ApplicationError::Persistence
         })?;
-        let organization = organization::Entity::find_by_id(organization_id)
-            .one(&transaction)
-            .await
-            .map_err(persistence_error)?
-            .ok_or(ApplicationError::NotFound)?;
         let currency = currency::Entity::find_by_id(&input.currency_code)
             .filter(currency::Column::IsActive.eq(true))
             .one(&transaction)
@@ -366,7 +367,6 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
         let property_address = [
             Some(property.address_line_1.as_str()),
             property.address_line_2.as_deref(),
-            Some(property.city.as_str()),
             property.region.as_deref(),
         ]
         .into_iter()
@@ -415,11 +415,7 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             ("unit.bathrooms", unit.bathrooms.to_string()),
             (
                 "unit.rent",
-                format_amount(
-                    input.rent_amount_minor,
-                    currency.decimal_digits,
-                    &currency.code,
-                ),
+                format_amount_value(input.rent_amount_minor, currency.decimal_digits),
             ),
             ("unit.currency", currency.code.clone()),
             ("contract.number", contract_number.clone()),
@@ -740,14 +736,21 @@ fn resolve_template(
 }
 
 fn format_amount(amount_minor: i64, decimal_digits: i16, currency_code: &str) -> String {
+    format!(
+        "{} {currency_code}",
+        format_amount_value(amount_minor, decimal_digits)
+    )
+}
+
+fn format_amount_value(amount_minor: i64, decimal_digits: i16) -> String {
     let scale = 10_i64.pow(decimal_digits as u32);
     let whole = amount_minor / scale;
     if decimal_digits == 0 {
-        return format!("{whole} {currency_code}");
+        return format!("{whole}");
     }
     let fraction = amount_minor % scale;
     format!(
-        "{whole}.{fraction:0width$} {currency_code}",
+        "{whole}.{fraction:0width$}",
         width = decimal_digits as usize
     )
 }

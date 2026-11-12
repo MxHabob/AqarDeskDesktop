@@ -62,33 +62,14 @@ impl DashboardRepository for SeaOrmDashboardRepository {
             .await
             .map_err(persistence_error)?;
 
-        let units_count = unit::Entity::find()
-            .filter(unit::Column::OrganizationId.eq(organization_id))
-            .filter(unit::Column::DeletedAt.is_null())
-            .count(&self.database)
-            .await
-            .map_err(persistence_error)?;
-        let available_units_count = unit::Entity::find()
-            .filter(unit::Column::OrganizationId.eq(organization_id))
-            .filter(unit::Column::DeletedAt.is_null())
-            .filter(unit::Column::Status.eq("available"))
-            .count(&self.database)
-            .await
-            .map_err(persistence_error)?;
         let tenants_count = tenant::Entity::find()
             .filter(tenant::Column::OrganizationId.eq(organization_id))
             .filter(tenant::Column::DeletedAt.is_null())
             .count(&self.database)
             .await
             .map_err(persistence_error)?;
-        let posted_payments_count = payment::Entity::find()
-            .filter(payment::Column::OrganizationId.eq(organization_id))
-            .filter(payment::Column::Status.eq("posted"))
-            .count(&self.database)
-            .await
-            .map_err(persistence_error)?;
 
-        let statuses = unit::Entity::find()
+        let unit_status_rows = unit::Entity::find()
             .select_only()
             .column(unit::Column::Status)
             .column_as(Expr::col(unit::Column::Id).count(), "count")
@@ -99,18 +80,28 @@ impl DashboardRepository for SeaOrmDashboardRepository {
             .into_tuple::<(String, i64)>()
             .all(&self.database)
             .await
-            .map_err(persistence_error)?
+            .map_err(persistence_error)?;
+        let mut units_count = 0_u64;
+        let mut available_units_count = 0_u64;
+        let statuses = unit_status_rows
             .into_iter()
             .map(|(status, count)| {
-                u64::try_from(count)
-                    .map(|count| StatusCount { status, count })
-                    .map_err(|error| {
-                        tracing::error!(%error, "Dashboard status count is negative");
-                        ApplicationError::Persistence
-                    })
+                let count = u64::try_from(count).map_err(|error| {
+                    tracing::error!(%error, "Dashboard status count is negative");
+                    ApplicationError::Persistence
+                })?;
+                units_count = units_count.checked_add(count).ok_or_else(|| {
+                    tracing::error!("Dashboard unit count exceeds the supported range");
+                    ApplicationError::Persistence
+                })?;
+                if status == "available" {
+                    available_units_count = count;
+                }
+                Ok(StatusCount { status, count })
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        let payment_statuses = payment::Entity::find()
+            .collect::<Result<Vec<_>, ApplicationError>>()?;
+
+        let payment_status_rows = payment::Entity::find()
             .select_only()
             .column(payment::Column::Status)
             .column_as(Expr::col(payment::Column::Id).count(), "count")
@@ -120,17 +111,21 @@ impl DashboardRepository for SeaOrmDashboardRepository {
             .into_tuple::<(String, i64)>()
             .all(&self.database)
             .await
-            .map_err(persistence_error)?
+            .map_err(persistence_error)?;
+        let mut posted_payments_count = 0_u64;
+        let payment_statuses = payment_status_rows
             .into_iter()
             .map(|(status, count)| {
-                u64::try_from(count)
-                    .map(|count| StatusCount { status, count })
-                    .map_err(|error| {
-                        tracing::error!(%error, "Dashboard payment status count is negative");
-                        ApplicationError::Persistence
-                    })
+                let count = u64::try_from(count).map_err(|error| {
+                    tracing::error!(%error, "Dashboard payment status count is negative");
+                    ApplicationError::Persistence
+                })?;
+                if status == "posted" {
+                    posted_payments_count = count;
+                }
+                Ok(StatusCount { status, count })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, ApplicationError>>()?;
 
         let payment_rows = payment::Entity::find()
             .filter(payment::Column::OrganizationId.eq(organization_id))

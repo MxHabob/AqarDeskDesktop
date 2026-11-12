@@ -265,14 +265,14 @@ export function createAppContext() {
 		clearMessages();
 		try {
 			await desktopApi.signOut();
-			currentUser = null;
-			organizationName = '';
-			organizationTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			return true;
 		} catch (cause) {
 			setError(cause);
 			return false;
 		} finally {
+			currentUser = null;
+			organizationName = '';
+			organizationTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			busy = false;
 		}
 	}

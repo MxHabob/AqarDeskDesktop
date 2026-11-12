@@ -10,6 +10,7 @@
     },
     "apps/desktop": {
       "name": "@aqardesk/desktop",
+      "version": "1.0.2",
       "devDependencies": {
         "@tauri-apps/cli": "^2.12.4",
       },
@@ -21,6 +22,7 @@
         "@aqardesk/sdk": "workspace:*",
         "@aqardesk/svelte-grid": "workspace:*",
         "@aqardesk/ui": "workspace:*",
+        "@docforge/core": "workspace:*",
         "@tanstack/svelte-form": "^1.33.5",
         "@tanstack/svelte-query": "^6.4.1",
         "@tauri-apps/api": "^2.9.1",
@@ -49,6 +51,10 @@
         "typescript": "^6.0.3",
         "vite": "^8.3.0",
       },
+    },
+    "packages/docforge": {
+      "name": "@docforge/core",
+      "version": "0.1.0",
     },
     "packages/sdk": {
       "name": "@aqardesk/sdk",
@@ -120,6 +126,8 @@
     "@bytecodealliance/preview2-shim": ["@bytecodealliance/preview2-shim@0.24.1", "", { "dependencies": { "@bytecodealliance/jco-node-fs": "0.3.2" } }, "sha512-QGZsKD5M76xBhwu3BzLWqYDEpaMX90QWrrfhkQPn2pN9t378koumtdAVH4lr25mqGCZt10YNXkWvyWkw/vJbLQ=="],
 
     "@bytecodealliance/preview3-shim": ["@bytecodealliance/preview3-shim@0.6.1", "", { "dependencies": { "@bytecodealliance/jco-node-fs": "0.3.2", "@bytecodealliance/preview2-shim": "^0.25.0" } }, "sha512-61mEfjfgGmZhEMA0H3waawPKvYd3za9y0vJ7pmQz/9yvm4FR6Ef+cmqhnxDE7ezsM07MY1btP92ymmgsgFwxmg=="],
+
+    "@docforge/core": ["@docforge/core@workspace:packages/docforge"],
 
     "@emnapi/core": ["@emnapi/core@1.11.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "^2.4.0" } }, "sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ=="],
 

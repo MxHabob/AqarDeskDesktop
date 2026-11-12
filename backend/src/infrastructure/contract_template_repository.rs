@@ -3,7 +3,9 @@ use crate::{
         ApplicationError, ContractTemplate, ContractTemplateInput, ContractTemplateRepository,
         ContractTemplateVersion,
     },
-    contract_template_defaults::DEFAULT_CONTRACT_TEMPLATES,
+    contract_template_defaults::{
+        DEFAULT_CONTRACT_TEMPLATES, default_template_content, default_template_placeholders,
+    },
     infrastructure::audit,
 };
 use chrono::Utc;
@@ -97,6 +99,7 @@ pub(super) async fn seed_onboarding_templates(
     now: chrono::DateTime<Utc>,
 ) -> Result<(), ApplicationError> {
     for template in DEFAULT_CONTRACT_TEMPLATES {
+        let content = default_template_content(&template);
         let template_id = Uuid::new_v4().to_string();
         ActiveModel {
             id: Set(template_id.clone()),
@@ -116,7 +119,7 @@ pub(super) async fn seed_onboarding_templates(
         .await
         .map_err(persistence_error)?;
 
-        let content_sha256 = Sha256::digest(template.content.as_bytes())
+        let content_sha256 = Sha256::digest(content.as_bytes())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
@@ -126,11 +129,11 @@ pub(super) async fn seed_onboarding_templates(
             template_id: Set(template_id.clone()),
             version_number: Set(1),
             content_format: Set("markdown".to_string()),
-            content_body: Set(Some(template.content.to_string())),
-            placeholders_json: Set("{}".to_string()),
+            content_body: Set(Some(content)),
+            placeholders_json: Set(default_template_placeholders(&template)),
             content_sha256: Set(content_sha256),
             change_note: Set(Some(
-                "Starter template with data fields; review terms before use.".to_string(),
+                "DocForge starter template; review and customize before use.".to_string(),
             )),
             created_by: Set(Some(actor_id.to_string())),
             created_at: Set(now),

@@ -2,6 +2,12 @@ use crate::{
     application::{ApplicationError, Page, PageRequest},
     domain::{Organization, OrganizationId, RolePermissionSet, UserAccount, UserId},
 };
+use chrono::{DateTime, Utc};
+
+pub struct AuthenticatedSession {
+    pub user: UserAccount,
+    pub token: String,
+}
 
 pub struct NewUser<'a> {
     pub name: &'a str,
@@ -72,10 +78,15 @@ pub trait IdentityRepository: Send + Sync {
         password: &str,
     ) -> Result<UserAccount, ApplicationError>;
 
-    async fn get_active_user(
+    async fn create_session(
         &self,
         user_id: UserId,
-    ) -> Result<Option<UserAccount>, ApplicationError>;
+        expires_at: DateTime<Utc>,
+    ) -> Result<String, ApplicationError>;
+
+    async fn resume_session(&self, token: &str) -> Result<Option<UserAccount>, ApplicationError>;
+
+    async fn revoke_session(&self, token: &str) -> Result<(), ApplicationError>;
 
     async fn list_users(
         &self,

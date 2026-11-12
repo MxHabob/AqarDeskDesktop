@@ -73,6 +73,7 @@ export type ContractDocumentStyle = {
 	show_contract_number: boolean;
 	show_footer: boolean;
 	footer_text: string;
+	organization_logo_data_url: string | null;
 };
 
 export type ContractDocumentInput = {
@@ -338,6 +339,8 @@ export const desktopApi = {
 			offset,
 			propertyId: propertyId ?? null
 		}),
+	documentPreviewPdf: (documentJson: string, contextData: Record<string, unknown> = {}) =>
+		invoke<number[]>('document_preview_pdf', { documentJson, contextData }),
 	listPaymentContracts: (tenantId: string) =>
 		invoke<PaymentContract[]>('platform_payments_contracts', { tenantId }),
 	createContractDocument: (input: ContractDocumentInput) =>

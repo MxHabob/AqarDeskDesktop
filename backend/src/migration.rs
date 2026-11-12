@@ -16,6 +16,11 @@ mod m20261112_000011_contract_documents;
 mod m20261112_000012_payment_allocations;
 mod m20261112_000013_contract_document_design;
 mod m20261112_000014_contract_lifecycle;
+mod m20261112_000015_organization_logo;
+mod m20261112_000016_docforge_default_templates;
+mod m20261112_000017_yemen_legal_template_redesign;
+mod m20261112_000018_payment_allocation_contract_index;
+mod m20261112_000019_query_index_maintenance;
 
 pub struct PlatformMigrator;
 
@@ -38,6 +43,11 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000012_payment_allocations::Migration),
             Box::new(m20261112_000014_contract_lifecycle::Migration),
             Box::new(m20261112_000013_contract_document_design::Migration),
+            Box::new(m20261112_000015_organization_logo::Migration),
+            Box::new(m20261112_000016_docforge_default_templates::Migration),
+            Box::new(m20261112_000017_yemen_legal_template_redesign::Migration),
+            Box::new(m20261112_000018_payment_allocation_contract_index::Migration),
+            Box::new(m20261112_000019_query_index_maintenance::Migration),
         ]
     }
 }
@@ -50,6 +60,7 @@ pub async fn initialize(database: &DatabaseConnection) -> Result<(), DbErr> {
 pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
     let manager = SchemaManager::new(database);
     for table in [
+        "platform_installation",
         "organizations",
         "currencies",
         "users",
@@ -122,6 +133,56 @@ mod tests {
             .await
             .expect("connect SQLite database");
         initialize(&database).await.expect("initialize platform");
+        let query_plan = database
+            .query_all(Statement::from_string(
+                DbBackend::Sqlite,
+                "EXPLAIN QUERY PLAN SELECT payment_id FROM payment_allocations WHERE organization_id = 'org' AND contract_document_id = 'contract'",
+            ))
+            .await
+            .expect("explain property payment allocation lookup");
+        let plan_details = query_plan
+            .iter()
+            .map(|row| {
+                row.try_get_by::<String, _>("detail")
+                    .expect("read query plan detail")
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            plan_details
+                .iter()
+                .any(|detail| { detail.contains("idx_payment_allocations_org_contract_payment") }),
+            "property payment lookup should use the contract allocation index: {plan_details:?}"
+        );
+        for (sql, expected_index) in [
+            (
+                "EXPLAIN QUERY PLAN SELECT id FROM properties WHERE organization_id = 'org' AND deleted_at IS NULL ORDER BY name, id LIMIT 26",
+                "idx_platform_properties_org_name",
+            ),
+            (
+                "EXPLAIN QUERY PLAN SELECT id FROM property_units WHERE organization_id = 'org' AND property_id = 'property' AND deleted_at IS NULL ORDER BY unit_number, id LIMIT 26",
+                "idx_platform_units_org_property_number",
+            ),
+            (
+                "EXPLAIN QUERY PLAN SELECT received_at, amount_minor, currency_code FROM payments WHERE organization_id = 'org' AND status = 'posted' AND received_at >= '2026-01-01' AND received_at < '2026-02-01'",
+                "idx_platform_payments_org_status_date",
+            ),
+        ] {
+            let query_plan = database
+                .query_all(Statement::from_string(DbBackend::Sqlite, sql))
+                .await
+                .expect("explain indexed platform query");
+            let details = query_plan
+                .iter()
+                .map(|row| {
+                    row.try_get_by::<String, _>("detail")
+                        .expect("read query plan detail")
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                details.iter().any(|detail| detail.contains(expected_index)),
+                "query should use {expected_index}: {details:?}"
+            );
+        }
         database
             .execute(Statement::from_string(
                 DbBackend::Sqlite,

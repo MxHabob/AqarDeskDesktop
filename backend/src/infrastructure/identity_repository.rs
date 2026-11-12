@@ -12,7 +12,7 @@ use crate::{
         contract_template_repository::seed_onboarding_templates,
         models::{
             installation, organization, organization_currency, organization_role, role_permission,
-            user,
+            user, user_session,
         },
     },
 };
@@ -21,12 +21,15 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
 };
 use chrono::{Duration, Utc};
+use rand::RngCore;
 use rand::rngs::OsRng;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
     IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
     sea_query::Expr,
 };
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 const MAX_FAILED_LOGINS: i32 = 5;
 const LOCKOUT_MINUTES: i64 = 15;
 
@@ -293,6 +296,7 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             id: Set(organization_id.to_string()),
             name: Set(input.organization_name.trim().to_string()),
             legal_name: Set(None),
+            logo_data_url: Set(None),
             default_currency: Set("SAR".to_string()),
             timezone: Set("Asia/Riyadh".to_string()),
             created_at: Set(now),
@@ -421,24 +425,91 @@ impl IdentityRepository for SeaOrmIdentityRepository {
         hydrate_user_permissions(&self.database, user).await
     }
 
-    async fn get_active_user(
+    async fn create_session(
         &self,
         user_id: UserId,
-    ) -> Result<Option<UserAccount>, ApplicationError> {
+        expires_at: chrono::DateTime<Utc>,
+    ) -> Result<String, ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let user_exists = user::Entity::find_by_id(user_id.to_string())
+            .filter(user::Column::IsActive.eq(true))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .is_some();
+        if !user_exists {
+            return Err(ApplicationError::Authentication);
+        }
+
+        let now = Utc::now();
+        user_session::Entity::delete_many()
+            .filter(user_session::Column::ExpiresAt.lte(now))
+            .exec(&transaction)
+            .await
+            .map_err(persistence_error)?;
+
+        let token = generate_session_token();
+        user_session::ActiveModel {
+            id: Set(Uuid::new_v4().to_string()),
+            user_id: Set(user_id.to_string()),
+            token_hash: Set(hash_session_token(&token)),
+            created_at: Set(now),
+            expires_at: Set(expires_at),
+            revoked_at: Set(None),
+        }
+        .insert(&transaction)
+        .await
+        .map_err(persistence_error)?;
+        transaction.commit().await.map_err(persistence_error)?;
+        Ok(token)
+    }
+
+    async fn resume_session(&self, token: &str) -> Result<Option<UserAccount>, ApplicationError> {
+        if token.is_empty() {
+            return Ok(None);
+        }
+        let now = Utc::now();
+        let session = user_session::Entity::find()
+            .filter(user_session::Column::TokenHash.eq(hash_session_token(token)))
+            .filter(user_session::Column::RevokedAt.is_null())
+            .filter(user_session::Column::ExpiresAt.gt(now))
+            .one(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let Some(session) = session else {
+            return Ok(None);
+        };
+        let user_id = UserId::parse(&session.user_id).map_err(|error| {
+            tracing::error!(%error, "Persisted session user identifier is invalid");
+            ApplicationError::Persistence
+        })?;
         let model = user::Entity::find_by_id(user_id.to_string())
             .filter(user::Column::IsActive.eq(true))
             .one(&self.database)
             .await
             .map_err(persistence_error)?;
-        match model {
-            Some(model) => {
-                let user = restore_user(model)?;
-                hydrate_user_permissions(&self.database, user)
-                    .await
-                    .map(Some)
-            }
-            None => Ok(None),
+        let Some(model) = model else {
+            revoke_user_sessions(&self.database, &session.user_id, now).await?;
+            return Ok(None);
+        };
+        let user = restore_user(model)?;
+        hydrate_user_permissions(&self.database, user)
+            .await
+            .map(Some)
+    }
+
+    async fn revoke_session(&self, token: &str) -> Result<(), ApplicationError> {
+        if token.is_empty() {
+            return Ok(());
         }
+        user_session::Entity::update_many()
+            .col_expr(user_session::Column::RevokedAt, Expr::value(Utc::now()))
+            .filter(user_session::Column::TokenHash.eq(hash_session_token(token)))
+            .filter(user_session::Column::RevokedAt.is_null())
+            .exec(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        Ok(())
     }
 
     async fn list_users(
@@ -576,6 +647,9 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .update(&transaction)
             .await
             .map_err(persistence_error)?;
+        if !is_active {
+            revoke_user_sessions(&transaction, &user_id.to_string(), Utc::now()).await?;
+        }
         audit::record(
             &transaction,
             &organization_id.to_string(),
@@ -645,6 +719,9 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .update(&transaction)
             .await
             .map_err(persistence_error)?;
+        if input.password.is_some() {
+            revoke_user_sessions(&transaction, &user_id.to_string(), Utc::now()).await?;
+        }
         audit::record(
             &transaction,
             &organization_id.to_string(),
@@ -910,6 +987,34 @@ fn persistence_error(error: sea_orm::DbErr) -> ApplicationError {
     ApplicationError::Persistence
 }
 
+fn generate_session_token() -> String {
+    let mut bytes = [0_u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn hash_session_token(token: &str) -> String {
+    Sha256::digest(token.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+async fn revoke_user_sessions<C: sea_orm::ConnectionTrait>(
+    connection: &C,
+    user_id: &str,
+    revoked_at: chrono::DateTime<Utc>,
+) -> Result<(), ApplicationError> {
+    user_session::Entity::update_many()
+        .col_expr(user_session::Column::RevokedAt, Expr::value(revoked_at))
+        .filter(user_session::Column::UserId.eq(user_id))
+        .filter(user_session::Column::RevokedAt.is_null())
+        .exec(connection)
+        .await
+        .map_err(persistence_error)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1056,8 +1161,37 @@ mod tests {
             .login("admin@example.com", "a-secure-password-12")
             .await
             .expect("login");
-        let actor =
-            crate::domain::ActorContext::new(authenticated.id, organization.id, authenticated.role);
+        assert_eq!(authenticated.token.len(), 64);
+        assert_ne!(
+            hash_session_token(&authenticated.token),
+            authenticated.token
+        );
+        assert_eq!(
+            service
+                .resume_session(&authenticated.token)
+                .await
+                .expect("resume authenticated session")
+                .expect("session is active")
+                .id,
+            authenticated.user.id
+        );
+        let expired_token = SeaOrmIdentityRepository::new(&database)
+            .create_session(authenticated.user.id, Utc::now() - Duration::seconds(1))
+            .await
+            .expect("create expired session");
+        assert!(
+            service
+                .resume_session(&expired_token)
+                .await
+                .expect("check expired session")
+                .is_none(),
+            "expired sessions must not resume"
+        );
+        let actor = crate::domain::ActorContext::new(
+            authenticated.user.id,
+            organization.id,
+            authenticated.user.role,
+        );
         let role_permissions = service
             .list_role_permissions(actor)
             .await
@@ -1136,6 +1270,10 @@ mod tests {
             .await
             .expect("create read-only user");
         assert_eq!(created.role, AccessRole::Readonly);
+        let created_session = service
+            .start_session(created.id)
+            .await
+            .expect("create session before password change");
         let updated = service
             .update_user(
                 actor,
@@ -1153,6 +1291,14 @@ mod tests {
         assert_eq!(updated.email, "updated-readonly@example.com");
         assert_eq!(updated.role, AccessRole::Staff);
         assert_eq!(updated.permissions, vec![Permission::ViewProperties]);
+        assert!(
+            service
+                .resume_session(&created_session)
+                .await
+                .expect("check password-change session")
+                .is_none(),
+            "password changes should revoke existing sessions"
+        );
         assert!(
             !crate::domain::ActorContext::with_permissions(
                 updated.id,
@@ -1173,14 +1319,11 @@ mod tests {
                 .permissions,
             vec![Permission::ViewProperties]
         );
-        assert_eq!(
-            service
-                .login("updated-readonly@example.com", "updated-secure-password")
-                .await
-                .expect("login with the reset password")
-                .id,
-            updated.id
-        );
+        let updated_session = service
+            .login("updated-readonly@example.com", "updated-secure-password")
+            .await
+            .expect("login with the reset password");
+        assert_eq!(updated_session.user.id, updated.id);
         assert!(
             service
                 .update_user(
@@ -1207,11 +1350,34 @@ mod tests {
                 .await
                 .is_err()
         );
+        let created_user_session = service
+            .start_session(created.id)
+            .await
+            .expect("create session before deactivation");
         service
             .set_user_active(actor, created.id, false)
             .await
             .expect("deactivate user");
-        assert!(service.current_user(created.id).await.is_err());
+        assert!(
+            service
+                .resume_session(&created_user_session)
+                .await
+                .expect("check deactivated user's session")
+                .is_none(),
+            "deactivation should revoke existing sessions"
+        );
+        service
+            .end_session(&authenticated.token)
+            .await
+            .expect("logout authenticated user");
+        assert!(
+            service
+                .resume_session(&authenticated.token)
+                .await
+                .expect("check logged-out session")
+                .is_none(),
+            "revoked session should not resume"
+        );
         for _ in 0..5 {
             assert!(matches!(
                 service.login("admin@example.com", "wrong-password").await,

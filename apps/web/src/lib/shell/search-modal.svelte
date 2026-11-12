@@ -34,6 +34,9 @@
 			{ key: 'contracts', label: m.nav_contracts(), keywords: ['lease', 'عقد'] },
 			{ key: 'payments', label: m.nav_payments(), keywords: ['rent', 'invoice', 'دفعة'] },
 			...(currentUser.role === 'admin'
+				? [{ key: 'templates' as const, label: m.nav_templates(), keywords: ['contract template', 'قالب'] }]
+				: []),
+			...(currentUser.role === 'admin'
 				? [{ key: 'users' as const, label: m.nav_users(), keywords: ['team', 'users', 'مستخدم'] }]
 				: []),
 			{ key: 'settings', label: m.nav_settings(), keywords: ['preferences', 'إعدادات'] }

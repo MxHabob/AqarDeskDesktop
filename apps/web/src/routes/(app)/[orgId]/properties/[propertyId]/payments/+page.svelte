@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
-	import { goto } from '$app/navigation';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { desktopApi } from '#lib/api/desktop';
@@ -94,9 +93,6 @@
 		}
 	}
 
-	function openPayment(paymentId: string) {
-		void goto(`/${organizationId}/payments/${paymentId}`);
-	}
 </script>
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -114,6 +110,5 @@
 		recordDisabledMessage={m.properties_payments_need_contract()}
 		emptyDescription={m.properties_payments_empty_description()}
 		onRecord={recordPayment}
-		onOpen={(payment) => openPayment(payment.id)}
 	/>
 </div>

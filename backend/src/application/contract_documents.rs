@@ -51,6 +51,7 @@ pub struct ContractDocumentStyle {
     pub show_contract_number: bool,
     pub show_footer: bool,
     pub footer_text: String,
+    pub organization_logo_data_url: Option<String>,
 }
 
 impl Default for ContractDocumentStyle {
@@ -67,6 +68,7 @@ impl Default for ContractDocumentStyle {
             show_contract_number: true,
             show_footer: true,
             footer_text: String::new(),
+            organization_logo_data_url: None,
         }
     }
 }
@@ -83,6 +85,10 @@ impl ContractDocumentStyle {
             || !(12..=30).contains(&self.page_margin_mm)
             || self.brand_label.chars().count() > 100
             || self.footer_text.chars().count() > 400
+            || self
+                .organization_logo_data_url
+                .as_deref()
+                .is_some_and(|logo| !is_safe_logo_data_url(logo))
             || self.accent_color.len() != 7
             || !self.accent_color.starts_with('#')
             || !self.accent_color[1..]
@@ -93,6 +99,28 @@ impl ContractDocumentStyle {
         }
         Ok(())
     }
+}
+
+fn is_safe_logo_data_url(value: &str) -> bool {
+    value.len() <= 1_500_000
+        && [
+            "data:image/png;base64,",
+            "data:image/jpeg;base64,",
+            "data:image/webp;base64,",
+        ]
+        .iter()
+        .any(|prefix| {
+            value.strip_prefix(prefix).is_some_and(|data| {
+                let bytes = data.as_bytes();
+                let padding = bytes.iter().rev().take_while(|&&byte| byte == b'=').count();
+                !bytes.is_empty()
+                    && bytes.len() % 4 == 0
+                    && padding <= 2
+                    && bytes[..bytes.len() - padding]
+                        .iter()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/'))
+            })
+        })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -351,6 +379,21 @@ mod tests {
         style = ContractDocumentStyle::default();
         style.page_margin_mm = 31;
         assert!(style.validate().is_err());
+
+        style = ContractDocumentStyle::default();
+        style.organization_logo_data_url = Some("https://example.com/logo.png".to_string());
+        assert!(style.validate().is_err());
+    }
+
+    #[test]
+    fn document_style_accepts_supported_logo_data_urls() {
+        let style = ContractDocumentStyle {
+            organization_logo_data_url: Some("data:image/png;base64,AAAA".to_string()),
+            ..ContractDocumentStyle::default()
+        };
+        style
+            .validate()
+            .expect("supported logo data URLs are valid");
     }
 
     struct UnreachableRepository;

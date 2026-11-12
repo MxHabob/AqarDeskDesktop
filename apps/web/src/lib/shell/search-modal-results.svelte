@@ -3,6 +3,7 @@
 	import {
 		ArrowUpRight,
 		Building2,
+		Files,
 		LayoutDashboard,
 		ReceiptText,
 		ScrollText,
@@ -21,6 +22,7 @@
 		owners: UsersRound,
 		contracts: ScrollText,
 		payments: ReceiptText,
+		templates: Files,
 		users: UsersRound,
 		settings: Settings2
 	};
