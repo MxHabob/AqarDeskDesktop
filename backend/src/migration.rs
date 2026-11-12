@@ -11,6 +11,9 @@ mod m20261112_000006_property_details_and_owners;
 mod m20261112_000007_role_permissions;
 mod m20261112_000008_custom_roles;
 mod m20261112_000009_operation_permissions;
+mod m20261112_000010_contract_permissions;
+mod m20261112_000011_contract_documents;
+mod m20261112_000012_payment_allocations;
 
 pub struct PlatformMigrator;
 
@@ -28,6 +31,9 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000007_role_permissions::Migration),
             Box::new(m20261112_000008_custom_roles::Migration),
             Box::new(m20261112_000009_operation_permissions::Migration),
+            Box::new(m20261112_000010_contract_permissions::Migration),
+            Box::new(m20261112_000011_contract_documents::Migration),
+            Box::new(m20261112_000012_payment_allocations::Migration),
         ]
     }
 }
@@ -57,6 +63,8 @@ pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
         "audit_events",
         "contract_templates",
         "contract_template_versions",
+        "contract_documents",
+        "payment_allocations",
     ] {
         if !manager.has_table(table).await? {
             return Err(DbErr::Custom(format!(
@@ -186,6 +194,16 @@ mod tests {
             .expect("legacy permission remains")
             .try_get_by::<bool, _>("is_enabled")
             .expect("read migrated permission value");
+        let migrated_staff_contract_permission = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT is_enabled FROM organization_role_permissions WHERE organization_id = 'legacy-org' AND role_id = 'staff' AND permission_code = 'create_contracts'",
+            ))
+            .await
+            .expect("query migrated contract permission")
+            .expect("contract permission exists")
+            .try_get_by::<bool, _>("is_enabled")
+            .expect("read migrated contract permission");
         let migrated_view_permission = database
             .query_one(Statement::from_string(
                 DbBackend::Sqlite,
@@ -221,6 +239,7 @@ mod tests {
         assert!(!migrated_view_permission);
         assert!(migrated_unit_view_permission);
         assert!(migrated_payment_tenant_view_permission);
+        assert!(migrated_staff_contract_permission);
 
         let tables = identify_legacy_tables(&database)
             .await

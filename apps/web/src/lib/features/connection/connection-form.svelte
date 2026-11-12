@@ -231,6 +231,11 @@
 					<Select
 						type="single"
 						value={sslMode}
+						items={[
+							{ value: 'prefer', label: 'prefer' },
+							{ value: 'require', label: 'require' },
+							{ value: 'disable', label: 'disable' }
+						]}
 						disabled={busy}
 						onValueChange={onSslModeChange}
 					>
@@ -238,9 +243,9 @@
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="prefer">prefer</SelectItem>
-							<SelectItem value="require">require</SelectItem>
-							<SelectItem value="disable">disable</SelectItem>
+							<SelectItem value="prefer" label="prefer">prefer</SelectItem>
+							<SelectItem value="require" label="require">require</SelectItem>
+							<SelectItem value="disable" label="disable">disable</SelectItem>
 						</SelectContent>
 					</Select>
 				</FormField>

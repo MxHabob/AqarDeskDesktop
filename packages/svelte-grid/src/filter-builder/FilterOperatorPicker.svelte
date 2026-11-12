@@ -100,13 +100,18 @@ let operators = $derived.by(() => {
 });
 </script>
 
-<Select type="single" value={condition.operator} onValueChange={(v) => { if(v) condition.operator = v as FilterOperator }}>
+<Select
+    type="single"
+    value={condition.operator}
+    items={operators.map((op) => ({ value: op, label: operatorLabels[op] || op }))}
+    onValueChange={(v) => { if(v) condition.operator = v as FilterOperator }}
+>
     <SelectTrigger class="w-full bg-background h-9 text-xs" disabled={!condition.field}>
         {operatorLabels[condition.operator] || condition.operator}
     </SelectTrigger>
     <SelectContent>
         {#each operators as op (op)}
-            <SelectItem value={op}>{operatorLabels[op]}</SelectItem>
+            <SelectItem value={op} label={operatorLabels[op]}>{operatorLabels[op]}</SelectItem>
         {/each}
     </SelectContent>
 </Select>

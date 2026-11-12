@@ -155,6 +155,7 @@ export type OwnerInput = {
 };
 
 export type Payment = {
+    allocations: Array<PaymentAllocation>;
     amount_minor: number;
     currency_code: string;
     external_reference?: string | null;
@@ -168,7 +169,22 @@ export type Payment = {
     voided_at?: string | null;
 };
 
+export type PaymentAllocation = {
+    amount_minor: number;
+    contract_document_id: string;
+    contract_number: string;
+    property_code: string;
+    property_name: string;
+    unit_number: string;
+};
+
+export type PaymentAllocationInput = {
+    amount_minor: number;
+    contract_document_id: string;
+};
+
 export type PaymentInput = {
+    allocations: Array<PaymentAllocationInput>;
     amount_minor: number;
     currency_code: string;
     external_reference?: string | null;

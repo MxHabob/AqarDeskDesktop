@@ -24,12 +24,11 @@
 	const propertyNames = $derived(new Map(properties.map((property) => [property.id, property.name])));
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'organization_id', header: m.settings_organization_id(), width: 220 },
 		{ id: 'unit_number', header: m.units_number(), width: 120 },
-		{
-			id: 'property_name',
-			header: m.units_property(),
-			accessor: (row) => propertyNames.get(String(row.property_id)) ?? ''
-		},
+		{ id: 'property_id', header: m.units_property_id(), width: 220 },
+		{ id: 'property_name', header: m.units_property(), accessor: (row) => propertyNames.get(String(row.property_id)) ?? '' },
 		{
 			id: 'unit_type',
 			header: m.units_type(),
@@ -53,6 +52,14 @@
 				{ value: 'inactive', label: m.common_disabled() }
 			]
 		},
+		{ id: 'floor_number', header: m.units_floor(), type: 'integer', width: 110 },
+		{ id: 'bedrooms', header: m.units_bedrooms(), type: 'integer', width: 120 },
+		{ id: 'bathrooms', header: m.units_bathrooms(), type: 'integer', width: 120 },
+		{ id: 'area_square_meters', header: m.units_area(), type: 'decimal', width: 130 },
+		{ id: 'market_rent_minor', header: m.units_rent_minor(), type: 'integer', width: 160 },
+		{ id: 'currency_code', header: m.units_currency(), width: 120 },
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
+		{ id: 'updated_at', header: m.settings_updated_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),

@@ -10,7 +10,7 @@
 		label,
 		children: childrenProp,
 		...restProps
-	}: WithoutChild<SelectPrimitive.ItemProps> = $props();
+	}: WithoutChild<SelectPrimitive.ItemProps> & { label: string } = $props();
 </script>
 
 <SelectPrimitive.Item

@@ -21,9 +21,15 @@
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'organization_id', header: m.settings_organization_id(), width: 220 },
 		{ id: 'full_name', header: m.tenants_name(), width: 180 },
 		{ id: 'email', header: m.auth_email(), width: 220 },
 		{ id: 'phone', header: m.tenants_phone(), width: 140 },
+		{ id: 'mailing_address', header: m.tenants_address(), width: 220 },
+		{ id: 'notes', header: m.common_notes(), width: 240 },
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
+		{ id: 'updated_at', header: m.settings_updated_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),

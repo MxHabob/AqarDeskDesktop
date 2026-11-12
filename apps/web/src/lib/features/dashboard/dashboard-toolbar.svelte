@@ -39,6 +39,11 @@
 	<Select
 		type="single"
 		value={String(months)}
+		items={[
+			{ value: '3', label: m.dashboard_period_3_months() },
+			{ value: '6', label: m.dashboard_period_6_months() },
+			{ value: '12', label: m.dashboard_period_12_months() }
+		]}
 		onValueChange={(value) => onMonthsChange(Number(value))}
 	>
 		<SelectTrigger class="h-7 w-28 gap-1.5 rounded-sm border-border/70 px-2">
@@ -46,9 +51,9 @@
 			<SelectValue aria-label={m.dashboard_period()} />
 		</SelectTrigger>
 		<SelectContent>
-			<SelectItem value="3">{m.dashboard_period_3_months()}</SelectItem>
-			<SelectItem value="6">{m.dashboard_period_6_months()}</SelectItem>
-			<SelectItem value="12">{m.dashboard_period_12_months()}</SelectItem>
+			<SelectItem value="3" label={m.dashboard_period_3_months()}>{m.dashboard_period_3_months()}</SelectItem>
+			<SelectItem value="6" label={m.dashboard_period_6_months()}>{m.dashboard_period_6_months()}</SelectItem>
+			<SelectItem value="12" label={m.dashboard_period_12_months()}>{m.dashboard_period_12_months()}</SelectItem>
 		</SelectContent>
 	</Select>
 	<div class="flex h-7 border border-border/70">

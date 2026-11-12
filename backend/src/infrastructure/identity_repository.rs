@@ -851,7 +851,7 @@ async fn load_role_permissions<C: sea_orm::ConnectionTrait>(
     Ok(policies)
 }
 
-fn editable_permissions() -> [Permission; 18] {
+fn editable_permissions() -> [Permission; 20] {
     Permission::BUSINESS
 }
 

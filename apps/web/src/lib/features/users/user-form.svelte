@@ -167,6 +167,10 @@
 				<Select
 					type="single"
 					value={field.state.value}
+					items={roles.map((role) => ({
+						value: role.role_id,
+						label: roleTitle(role)
+					}))}
 					disabled={roleLocked}
 					onValueChange={(value) => setRole(value, (role) => field.handleChange(role))}
 				>

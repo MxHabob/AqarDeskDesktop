@@ -59,8 +59,30 @@
 	);
 
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'role_id', header: m.settings_role_id(), width: 220 },
 		{ id: 'name', header: m.users_role(), width: 180 },
-		{ id: 'type', header: m.settings_permissions_role_type(), width: 140 },
+		{
+			id: 'system_role',
+			header: m.settings_system_role(),
+			type: 'enum',
+			width: 160,
+			options: [
+				{ value: 'admin', label: m.settings_permissions_admin() },
+				{ value: 'staff', label: m.settings_permissions_staff() },
+				{ value: 'readonly', label: m.settings_permissions_readonly() }
+			]
+		},
+		{
+			id: 'is_system',
+			header: m.settings_is_system_role(),
+			type: 'status',
+			width: 140,
+			accessor: (row) => row.is_system ? 'system' : 'custom',
+			options: [
+				{ value: 'system', label: m.settings_permissions_system_role() },
+				{ value: 'custom', label: m.settings_permissions_custom_role() }
+			]
+		},
 		{ id: 'permissions', header: m.settings_permissions(), width: 360 },
 		{
 			id: 'actions',

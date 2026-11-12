@@ -25,10 +25,24 @@
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'organization_id', header: m.settings_organization_id(), width: 220 },
 		{ id: 'name', header: m.owners_name(), width: 200 },
 		{ id: 'phone_number', header: m.owners_phone(), width: 160 },
 		{ id: 'phone_label', header: m.owners_phone_label(), width: 140 },
-		{ id: 'is_whatsapp', header: m.owners_whatsapp(), width: 140 },
+		{
+			id: 'is_whatsapp',
+			header: m.owners_whatsapp(),
+			type: 'status',
+			width: 140,
+			accessor: (row) => row.is_whatsapp ? 'yes' : 'no',
+			options: [
+				{ value: 'yes', label: m.common_yes() },
+				{ value: 'no', label: m.common_no() }
+			]
+		},
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
+		{ id: 'updated_at', header: m.settings_updated_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),

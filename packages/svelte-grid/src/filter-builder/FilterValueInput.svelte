@@ -88,13 +88,21 @@ const isList = $derived(
             />
         </div>
     {:else if selectedField?.type === 'select' && selectedField.options}
-        <Select type="single" value={String(condition.value ?? "")} onValueChange={(v) => { if(v !== undefined) condition.value = v }}>
+        <Select
+            type="single"
+            value={String(condition.value ?? "")}
+            items={selectedField.options.map((opt) => ({
+                value: String(opt.value),
+                label: opt.label
+            }))}
+            onValueChange={(v) => { if(v !== undefined) condition.value = v }}
+        >
             <SelectTrigger class="w-full bg-background h-9 text-xs" disabled={!condition.field}>
                 {selectedField.options.find(o => String(o.value) === String(condition.value))?.label || translations.selectValue}
             </SelectTrigger>
             <SelectContent>
                 {#each selectedField.options as opt (String(opt.value))}
-                    <SelectItem value={String(opt.value)}>{opt.label}</SelectItem>
+                    <SelectItem value={String(opt.value)} label={opt.label}>{opt.label}</SelectItem>
                 {/each}
             </SelectContent>
         </Select>
@@ -110,13 +118,21 @@ const isList = $derived(
           placeholder={isList ? `${translations.valuePlaceholder} (comma separated)` : translations.valuePlaceholder}
         />
     {:else if selectedField?.type === 'boolean'}
-        <Select type="single" value={String(condition.value ?? "")} onValueChange={(v) => { if(v !== undefined) condition.value = v === 'true' }}>
+        <Select
+            type="single"
+            value={String(condition.value ?? "")}
+            items={[
+                { value: "true", label: translations.trueValue },
+                { value: "false", label: translations.falseValue }
+            ]}
+            onValueChange={(v) => { if(v !== undefined) condition.value = v === 'true' }}
+        >
             <SelectTrigger class="w-full bg-background h-9 text-xs" disabled={!condition.field}>
                 {condition.value === true ? translations.trueValue : condition.value === false ? translations.falseValue : translations.selectValue}
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value="true">{translations.trueValue}</SelectItem>
-                <SelectItem value="false">{translations.falseValue}</SelectItem>
+                <SelectItem value="true" label={translations.trueValue}>{translations.trueValue}</SelectItem>
+                <SelectItem value="false" label={translations.falseValue}>{translations.falseValue}</SelectItem>
             </SelectContent>
         </Select>
     {:else}

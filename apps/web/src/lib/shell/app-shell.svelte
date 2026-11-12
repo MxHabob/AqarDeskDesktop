@@ -48,7 +48,8 @@
 			`/${currentUser.organization_id}/settings/currencies`,
 			`/${currentUser.organization_id}/settings/audit`,
 			`/${currentUser.organization_id}/settings/contract-templates`
-		].includes(routePath)
+		].includes(routePath) ||
+			routePath.startsWith(`/${currentUser.organization_id}/properties/`)
 	);
 	const settingsSection = $derived(routePath.slice(settingsPath.length).replace(/^\/+/, ''));
 	const settingsNavigation = $derived(

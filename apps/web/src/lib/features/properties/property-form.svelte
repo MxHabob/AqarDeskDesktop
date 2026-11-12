@@ -293,20 +293,37 @@
 		<form.Field name="property_type">
 			{#snippet children(field)}
 				<FormField label={m.properties_type()} id="property-type">
-					<Select type="single" value={field.state.value} onValueChange={(value) => propertyType(value, field.handleChange)}>
+					<Select
+						type="single"
+						value={field.state.value}
+						items={[
+							{ value: 'residential', label: m.properties_type_residential() },
+							{ value: 'commercial', label: m.properties_type_commercial() },
+							{ value: 'mixed_use', label: m.properties_type_mixed() },
+							{ value: 'land', label: m.properties_type_land() },
+							{ value: 'other', label: m.common_other() },
+							{ value: 'building', label: m.properties_type_building() },
+							{ value: 'house_villa', label: m.properties_type_house_villa() },
+							{ value: 'investment', label: m.properties_type_investment() },
+							{ value: 'warehouse', label: m.properties_type_warehouse() },
+							{ value: 'yard', label: m.properties_type_yard() },
+							{ value: 'apartment', label: m.properties_type_apartment() }
+						]}
+						onValueChange={(value) => propertyType(value, field.handleChange)}
+					>
 						<SelectTrigger id="property-type" class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 						<SelectContent>
-							<SelectItem value="residential">{m.properties_type_residential()}</SelectItem>
-							<SelectItem value="commercial">{m.properties_type_commercial()}</SelectItem>
-							<SelectItem value="mixed_use">{m.properties_type_mixed()}</SelectItem>
-							<SelectItem value="land">{m.properties_type_land()}</SelectItem>
-							<SelectItem value="other">{m.common_other()}</SelectItem>
-							<SelectItem value="building">{m.properties_type_building()}</SelectItem>
-							<SelectItem value="house_villa">{m.properties_type_house_villa()}</SelectItem>
-							<SelectItem value="investment">{m.properties_type_investment()}</SelectItem>
-							<SelectItem value="warehouse">{m.properties_type_warehouse()}</SelectItem>
-							<SelectItem value="yard">{m.properties_type_yard()}</SelectItem>
-							<SelectItem value="apartment">{m.properties_type_apartment()}</SelectItem>
+							<SelectItem value="residential" label={m.properties_type_residential()}>{m.properties_type_residential()}</SelectItem>
+							<SelectItem value="commercial" label={m.properties_type_commercial()}>{m.properties_type_commercial()}</SelectItem>
+							<SelectItem value="mixed_use" label={m.properties_type_mixed()}>{m.properties_type_mixed()}</SelectItem>
+							<SelectItem value="land" label={m.properties_type_land()}>{m.properties_type_land()}</SelectItem>
+							<SelectItem value="other" label={m.common_other()}>{m.common_other()}</SelectItem>
+							<SelectItem value="building" label={m.properties_type_building()}>{m.properties_type_building()}</SelectItem>
+							<SelectItem value="house_villa" label={m.properties_type_house_villa()}>{m.properties_type_house_villa()}</SelectItem>
+							<SelectItem value="investment" label={m.properties_type_investment()}>{m.properties_type_investment()}</SelectItem>
+							<SelectItem value="warehouse" label={m.properties_type_warehouse()}>{m.properties_type_warehouse()}</SelectItem>
+							<SelectItem value="yard" label={m.properties_type_yard()}>{m.properties_type_yard()}</SelectItem>
+							<SelectItem value="apartment" label={m.properties_type_apartment()}>{m.properties_type_apartment()}</SelectItem>
 						</SelectContent>
 					</Select>
 				</FormField>
@@ -319,14 +336,18 @@
 				<Select
 					type="single"
 					value={field.state.value}
+					items={[
+						{ value: 'active', label: m.common_enabled() },
+						{ value: 'inactive', label: m.common_disabled() }
+					]}
 					onValueChange={(value) => propertyStatus(value, field.handleChange)}
 				>
 					<SelectTrigger id="property-status" class="h-9 w-full rounded-md text-sm">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="active">{m.common_enabled()}</SelectItem>
-						<SelectItem value="inactive">{m.common_disabled()}</SelectItem>
+						<SelectItem value="active" label={m.common_enabled()}>{m.common_enabled()}</SelectItem>
+						<SelectItem value="inactive" label={m.common_disabled()}>{m.common_disabled()}</SelectItem>
 					</SelectContent>
 				</Select>
 			</FormField>
@@ -445,13 +466,28 @@
 		{#each ownerDrafts as owner, index (owner.id ?? index)}
 			<div class="space-y-3 rounded-md border border-border/70 p-3">
 				<FormField label={m.properties_owner_select()} id={`owner-select-${index}`}>
-					<Select type="single" value={owner.id ?? 'new'} onValueChange={(value) => selectOwner(index, value)}>
+					<Select
+						type="single"
+						value={owner.id ?? 'new'}
+						items={[
+							{ value: 'new', label: m.properties_owner_new() },
+							...ownerOptions.map((option) => ({
+								value: option.id,
+								label: `${option.name} — ${option.phone_number}`,
+								disabled: ownerDrafts.some(
+									(item, itemIndex) => item.id === option.id && itemIndex !== index
+								)
+							}))
+						]}
+						onValueChange={(value) => selectOwner(index, value)}
+					>
 						<SelectTrigger id={`owner-select-${index}`} class="h-9 w-full rounded-md text-sm"><SelectValue /></SelectTrigger>
 						<SelectContent>
-							<SelectItem value="new">{m.properties_owner_new()}</SelectItem>
+							<SelectItem value="new" label={m.properties_owner_new()}>{m.properties_owner_new()}</SelectItem>
 							{#each ownerOptions as option (option.id)}
 								<SelectItem
 									value={option.id}
+									label={`${option.name} — ${option.phone_number}`}
 									disabled={ownerDrafts.some((item, itemIndex) => item.id === option.id && itemIndex !== index)}
 								>
 									{option.name} — {option.phone_number}

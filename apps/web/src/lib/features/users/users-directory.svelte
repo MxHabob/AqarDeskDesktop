@@ -21,11 +21,15 @@
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'organization_id', header: m.settings_organization_id(), width: 220 },
 		{ id: 'name', header: m.users_name(), width: 180 },
 		{ id: 'email', header: m.auth_email(), width: 220 },
+		{ id: 'role_id', header: m.settings_role_id(), width: 220 },
+		{ id: 'role_name', header: m.users_role(), width: 180 },
 		{
 			id: 'role',
-			header: m.users_role(),
+			header: m.settings_system_role(),
 			accessor: (row: Record<string, unknown>) => {
 				if (typeof row.role_name === 'string') return row.role_name;
 				if (row.role === 'admin') return m.users_role_admin();
@@ -40,7 +44,7 @@
 			accessor: (row: Record<string, unknown>) => formatPermissions(row.permissions)
 		},
 		{
-			id: 'status',
+			id: 'is_active',
 			header: m.users_status(),
 			type: 'status',
 			accessor: (row) => row.is_active ? 'active' : 'inactive',
@@ -49,6 +53,7 @@
 				{ value: 'inactive', label: m.common_disabled() }
 			]
 		},
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),

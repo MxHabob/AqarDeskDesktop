@@ -8,12 +8,13 @@
 	type Props = {
 		tenants: Tenant[];
 		currencies: CurrencySettings[];
+		contractIds?: string[];
 		busy: boolean;
 		disabled?: boolean;
 		onSubmit: (input: PaymentInput) => Promise<boolean>;
 	};
 
-	let { tenants, currencies, busy, disabled = false, onSubmit }: Props = $props();
+	let { tenants, currencies, contractIds, busy, disabled = false, onSubmit }: Props = $props();
 	let open = $state(false);
 </script>
 
@@ -31,6 +32,7 @@
 			<PaymentForm
 				{tenants}
 				{currencies}
+				{contractIds}
 				{busy}
 				onSubmit={async (input) => {
 					const saved = await onSubmit(input);

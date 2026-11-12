@@ -26,24 +26,38 @@
 	let editSheetOpen = $state(false);
 
 	const sortedCurrencies = $derived(
-		currencies
-			.filter((currency) => currency.is_active)
-			.toSorted((left, right) => left.code.localeCompare(right.code))
+		currencies.toSorted((left, right) => left.code.localeCompare(right.code))
 	);
 	const columns: AqarDeskColumnDef[] = $derived([
 		{ id: 'code', header: m.settings_currency_code(), width: 110 },
-		{
-			id: 'name',
-			header: m.settings_currency_name(),
-			width: 200,
-			accessor: (row) => locale === 'ar' ? row.name_ar || row.name : row.name
-		},
+		{ id: 'name', header: m.settings_currency_name(), width: 200 },
+		{ id: 'name_ar', header: m.settings_currency_arabic_name(), width: 200 },
 		{ id: 'symbol', header: m.settings_currency_symbol(), width: 100 },
+		{
+			id: 'symbol_position',
+			header: m.settings_currency_symbol_position(),
+			width: 140,
+			accessor: (row) =>
+				row.symbol_position === 'prefix'
+					? m.settings_currency_prefix()
+					: m.settings_currency_suffix()
+		},
 		{
 			id: 'decimal_digits',
 			header: m.settings_currency_decimal_digits(),
 			type: 'integer',
 			width: 130
+		},
+		{
+			id: 'is_active',
+			header: m.settings_currency_global_status(),
+			type: 'status',
+			width: 140,
+			accessor: (row) => row.is_active ? 'active' : 'inactive',
+			options: [
+				{ value: 'active', label: m.common_enabled() },
+				{ value: 'inactive', label: m.common_disabled() }
+			]
 		},
 		{
 			id: 'enabled_status',

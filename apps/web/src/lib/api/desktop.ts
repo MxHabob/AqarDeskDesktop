@@ -30,6 +30,57 @@ export type RolePermissionSet = {
 	permissions: Permission[];
 };
 
+export type ContractDocument = {
+	id: string;
+	organization_id: string;
+	contract_number: string;
+	template_id: string;
+	template_version_id: string;
+	template_name: string;
+	template_locale: string;
+	property_id: string;
+	property_name: string;
+	property_code: string;
+	unit_id: string;
+	unit_number: string;
+	tenant_id: string;
+	tenant_name: string;
+	start_date: string;
+	end_date: string;
+	currency_code: string;
+	currency_decimal_digits: number;
+	rent_amount_minor: number;
+	deposit_amount_minor: number;
+	document_body: string;
+	created_by: string;
+	created_at: string;
+};
+
+export type ContractDocumentInput = {
+	template_id: string;
+	tenant_id: string;
+	property_id: string;
+	unit_id: string;
+	start_date: string;
+	end_date: string;
+	currency_code: string;
+	rent_amount_minor: number;
+	deposit_amount_minor: number;
+};
+
+export type PaymentContract = {
+	id: string;
+	contract_number: string;
+	property_name: string;
+	property_code: string;
+	unit_number: string;
+	start_date: string;
+	end_date: string;
+	currency_code: string;
+	currency_decimal_digits: number;
+	rent_amount_minor: number;
+};
+
 export type ConnectionMode = 'local' | 'direct' | 'api';
 
 export type CurrencyDetailsInput = {
@@ -220,12 +271,20 @@ export const desktopApi = {
 	listAuditEvents: (limit = 50, offset = 0) =>
 		invoke<AuditEntry[]>('audit_list', { limit, offset }),
 	listContractTemplates: () => invoke<ContractTemplate[]>('contract_templates_list'),
+	listAvailableContractTemplates: () =>
+		invoke<ContractTemplate[]>('contract_templates_available'),
 	createContractTemplate: (input: ContractTemplateInput) =>
 		invoke<ContractTemplate>('contract_templates_create', { input }),
 	updateContractTemplate: (templateId: string, input: ContractTemplateInput) =>
 		invoke<ContractTemplate>('contract_templates_update', { templateId, input }),
 	setContractTemplateActive: (templateId: string, isActive: boolean) =>
 		invoke<void>('contract_templates_set_active', { templateId, isActive }),
+	listContractDocuments: (propertyId?: string) =>
+		invoke<ContractDocument[]>('contract_documents_list', { propertyId: propertyId ?? null }),
+	listPaymentContracts: (tenantId: string) =>
+		invoke<PaymentContract[]>('platform_payments_contracts', { tenantId }),
+	createContractDocument: (input: ContractDocumentInput) =>
+		invoke<ContractDocument>('contract_documents_create', { input }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	listUsers: () => invoke<User[]>('platform_users_list'),
 	listRolePermissions: () =>

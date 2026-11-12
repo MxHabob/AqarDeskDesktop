@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
@@ -104,6 +105,7 @@
 			{canUpdate}
 			{canArchive}
 			onAdd={() => { selectedProperty = undefined; open = true; }}
+			onOpenDetails={(property) => void goto(`/${organizationId}/properties/${property.id}`)}
 			onEdit={(property) => { selectedProperty = property; open = true; }}
 			onArchive={(property) => void archiveProperty(property)}
 		/>

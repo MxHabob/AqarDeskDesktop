@@ -241,6 +241,10 @@ fn validate_role_permissions(permissions: &[Permission]) -> Result<(), Applicati
         (Permission::RecordPayments, Permission::ViewPayments),
         (Permission::RecordPayments, Permission::ViewTenants),
         (Permission::VoidPayments, Permission::ViewPayments),
+        (Permission::CreateContracts, Permission::ViewContracts),
+        (Permission::CreateContracts, Permission::ViewProperties),
+        (Permission::CreateContracts, Permission::ViewUnits),
+        (Permission::CreateContracts, Permission::ViewTenants),
     ];
     if dependencies.iter().any(|(operation, prerequisite)| {
         permissions.contains(operation) && !permissions.contains(prerequisite)

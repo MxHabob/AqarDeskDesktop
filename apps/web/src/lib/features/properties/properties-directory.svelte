@@ -16,20 +16,19 @@
 		canUpdate: boolean;
 		canArchive: boolean;
 		onAdd: () => void;
+		onOpenDetails: (property: Property) => void;
 		onEdit: (property: Property) => void;
 		onArchive: (property: Property) => void;
 	};
-	let { properties, loading, canCreate, canUpdate, canArchive, onAdd, onEdit, onArchive }: Props = $props();
+	let { properties, loading, canCreate, canUpdate, canArchive, onAdd, onOpenDetails, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 
 	const columns: AqarDeskColumnDef[] = $derived([
-		{
-			id: 'property',
-			header: m.properties_name(),
-			width: 220,
-			accessor: (row) => [row.name, row.code, row.address_line_1].filter(Boolean).join(' · ')
-		},
+		{ id: 'id', header: m.settings_audit_entity_id(), width: 220 },
+		{ id: 'organization_id', header: m.settings_organization_id(), width: 220 },
+		{ id: 'name', header: m.properties_name(), width: 180 },
+		{ id: 'code', header: m.properties_code(), width: 150 },
 		{
 			id: 'property_type',
 			header: m.properties_type(),
@@ -48,7 +47,32 @@
 				{ value: 'apartment', label: m.properties_type_apartment() }
 			]
 		},
-		{ id: 'city', header: m.properties_city() },
+		{ id: 'description', header: m.properties_description(), width: 220 },
+		{ id: 'address_line_1', header: m.properties_address(), width: 200 },
+		{ id: 'address_line_2', header: m.properties_address_line_2(), width: 200 },
+		{ id: 'city', header: m.properties_city(), width: 140 },
+		{ id: 'region', header: m.properties_region(), width: 140 },
+		{ id: 'district', header: m.properties_district(), width: 140 },
+		{ id: 'neighborhood', header: m.properties_neighborhood(), width: 150 },
+		{ id: 'postal_code', header: m.properties_postal_code(), width: 120 },
+		{ id: 'country_code', header: m.properties_country(), width: 120 },
+		{ id: 'lot_area_square_meters', header: m.properties_lot_area(), type: 'decimal', width: 130 },
+		{
+			id: 'building_area_square_meters',
+			header: m.properties_building_area(),
+			type: 'decimal',
+			width: 150
+		},
+		{ id: 'frontage_meters', header: m.properties_frontage(), type: 'decimal', width: 120 },
+		{ id: 'depth_meters', header: m.properties_depth(), type: 'decimal', width: 120 },
+		{ id: 'latitude', header: m.properties_latitude(), type: 'decimal', width: 120 },
+		{ id: 'longitude', header: m.properties_longitude(), type: 'decimal', width: 120 },
+		{
+			id: 'owners',
+			header: m.properties_owners(),
+			width: 280,
+			accessor: (row) => JSON.stringify(row.owners ?? [])
+		},
 		{
 			id: 'status',
 			header: m.properties_status(),
@@ -59,12 +83,15 @@
 				{ value: 'archived', label: m.common_disabled() }
 			]
 		},
+		{ id: 'created_at', header: m.settings_created_at(), type: 'datetime', width: 190 },
+		{ id: 'updated_at', header: m.settings_updated_at(), type: 'datetime', width: 190 },
 		{
 			id: 'actions',
 			header: m.users_action(),
 			type: 'action',
 			meta: {
 				items: [
+					{ id: 'details', icon: 'Eye', label: m.properties_details(), variant: 'outline' },
 					{ id: 'edit', icon: 'Pencil', label: m.properties_edit(), variant: 'outline', disabled: () => !canUpdate },
 					{
 						id: 'archive',
@@ -81,7 +108,8 @@
 	function handleGridAction(event: GridActionEvent) {
 		const property = properties.find((item) => item.id === String(event.row.id ?? ''));
 		if (!property) return;
-		if (event.actionId === 'dblclick' && canUpdate) onEdit(property);
+		if (event.actionId === 'dblclick') onOpenDetails(property);
+		if (event.actionId === 'details') onOpenDetails(property);
 		if (event.actionId === 'edit' && canUpdate) onEdit(property);
 		if (event.actionId === 'archive' && canArchive) onArchive(property);
 	}

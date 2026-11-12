@@ -169,6 +169,10 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 						<Select
 							type="single"
 							value={category}
+							items={categories.map((item) => ({
+								value: item.value,
+								label: item.label
+							}))}
 							onValueChange={(value) => (category = value ?? 'technical_support')}
 						>
 							<SelectTrigger id="support-category" class="h-9 w-full text-xs">
@@ -176,7 +180,7 @@ ${JSON.stringify({ ...diagnosticPayload, timestamp: new Date().toISOString() }, 
 							</SelectTrigger>
 							<SelectContent>
 								{#each categories as item (item.value)}
-									<SelectItem value={item.value}>{item.label}</SelectItem>
+									<SelectItem value={item.value} label={item.label}>{item.label}</SelectItem>
 								{/each}
 							</SelectContent>
 						</Select>
