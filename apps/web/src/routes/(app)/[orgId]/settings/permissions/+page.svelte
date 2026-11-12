@@ -2,7 +2,10 @@
 	import { onMount } from 'svelte';
 	import { Button, toast } from '@aqardesk/ui';
 	import { desktopApi, type RolePermissionSet } from '#lib/api/desktop';
+	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { queryClient } from '#lib/core/query-client';
+	import { roleQueryKeys } from '#lib/features/roles/queries';
 	import type { RoleFormValues } from '#lib/features/roles/role-form.svelte';
 	import RoleSheet from '#lib/features/roles/role-sheet.svelte';
 	import RolesDirectory from '#lib/features/roles/roles-directory.svelte';
@@ -38,6 +41,9 @@
 				await desktopApi.createRole(values.name, values.permissions);
 				toast.success(m.settings_permissions_role_created());
 			}
+			await queryClient.invalidateQueries({
+				queryKey: roleQueryKeys.all(app.currentUser?.organization_id ?? '')
+			});
 			roleSheetOpen = false;
 			editingRole = undefined;
 			await load(false);
@@ -62,9 +68,21 @@
 	}
 
 	async function deleteRole(role: RolePermissionSet) {
+		const confirmed = await confirmStore.prompt({
+			title: m.settings_permissions_delete_role_confirm_title(),
+			description: m.settings_permissions_delete_role_confirm_description({ name: role.name }),
+			confirmText: m.settings_permissions_delete_role(),
+			cancelText: m.common_cancel(),
+			variant: 'destructive'
+		});
+		if (!confirmed) return;
+
 		deletingRole = role.role_id;
 		try {
 			await desktopApi.deleteRole(role.role_id);
+			await queryClient.invalidateQueries({
+				queryKey: roleQueryKeys.all(app.currentUser?.organization_id ?? '')
+			});
 			await load(false);
 			toast.success(m.settings_permissions_role_deleted());
 		} catch (cause) {

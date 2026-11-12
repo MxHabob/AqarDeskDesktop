@@ -535,6 +535,8 @@
 	"settings_permissions_add_role": "Add role",
 	"settings_permissions_edit_role": "Edit permissions",
 	"settings_permissions_delete_role": "Delete role",
+	"settings_permissions_delete_role_confirm_title": "Delete this role?",
+	"settings_permissions_delete_role_confirm_description": "The custom role \"{name}\" will be permanently deleted.",
 	"settings_permissions_role_created": "Role created.",
 	"settings_permissions_role_deleted": "Role deleted.",
 	"settings_permissions_role_permissions": "Permissions",

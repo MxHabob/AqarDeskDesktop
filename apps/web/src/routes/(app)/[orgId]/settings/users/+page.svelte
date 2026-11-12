@@ -3,6 +3,7 @@
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { userQueries, userQueryKeys } from '#lib/features/users/queries';
+	import { roleQueryKeys } from '#lib/features/roles/queries';
 	import AddUserSheet from '#lib/features/users/add-user-sheet.svelte';
 	import EditUserSheet from '#lib/features/users/edit-user-sheet.svelte';
 	import UsersDirectory from '#lib/features/users/users-directory.svelte';
@@ -20,7 +21,7 @@
 	}));
 	const users = $derived(usersQuery.data ?? []);
 	const rolesQuery = createQuery(() => ({
-		queryKey: ['role-permissions', app.currentUser?.organization_id ?? ''],
+		queryKey: roleQueryKeys.all(app.currentUser?.organization_id ?? ''),
 		queryFn: desktopApi.listRolePermissions,
 		enabled: hasPermission(app.currentUser?.role, 'manage_administration', app.currentUser?.permissions)
 	}));

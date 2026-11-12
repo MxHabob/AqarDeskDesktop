@@ -535,6 +535,8 @@
 	"settings_permissions_add_role": "إضافة دور",
 	"settings_permissions_edit_role": "تعديل الصلاحيات",
 	"settings_permissions_delete_role": "حذف الدور",
+	"settings_permissions_delete_role_confirm_title": "هل تريد حذف هذا الدور؟",
+	"settings_permissions_delete_role_confirm_description": "سيتم حذف الدور المخصص \"{name}\" نهائياً.",
 	"settings_permissions_role_created": "تم إنشاء الدور.",
 	"settings_permissions_role_deleted": "تم حذف الدور.",
 	"settings_permissions_role_permissions": "الصلاحيات",

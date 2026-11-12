@@ -175,7 +175,8 @@
 					</SelectTrigger>
 					<SelectContent>
 						{#each roles as role (role.role_id)}
-							<SelectItem value={role.role_id}>{roleTitle(role)}</SelectItem>
+							{@const title = roleTitle(role)}
+							<SelectItem value={role.role_id} label={title}>{title}</SelectItem>
 						{/each}
 					</SelectContent>
 				</Select>
