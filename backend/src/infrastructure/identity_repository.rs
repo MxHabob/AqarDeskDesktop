@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, Page, PageRequest,
+        UserUpdate,
     },
     domain::{
         AccessRole, Organization, OrganizationId, Permission, RolePermissionSet, UserAccount,
@@ -23,7 +24,8 @@ use chrono::{Duration, Utc};
 use rand::rngs::OsRng;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait, sea_query::Expr,
+    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    sea_query::Expr,
 };
 const MAX_FAILED_LOGINS: i32 = 5;
 const LOCKOUT_MINUTES: i64 = 15;
@@ -467,6 +469,40 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             }
         }
         Ok(users)
+    }
+
+    async fn list_users_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<UserAccount>, ApplicationError> {
+        let models = user::Entity::find()
+            .filter(user::Column::OrganizationId.eq(organization_id.to_string()))
+            .order_by_asc(user::Column::FullName)
+            .order_by_asc(user::Column::Id)
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+        let mut users = models
+            .into_iter()
+            .map(restore_user)
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some(first) = users.first() {
+            let policies = load_role_permissions(&self.database, first.organization_id).await?;
+            for user in &mut users {
+                if let Some(policy) = policies
+                    .iter()
+                    .find(|policy| policy.role_id == user.role_id)
+                {
+                    user.permissions = policy.permissions.clone();
+                    user.role_name = (!policy.is_system).then(|| policy.name.clone());
+                    user.role = policy.system_role.unwrap_or(AccessRole::Staff);
+                }
+            }
+        }
+        Ok(Page::from_items(users, page.limit()))
     }
 
     async fn create_user(

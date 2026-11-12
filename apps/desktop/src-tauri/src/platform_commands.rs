@@ -652,6 +652,26 @@ pub async fn platform_users_list(
 }
 
 #[tauri::command]
+pub async fn platform_users_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<UserAccount>, String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    local_identity(&state)
+        .await?
+        .list_users_page(actor, page)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
 pub async fn platform_role_permissions_list(
     state: State<'_, PlatformState>,
 ) -> Result<Vec<RolePermissionSet>, String> {
@@ -665,6 +685,35 @@ pub async fn platform_role_permissions_list(
         .list_role_permissions(actor)
         .await
         .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_role_permissions_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<RolePermissionSet>, String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let roles = local_identity(&state)
+        .await?
+        .list_role_permissions(actor)
+        .await
+        .map_err(application_error)?;
+    let items = roles
+        .into_iter()
+        .skip(usize::try_from(page.offset()).unwrap_or(usize::MAX))
+        .take(usize::try_from(page.fetch_limit()).unwrap_or(usize::MAX))
+        .collect();
+    Ok(aqardesk_backend::application::Page::from_items(
+        items,
+        page.limit(),
+    ))
 }
 
 #[tauri::command]
@@ -857,6 +906,33 @@ pub async fn platform_properties_list(
 }
 
 #[tauri::command]
+pub async fn platform_properties_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<PropertyView>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let page = PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
+        .list_page(actor, page)
+        .await
+        .map_err(application_error)?;
+    Ok(aqardesk_backend::application::Page {
+        items: page
+            .items
+            .into_iter()
+            .map(PropertyView::try_from)
+            .collect::<Result<Vec<_>, _>>()?,
+        has_more: page.has_more,
+    })
+}
+
+#[tauri::command]
 pub async fn platform_properties_create(
     state: State<'_, PlatformState>,
     input: PropertyInput,
@@ -943,6 +1019,40 @@ pub async fn platform_units_list(
 }
 
 #[tauri::command]
+pub async fn platform_units_list_page(
+    state: State<'_, PlatformState>,
+    property_id: Option<String>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<UnitView>, String> {
+    let property_id = property_id
+        .map(|value| {
+            PropertyId::parse(&value)
+                .map_err(|_| "The selected property identifier is invalid.".to_string())
+        })
+        .transpose()?;
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "units")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let page = UnitCatalog::new(SeaOrmUnitRepository::new(&database))
+        .list_page(actor, property_id, page)
+        .await
+        .map_err(application_error)?;
+    Ok(aqardesk_backend::application::Page {
+        items: page
+            .items
+            .into_iter()
+            .map(UnitView::try_from)
+            .collect::<Result<Vec<_>, _>>()?,
+        has_more: page.has_more,
+    })
+}
+
+#[tauri::command]
 pub async fn platform_units_create(
     state: State<'_, PlatformState>,
     input: PropertyUnitInput,
@@ -1026,6 +1136,29 @@ pub async fn platform_owners_list(
 }
 
 #[tauri::command]
+pub async fn platform_owners_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<OwnerView>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let page = OwnerDirectory::new(SeaOrmOwnerRepository::new(&database))
+        .list_page(actor, page)
+        .await
+        .map_err(application_error)?;
+    Ok(aqardesk_backend::application::Page {
+        items: page.items.into_iter().map(OwnerView::from).collect(),
+        has_more: page.has_more,
+    })
+}
+
+#[tauri::command]
 pub async fn platform_owners_create(
     state: State<'_, PlatformState>,
     input: OwnerInput,
@@ -1076,6 +1209,29 @@ pub async fn platform_tenants_list(
         .await
         .map(|tenants| tenants.into_iter().map(TenantView::from).collect())
         .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_tenants_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<aqardesk_backend::application::Page<TenantView>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "tenants")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let page = TenantDirectory::new(SeaOrmTenantRepository::new(&database))
+        .list_page(actor, page)
+        .await
+        .map_err(application_error)?;
+    Ok(aqardesk_backend::application::Page {
+        items: page.items.into_iter().map(TenantView::from).collect(),
+        has_more: page.has_more,
+    })
 }
 
 #[tauri::command]
@@ -1182,6 +1338,58 @@ pub async fn platform_payments_list(
             Ok::<PaymentView, String>(PaymentView::from((payment, tenant_name)))
         })
         .collect::<Result<Vec<_>, String>>()
+}
+
+#[tauri::command]
+pub async fn platform_payments_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+    property_id: Option<String>,
+) -> Result<aqardesk_backend::application::Page<PaymentView>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "payments")
+        .await?;
+    let page = aqardesk_backend::application::PageRequest::new(limit, offset)
+        .map_err(application_error)?;
+    let ledger = PaymentLedger::new(SeaOrmPaymentRepository::new(&database));
+    let page = match property_id {
+        Some(property_id) => ledger.list_page_for_property(actor, &property_id, page).await,
+        None => ledger.list_page(actor, page).await,
+    }
+    .map_err(application_error)?;
+    let tenant_ids = page
+        .items
+        .iter()
+        .map(|payment| payment.tenant_id)
+        .collect::<Vec<_>>();
+    let tenant_names = TenantDirectory::new(SeaOrmTenantRepository::new(&database))
+        .names(actor, &tenant_ids)
+        .await
+        .map_err(application_error)?;
+    let items = page
+        .items
+        .into_iter()
+        .map(|payment| {
+            let tenant_name = tenant_names
+                .get(&payment.tenant_id)
+                .cloned()
+                .ok_or_else(|| {
+                    tracing::error!(
+                        tenant_id = %payment.tenant_id,
+                        "Payment has no tenant record in its organization"
+                    );
+                    "One or more payment records reference unavailable tenants.".to_string()
+                })?;
+            Ok::<PaymentView, String>(PaymentView::from((payment, tenant_name)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(aqardesk_backend::application::Page {
+        items,
+        has_more: page.has_more,
+    })
 }
 
 #[tauri::command]

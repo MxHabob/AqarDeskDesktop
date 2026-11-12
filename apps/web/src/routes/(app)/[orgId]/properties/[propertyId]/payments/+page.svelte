@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { contractDocumentQueryKeys } from '#lib/features/contracts/queries';
@@ -36,9 +37,14 @@
 		queryFn: desktopApi.listTenants,
 		enabled: !!app.currentUser && canRecord
 	}));
-	const paymentsQuery = createQuery(() => ({
-		queryKey: paymentQueryKeys.all(organizationId),
-		queryFn: desktopApi.listPayments,
+	const pageSize = 50;
+	const paymentsQuery = createInfiniteQuery(() => ({
+		queryKey: paymentQueryKeys.pages(organizationId, data.propertyId),
+		queryFn: ({ pageParam }) =>
+			desktopApi.listPaymentsPage(pageSize, pageParam, data.propertyId),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canViewPayments && canViewContracts
 	}));
 	const currenciesQuery = createQuery(() => ({
@@ -49,7 +55,6 @@
 	const contractIds = $derived(
 		(contractsQuery.data ?? []).map((contract) => contract.id)
 	);
-	const contractIdSet = $derived(new Set(contractIds));
 	const propertyTenantIds = $derived(
 		new Set((contractsQuery.data ?? []).map((contract) => contract.tenant_id))
 	);
@@ -57,9 +62,7 @@
 		(tenantsQuery.data ?? []).filter((tenant) => propertyTenantIds.has(tenant.id))
 	);
 	const payments = $derived(
-		(paymentsQuery.data ?? []).filter((payment) =>
-			payment.allocations.some((allocation) => contractIdSet.has(allocation.contract_document_id))
-		)
+		paymentsQuery.data?.pages.flatMap((page) => page.items) ?? []
 	);
 	const loading = $derived(
 		contractsQuery.isLoading ||
@@ -102,6 +105,8 @@
 		{tenants}
 		currencies={currenciesQuery.data ?? []}
 		{loading}
+		hasMore={paymentsQuery.hasNextPage}
+		onloadmore={() => fetchNextPageOrThrow(() => paymentsQuery.fetchNextPage())}
 		{busy}
 		{canRecord}
 		canVoid={false}

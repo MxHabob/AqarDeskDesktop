@@ -1,6 +1,7 @@
 use crate::{
     application::{
         ApplicationError, ContractDocument, ContractDocumentInput, ContractDocumentRepository,
+        Page, PageRequest,
     },
     infrastructure::{
         audit,
@@ -11,7 +12,7 @@ use chrono::Utc;
 use sea_orm::entity::prelude::*;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -184,6 +185,31 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             .into_iter()
             .map(to_contract_document)
             .collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: &str,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        let mut query = Entity::find()
+            .filter(Column::OrganizationId.eq(organization_id))
+            .order_by_desc(Column::CreatedAt)
+            .order_by_desc(Column::Id);
+        if let Some(property_id) = property_id {
+            query = query.filter(Column::PropertyId.eq(property_id));
+        }
+        let documents = query
+            .limit(page.fetch_limit())
+            .offset(page.offset())
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?
+            .into_iter()
+            .map(to_contract_document)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Page::from_items(documents, page.limit()))
     }
 
     async fn create(

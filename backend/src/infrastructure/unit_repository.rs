@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, UnitRepository},
+    application::{ApplicationError, Page, PageRequest, UnitRepository},
     domain::{
         CurrencyCode, OrganizationId, PropertyId, PropertyUnit, PropertyUnitInput, UnitId,
         UnitStatus, UnitType, UserId,
@@ -9,7 +9,8 @@ use crate::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, Statement, TransactionTrait,
+    DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect, Statement,
+    TransactionTrait,
 };
 use std::str::FromStr;
 
@@ -79,6 +80,37 @@ impl UnitRepository for SeaOrmUnitRepository {
         }
         let models = query.all(&self.database).await.map_err(persistence_error)?;
         models.into_iter().map(restore_unit).collect()
+    }
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        property_id: Option<PropertyId>,
+        page: PageRequest,
+    ) -> Result<Page<PropertyUnit>, ApplicationError> {
+        let models = if self.database.get_database_backend() == DbBackend::Sqlite {
+            self.list_sqlite_page(organization_id, property_id, page)
+                .await?
+        } else {
+            let mut query = unit::Entity::find()
+                .filter(unit::Column::OrganizationId.eq(organization_id.to_string()))
+                .filter(unit::Column::DeletedAt.is_null())
+                .order_by_asc(unit::Column::UnitNumber)
+                .order_by_asc(unit::Column::Id);
+            if let Some(property_id) = property_id {
+                query = query.filter(unit::Column::PropertyId.eq(property_id.to_string()));
+            }
+            query
+                .limit(page.fetch_limit())
+                .offset(page.offset())
+                .all(&self.database)
+                .await
+                .map_err(persistence_error)?
+                .into_iter()
+                .map(restore_unit)
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        Ok(Page::from_items(models, page.limit()))
     }
 
     async fn insert(
@@ -248,6 +280,57 @@ impl SeaOrmUnitRepository {
                     "SELECT {columns} FROM property_units WHERE organization_id = ? AND deleted_at IS NULL ORDER BY unit_number ASC"
                 ),
                 vec![organization_id.to_string().into()],
+            )
+        };
+        let rows = self
+            .database
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                sql,
+                values,
+            ))
+            .await
+            .map_err(persistence_error)?;
+        rows.into_iter()
+            .map(|row| {
+                let row = SqliteUnitRow::from_query_result(&row, "").map_err(persistence_error)?;
+                restore_sqlite_unit(row)
+            })
+            .collect()
+    }
+
+    async fn list_sqlite_page(
+        &self,
+        organization_id: OrganizationId,
+        property_id: Option<PropertyId>,
+        page: PageRequest,
+    ) -> Result<Vec<PropertyUnit>, ApplicationError> {
+        let columns = "id, organization_id, property_id, unit_number, unit_type, floor_number, \
+            CAST(area_square_meters AS REAL) AS area_square_meters, bedrooms, \
+            CAST(bathrooms AS REAL) AS bathrooms, market_rent_minor, currency_code, status, \
+            created_at, updated_at";
+        let (sql, values) = if let Some(property_id) = property_id {
+            (
+                format!(
+                    "SELECT {columns} FROM property_units WHERE organization_id = ? AND property_id = ? AND deleted_at IS NULL ORDER BY unit_number ASC, id ASC LIMIT ? OFFSET ?"
+                ),
+                vec![
+                    organization_id.to_string().into(),
+                    property_id.to_string().into(),
+                    i64::try_from(page.fetch_limit()).map_err(|_| ApplicationError::Persistence)?.into(),
+                    i64::try_from(page.offset()).map_err(|_| ApplicationError::Persistence)?.into(),
+                ],
+            )
+        } else {
+            (
+                format!(
+                    "SELECT {columns} FROM property_units WHERE organization_id = ? AND deleted_at IS NULL ORDER BY unit_number ASC, id ASC LIMIT ? OFFSET ?"
+                ),
+                vec![
+                    organization_id.to_string().into(),
+                    i64::try_from(page.fetch_limit()).map_err(|_| ApplicationError::Persistence)?.into(),
+                    i64::try_from(page.offset()).map_err(|_| ApplicationError::Persistence)?.into(),
+                ],
             )
         };
         let rows = self

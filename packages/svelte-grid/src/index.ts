@@ -62,6 +62,7 @@ export {
   createClientSource,
   createServerSource,
   DEFAULT_PAGE_SIZE,
+  drainPages,
   partitionBulk,
   describeSelectAll,
   shouldUseServerFilter,

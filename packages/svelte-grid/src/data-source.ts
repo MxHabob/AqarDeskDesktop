@@ -59,6 +59,13 @@ export function createServerSource<T extends GridRow>(
   };
 }
 
+export async function drainPages(
+  hasMore: () => boolean,
+  loadNextPage: () => Promise<void>,
+): Promise<void> {
+  while (hasMore()) await loadNextPage();
+}
+
 export function partitionBulk<T>(
   rows: T[],
   errors: Map<number, string[]>,

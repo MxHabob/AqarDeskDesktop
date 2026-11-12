@@ -1,5 +1,5 @@
 use aqardesk_backend::{
-    application::{PaymentLedger, TenantDirectory, UnitCatalog},
+    application::{PageRequest, PaymentLedger, TenantDirectory, UnitCatalog},
     domain::{
         AccessRole, ActorContext, CurrencyCode, OrganizationId, PaymentAllocationInput,
         PaymentInput, PaymentMethod, PropertyId, PropertyUnitInput, TenantInput, UnitStatus,
@@ -21,7 +21,7 @@ async fn database() -> sea_orm::DatabaseConnection {
         "CREATE TABLE tenants (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT, phone TEXT, mailing_address TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)",
         "CREATE TABLE property_units (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, property_id TEXT NOT NULL, unit_number TEXT NOT NULL, unit_type TEXT NOT NULL, floor_number INTEGER, area_square_meters REAL, bedrooms INTEGER NOT NULL, bathrooms REAL NOT NULL, market_rent_minor BIGINT, currency_code TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)",
         "CREATE TABLE payments (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, received_at TEXT NOT NULL, amount_minor BIGINT NOT NULL, currency_code TEXT NOT NULL, payment_method TEXT NOT NULL, external_reference TEXT, status TEXT NOT NULL, notes TEXT, recorded_by TEXT, created_at TEXT NOT NULL, voided_at TEXT)",
-        "CREATE TABLE contract_documents (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, contract_number TEXT NOT NULL, property_name TEXT NOT NULL, property_code TEXT NOT NULL, unit_number TEXT NOT NULL, tenant_id TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, currency_code TEXT NOT NULL, currency_decimal_digits INTEGER NOT NULL, rent_amount_minor BIGINT NOT NULL)",
+        "CREATE TABLE contract_documents (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, property_id TEXT, contract_number TEXT NOT NULL, property_name TEXT NOT NULL, property_code TEXT NOT NULL, unit_number TEXT NOT NULL, tenant_id TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, currency_code TEXT NOT NULL, currency_decimal_digits INTEGER NOT NULL, rent_amount_minor BIGINT NOT NULL)",
         "CREATE TABLE payment_allocations (id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, payment_id TEXT NOT NULL, contract_document_id TEXT NOT NULL, contract_number TEXT NOT NULL, property_name TEXT NOT NULL, property_code TEXT NOT NULL, unit_number TEXT NOT NULL, amount_minor BIGINT NOT NULL)",
     ] {
         database
@@ -63,24 +63,20 @@ async fn tenant_directory_scopes_updates_and_preserves_archived_rows() {
             .len(),
         1
     );
-    assert!(
-        directory
-            .list(other_actor)
-            .await
-            .expect("other org list")
-            .is_empty()
-    );
+    assert!(directory
+        .list(other_actor)
+        .await
+        .expect("other org list")
+        .is_empty());
     directory
         .archive(actor(organization_id), tenant.id)
         .await
         .expect("archive tenant");
-    assert!(
-        directory
-            .list(actor(organization_id))
-            .await
-            .expect("list")
-            .is_empty()
-    );
+    assert!(directory
+        .list(actor(organization_id))
+        .await
+        .expect("list")
+        .is_empty());
     assert_eq!(
         directory
             .names(actor(organization_id), &[tenant.id])
@@ -90,13 +86,11 @@ async fn tenant_directory_scopes_updates_and_preserves_archived_rows() {
             .map(String::as_str),
         Some("Tenant One")
     );
-    assert!(
-        directory
-            .names(other_actor, &[tenant.id])
-            .await
-            .expect("other organization cannot resolve tenant")
-            .is_empty()
-    );
+    assert!(directory
+        .names(other_actor, &[tenant.id])
+        .await
+        .expect("other organization cannot resolve tenant")
+        .is_empty());
 }
 
 #[tokio::test]
@@ -139,13 +133,11 @@ async fn unit_catalog_validates_inputs_and_scopes_all_operations() {
         .archive(actor(organization_id), unit.id)
         .await
         .expect("archive unit");
-    assert!(
-        catalog
-            .list(actor(organization_id), None)
-            .await
-            .expect("list archived unit")
-            .is_empty()
-    );
+    assert!(catalog
+        .list(actor(organization_id), None)
+        .await
+        .expect("list archived unit")
+        .is_empty());
 }
 
 #[tokio::test]
@@ -158,7 +150,7 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
         .execute(Statement::from_string(
             DbBackend::Sqlite,
             format!(
-                "INSERT INTO contract_documents (id, organization_id, contract_number, property_name, property_code, unit_number, tenant_id, start_date, end_date, currency_code, currency_decimal_digits, rent_amount_minor) VALUES ('contract-1', '{}', 'AQD-1', 'Building A', 'A', '1', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 100000), ('contract-2', '{}', 'AQD-2', 'Building B', 'B', '2', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 200000)",
+                "INSERT INTO contract_documents (id, organization_id, property_id, contract_number, property_name, property_code, unit_number, tenant_id, start_date, end_date, currency_code, currency_decimal_digits, rent_amount_minor) VALUES ('contract-1', '{}', 'property-1', 'AQD-1', 'Building A', 'A', '1', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 100000), ('contract-2', '{}', 'property-2', 'AQD-2', 'Building B', 'B', '2', '{}', '2026-01-01', '2026-12-31', 'SAR', 2, 200000)",
                 organization_id,
                 tenant_id,
                 organization_id,
@@ -207,22 +199,31 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
             .contract_number,
         "AQD-1"
     );
+    let property_page = ledger
+        .list_page_for_property(actor, "property-1", PageRequest::new(50, 0).expect("page"))
+        .await
+        .expect("list payments for property");
+    assert_eq!(property_page.items.len(), 1);
+    assert!(ledger
+        .list_page_for_property(actor, "property-3", PageRequest::new(50, 0).expect("page"))
+        .await
+        .expect("empty property payments")
+        .items
+        .is_empty());
 
     ledger.void(actor, payment.id).await.expect("void payment");
-    assert!(
-        ledger
-            .list(actor)
-            .await
-            .expect("list payments")
-            .iter()
-            .any(|item| item.id == payment.id
-                && item.status == aqardesk_backend::domain::PaymentStatus::Void
-                && item.allocations.len() == 2
-                && item
-                    .allocations
-                    .iter()
-                    .any(|allocation| allocation.contract_number == "AQD-1"))
-    );
+    assert!(ledger
+        .list(actor)
+        .await
+        .expect("list payments")
+        .iter()
+        .any(|item| item.id == payment.id
+            && item.status == aqardesk_backend::domain::PaymentStatus::Void
+            && item.allocations.len() == 2
+            && item
+                .allocations
+                .iter()
+                .any(|allocation| allocation.contract_number == "AQD-1")));
 
     let audit_rows = database
         .query_one(Statement::from_string(

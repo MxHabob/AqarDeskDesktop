@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import { Button, toast } from '@aqardesk/ui';
 	import { desktopApi, type RolePermissionSet } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { queryClient } from '#lib/core/query-client';
@@ -12,22 +13,26 @@
 	import * as m from '#lib/paraglide/messages';
 
 	const app = getAppContext();
-	let roles = $state<RolePermissionSet[]>([]);
-	let loading = $state(true);
 	let savingRole = $state<string | null>(null);
 	let deletingRole = $state<string | null>(null);
 	let editingRole = $state<RolePermissionSet | undefined>(undefined);
 	let roleSheetOpen = $state(false);
+	const pageSize = 50;
+	const rolesQuery = createInfiniteQuery(() => ({
+		queryKey: roleQueryKeys.pages(app.currentUser?.organization_id ?? ''),
+		queryFn: ({ pageParam }) => desktopApi.listRolePermissionsPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
+		enabled: !!app.currentUser
+	}));
+	const roles = $derived(rolesQuery.data?.pages.flatMap((page) => page.items) ?? []);
+	const loading = $derived(rolesQuery.isLoading);
 
-	async function load(showLoading = true) {
-		if (showLoading) loading = true;
-		try {
-			roles = await desktopApi.listRolePermissions();
-		} catch (cause) {
-			app.setError(cause);
-		} finally {
-			if (showLoading) loading = false;
-		}
+	async function load() {
+		await queryClient.invalidateQueries({
+			queryKey: roleQueryKeys.pages(app.currentUser?.organization_id ?? '')
+		});
 	}
 
 	async function saveRole(values: RoleFormValues): Promise<boolean> {
@@ -46,7 +51,7 @@
 			});
 			roleSheetOpen = false;
 			editingRole = undefined;
-			await load(false);
+			await load();
 			return true;
 		} catch (cause) {
 			app.setError(cause);
@@ -83,7 +88,7 @@
 			await queryClient.invalidateQueries({
 				queryKey: roleQueryKeys.all(app.currentUser?.organization_id ?? '')
 			});
-			await load(false);
+			await load();
 			toast.success(m.settings_permissions_role_deleted());
 		} catch (cause) {
 			app.setError(cause);
@@ -92,16 +97,14 @@
 		}
 	}
 
-	onMount(() => {
-		void load();
-	});
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
-	<p class="text-sm text-muted-foreground">{m.settings_permissions_description()}</p>
 	<RolesDirectory
 		{roles}
 		{loading}
+		hasMore={rolesQuery.hasNextPage}
+		onloadmore={() => fetchNextPageOrThrow(() => rolesQuery.fetchNextPage())}
 		busy={savingRole !== null || deletingRole !== null}
 		onEdit={editRole}
 		onDelete={(role) => void deleteRole(role)}

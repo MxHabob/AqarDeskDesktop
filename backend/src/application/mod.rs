@@ -10,6 +10,7 @@ mod identity_port;
 mod organization_settings;
 mod owner_directory;
 mod owner_port;
+mod pagination;
 mod payment_ledger;
 mod profile;
 mod property_catalog;
@@ -31,8 +32,8 @@ pub use currencies::{
     CurrencyCatalog, CurrencyInput, CurrencyRepository, CurrencySettings, NewCurrencyInput,
 };
 pub use dashboard::{
-    DashboardRepository, DashboardService, DashboardSummary, MonthlyPayment, PaymentCurrencyTotal,
-    StatusCount,
+    CurrencyAmountTotal, DashboardRepository, DashboardService, DashboardSummary, MonthlyPayment,
+    PaymentCurrencyTotal, PropertyDashboardSummary, StatusCount,
 };
 pub use errors::ApplicationError;
 pub use identity_management::IdentityService;
@@ -43,6 +44,7 @@ pub use organization_settings::{
 };
 pub use owner_directory::OwnerDirectory;
 pub use owner_port::OwnerRepository;
+pub use pagination::{Page, PageRequest};
 pub use payment_ledger::{PaymentContract, PaymentLedger, PaymentRepository};
 pub use profile::{ProfileRepository, ProfileService, ProfileSettings, ProfileSettingsInput};
 pub use property_catalog::PropertyCatalog;

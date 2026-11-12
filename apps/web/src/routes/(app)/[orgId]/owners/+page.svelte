@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { queryClient } from '#lib/core/query-client';
 	import { propertyQueryKeys } from '#lib/features/properties/queries';
 	import { ownerQueryKeys } from '#lib/features/owners/queries';
@@ -23,15 +24,19 @@
 	const canUpdate = $derived(
 		hasPermission(app.currentUser?.role, 'update_owners', app.currentUser?.permissions)
 	);
-	const ownersQuery = createQuery(() => ({
-		queryKey: ownerQueryKeys.all(organizationId),
-		queryFn: desktopApi.listOwners,
+	const pageSize = 50;
+	const ownersQuery = createInfiniteQuery(() => ({
+		queryKey: ownerQueryKeys.pages(organizationId),
+		queryFn: ({ pageParam }) => desktopApi.listOwnersPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canView
 	}));
 	let open = $state(false);
 	let selectedOwner = $state<Owner | undefined>();
 	let saving = $state(false);
-	const owners = $derived(ownersQuery.data ?? []);
+	const owners = $derived(ownersQuery.data?.pages.flatMap((page) => page.items) ?? []);
 
 	async function saveOwner(values: OwnerInput) {
 		saving = true;
@@ -61,6 +66,8 @@
 		<OwnersDirectory
 			{owners}
 			loading={ownersQuery.isLoading}
+			hasMore={ownersQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => ownersQuery.fetchNextPage())}
 			{canCreate}
 			{canUpdate}
 			onAdd={() => { selectedOwner = undefined; open = true; }}

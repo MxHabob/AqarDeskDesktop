@@ -12,6 +12,8 @@
 		units: PropertyUnit[];
 		properties: Property[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		canUpdate: boolean;
 		canArchive: boolean;
 		canAdd: boolean;
@@ -19,7 +21,7 @@
 		onEdit: (unit: PropertyUnit) => void;
 		onArchive: (unit: PropertyUnit) => void;
 	};
-	let { units, properties, loading, canUpdate, canArchive, canAdd, onAdd, onEdit, onArchive }: Props = $props();
+	let { units, properties, loading, hasMore = false, onloadmore, canUpdate, canArchive, canAdd, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const propertyNames = $derived(new Map(properties.map((property) => [property.id, property.name])));
 	const rtl = $derived(getLocale() === 'ar');
@@ -91,6 +93,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.units_empty()}
 		emptyDescription={m.dashboard_properties_description()}
 		onaction={handleGridAction}

@@ -22,6 +22,8 @@
 	type Props = {
 		contracts: ContractDocument[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		selectedContract?: ContractDocument | null;
 		canCreate?: boolean;
 		createDisabled?: boolean;
@@ -31,6 +33,8 @@
 	let {
 		contracts,
 		loading,
+		hasMore = false,
+		onloadmore,
 		selectedContract = null,
 		canCreate = false,
 		createDisabled = false,
@@ -126,6 +130,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.contracts_empty_title()}
 		emptyDescription={m.contracts_empty_description()}
 		onaction={handleGridAction}
@@ -142,7 +148,11 @@
 </div>
 
 <Sheet bind:open={viewerOpen}>
-	<SheetContent side="end" class="max-w-3xl">
+	<SheetContent
+		side="end"
+		class="!p-0 max-w-none"
+		contentClass="!data-[side=end]:end-0 !data-[side=end]:right-0 !data-[side=end]:h-dvh !data-[side=end]:w-screen"
+	>
 		<SheetHeader class="shrink-0 px-4 py-4">
 			<SheetTitle>{selected?.template_name ?? m.contracts_preview()}</SheetTitle>
 			{#if selected}
@@ -150,7 +160,7 @@
 			{/if}
 		</SheetHeader>
 		{#if selected}
-			<div class="min-h-0 flex-1 overflow-y-auto p-4">
+			<div class="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-none">
 				<article
 					id="issued-contract"
 					dir={selected.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}

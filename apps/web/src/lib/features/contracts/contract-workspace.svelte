@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createForm } from '@tanstack/svelte-form';
+	import { createInfiniteQuery } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import {
@@ -30,6 +31,7 @@
 	import type { ContractDocument } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { queryClient } from '#lib/core/query-client';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { contractDocumentQueryKeys } from '#lib/features/contracts/queries';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import ContractDocumentsDirectory from '#lib/features/contracts/contract-documents-directory.svelte';
@@ -59,7 +61,6 @@
 	let tenants = $state<Tenant[]>([]);
 	let currencies = $state<CurrencySettings[]>([]);
 	let organizationDefaultCurrency = $state('');
-	let contractDocuments = $state<ContractDocument[]>([]);
 	let selectedContractForPreview = $state<ContractDocument | null>(null);
 	let loading = $state(true);
 	let loadError = $state('');
@@ -71,6 +72,22 @@
 	);
 	const canCreateContracts = $derived(
 		hasPermission(app.currentUser?.role, 'create_contracts', app.currentUser?.permissions)
+	);
+	const pageSize = 50;
+	const contractDocumentsQuery = createInfiniteQuery(() => ({
+		queryKey: contractDocumentQueryKeys.pages(
+			app.currentUser?.organization_id ?? '',
+			propertyId
+		),
+		queryFn: ({ pageParam }) =>
+			desktopApi.listContractDocumentsPage(pageSize, pageParam, propertyId),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
+		enabled: !!app.currentUser && canViewContracts
+	}));
+	const contractDocuments = $derived(
+		contractDocumentsQuery.data?.pages.flatMap((page) => page.items) ?? []
 	);
 
 	const activeTemplates = $derived(
@@ -254,12 +271,17 @@
 		else loading = false;
 	});
 
+	$effect(() => {
+		if (!contractDocumentsQuery.error) return;
+		const error = String(contractDocumentsQuery.error);
+		if (error !== loadError) toast.error(error);
+	});
+
 	async function load() {
 		loading = true;
 		loadError = '';
 		currencyManuallySelected = false;
 		try {
-			contractDocuments = await desktopApi.listContractDocuments(propertyId);
 			if (!canCreateContracts) {
 				templates = [];
 				properties = [];
@@ -415,9 +437,11 @@
 				deposit_amount_minor: depositAmountMinor
 			});
 			await queryClient.invalidateQueries({
+				queryKey: contractDocumentQueryKeys.pages(organizationId, propertyId)
+			});
+			await queryClient.invalidateQueries({
 				queryKey: contractDocumentQueryKeys.property(organizationId, input.propertyId)
 			});
-			contractDocuments = [saved, ...contractDocuments];
 			selectedContractForPreview = saved;
 			builderOpen = false;
 			toast.success(m.contracts_saved());
@@ -450,7 +474,9 @@
 	{:else}
 		<ContractDocumentsDirectory
 			contracts={contractDocuments}
-			loading={false}
+			loading={contractDocumentsQuery.isLoading}
+			hasMore={contractDocumentsQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => contractDocumentsQuery.fetchNextPage())}
 			selectedContract={selectedContractForPreview}
 			canCreate={canCreateContracts}
 			createDisabled={!canStartContract}

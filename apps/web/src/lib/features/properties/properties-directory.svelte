@@ -12,6 +12,8 @@
 	type Props = {
 		properties: Property[];
 		loading: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		canCreate: boolean;
 		canUpdate: boolean;
 		canArchive: boolean;
@@ -20,7 +22,7 @@
 		onEdit: (property: Property) => void;
 		onArchive: (property: Property) => void;
 	};
-	let { properties, loading, canCreate, canUpdate, canArchive, onAdd, onOpenDetails, onEdit, onArchive }: Props = $props();
+	let { properties, loading, hasMore = false, onloadmore, canCreate, canUpdate, canArchive, onAdd, onOpenDetails, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 
@@ -124,6 +126,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.properties_empty()}
 		emptyDescription={m.dashboard_properties_description()}
 		onaction={handleGridAction}

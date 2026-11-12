@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, require_permission},
+    application::{ApplicationError, Page, PageRequest, require_permission},
     domain::{ActorContext, Permission},
 };
 use chrono::NaiveDate;
@@ -53,6 +53,18 @@ pub trait ContractDocumentRepository: Send + Sync {
         property_id: Option<&str>,
     ) -> Result<Vec<ContractDocument>, ApplicationError>;
 
+    async fn list_page(
+        &self,
+        organization_id: &str,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        Ok(Page::from_items(
+            self.list(organization_id, property_id).await?,
+            page.limit(),
+        ))
+    }
+
     async fn create(
         &self,
         organization_id: &str,
@@ -78,6 +90,22 @@ impl<R: ContractDocumentRepository> ContractDocumentService<R> {
         require_permission(actor, Permission::ViewContracts)?;
         self.repository
             .list(&actor.organization_id().to_string(), property_id)
+            .await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        property_id: Option<&str>,
+        page: PageRequest,
+    ) -> Result<Page<ContractDocument>, ApplicationError> {
+        require_permission(actor, Permission::ViewContracts)?;
+        self.repository
+            .list_page(
+                &actor.organization_id().to_string(),
+                property_id,
+                page,
+            )
             .await
     }
 

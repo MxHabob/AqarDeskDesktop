@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { queryClient } from '#lib/core/query-client';
 	import PropertySheet from '#lib/features/properties/property-sheet.svelte';
 	import PropertiesDirectory from '#lib/features/properties/properties-directory.svelte';
@@ -30,9 +31,13 @@
 	const canArchive = $derived(
 		hasPermission(app.currentUser?.role, 'archive_properties', app.currentUser?.permissions)
 	);
-	const propertiesQuery = createQuery(() => ({
-		queryKey: propertyQueryKeys.all(organizationId),
-		queryFn: desktopApi.listProperties,
+	const pageSize = 50;
+	const propertiesQuery = createInfiniteQuery(() => ({
+		queryKey: propertyQueryKeys.pages(organizationId),
+		queryFn: ({ pageParam }) => desktopApi.listPropertiesPage(pageSize, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canView
 	}));
 	const canViewOwners = $derived(
@@ -46,7 +51,7 @@
 	let open = $state(false);
 	let selectedProperty = $state<Property | undefined>();
 	let saving = $state(false);
-	const properties = $derived(propertiesQuery.data ?? []);
+	const properties = $derived(propertiesQuery.data?.pages.flatMap((page) => page.items) ?? []);
 	const owners = $derived(ownersQuery.data ?? []);
 	$effect(() => {
 		if (propertiesQuery.error) app.setError(propertiesQuery.error);
@@ -101,6 +106,8 @@
 		<PropertiesDirectory
 			properties={properties}
 			loading={propertiesQuery.isLoading}
+			hasMore={propertiesQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => propertiesQuery.fetchNextPage())}
 			{canCreate}
 			{canUpdate}
 			{canArchive}

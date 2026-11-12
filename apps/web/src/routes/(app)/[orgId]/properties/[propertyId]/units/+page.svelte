@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { desktopApi } from '#lib/api/desktop';
+	import { fetchNextPageOrThrow } from '#lib/core/infinite-query';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { hasPermission } from '#lib/features/auth/permissions';
 	import { confirmStore } from '#lib/core/confirm.svelte';
@@ -32,9 +33,13 @@
 	const canArchive = $derived(
 		hasPermission(app.currentUser?.role, 'archive_units', app.currentUser?.permissions)
 	);
-	const unitsQuery = createQuery(() => ({
-		queryKey: unitQueryKeys.all(organizationId),
-		queryFn: desktopApi.listUnits,
+	const pageSize = 50;
+	const unitsQuery = createInfiniteQuery(() => ({
+		queryKey: unitQueryKeys.pages(organizationId, data.propertyId),
+		queryFn: ({ pageParam }) => desktopApi.listUnitsPage(pageSize, pageParam, data.propertyId),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) =>
+			lastPage.has_more ? pages.length * pageSize : undefined,
 		enabled: !!app.currentUser && canView
 	}));
 	const propertiesQuery = createQuery(() => ({
@@ -46,9 +51,7 @@
 		(propertiesQuery.data ?? []).find((item) => item.id === data.propertyId)
 	);
 	const properties = $derived(property ? [property] : []);
-	const units = $derived(
-		(unitsQuery.data ?? []).filter((item) => item.property_id === data.propertyId)
-	);
+	const units = $derived(unitsQuery.data?.pages.flatMap((page) => page.items) ?? []);
 	const loading = $derived(unitsQuery.isLoading || propertiesQuery.isLoading);
 	let open = $state(false);
 	let selectedUnit = $state<PropertyUnit | undefined>();
@@ -99,6 +102,8 @@
 			{units}
 			{properties}
 			{loading}
+			hasMore={unitsQuery.hasNextPage}
+			onloadmore={() => fetchNextPageOrThrow(() => unitsQuery.fetchNextPage())}
 			{canUpdate}
 			{canArchive}
 			canAdd={canCreate && property != null}

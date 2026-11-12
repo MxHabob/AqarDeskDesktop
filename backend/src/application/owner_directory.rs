@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, OwnerRepository, require_permission},
+    application::{ApplicationError, OwnerRepository, Page, PageRequest, require_permission},
     domain::{ActorContext, Owner, OwnerId, OwnerInput, Permission},
 };
 
@@ -15,6 +15,15 @@ impl<R: OwnerRepository> OwnerDirectory<R> {
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Owner>, ApplicationError> {
         require_permission(actor, Permission::ViewOwners)?;
         self.owners.list(actor.organization_id()).await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        page: PageRequest,
+    ) -> Result<Page<Owner>, ApplicationError> {
+        require_permission(actor, Permission::ViewOwners)?;
+        self.owners.list_page(actor.organization_id(), page).await
     }
 
     pub async fn create(

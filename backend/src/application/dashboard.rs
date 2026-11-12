@@ -1,4 +1,7 @@
-use crate::{application::ApplicationError, domain::ActorContext};
+use crate::{
+    application::{ApplicationError, require_permission},
+    domain::{ActorContext, Permission},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -33,6 +36,21 @@ pub struct PaymentCurrencyTotal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PropertyDashboardSummary {
+    pub contract_count: u64,
+    pub tenant_count: u64,
+    pub rent_by_currency: Vec<CurrencyAmountTotal>,
+    pub posted_allocations_by_currency: Option<Vec<CurrencyAmountTotal>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CurrencyAmountTotal {
+    pub currency_code: String,
+    pub currency_decimal_digits: i16,
+    pub amount_minor: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StatusCount {
     pub status: String,
     pub count: u64,
@@ -45,6 +63,13 @@ pub trait DashboardRepository: Send + Sync {
         organization_id: &str,
         months: u8,
     ) -> Result<DashboardSummary, ApplicationError>;
+
+    async fn property_summary(
+        &self,
+        organization_id: &str,
+        property_id: &str,
+        include_payments: bool,
+    ) -> Result<PropertyDashboardSummary, ApplicationError>;
 }
 
 pub struct DashboardService<R> {
@@ -69,6 +94,22 @@ impl<R: DashboardRepository> DashboardService<R> {
         }
         self.repository
             .summary(&actor.organization_id().to_string(), months)
+            .await
+    }
+
+    pub async fn property_summary(
+        &self,
+        actor: ActorContext,
+        property_id: &str,
+    ) -> Result<PropertyDashboardSummary, ApplicationError> {
+        require_permission(actor, Permission::ViewProperties)?;
+        require_permission(actor, Permission::ViewContracts)?;
+        self.repository
+            .property_summary(
+                &actor.organization_id().to_string(),
+                property_id,
+                actor.has_permission(Permission::ViewPayments),
+            )
             .await
     }
 }
@@ -110,5 +151,33 @@ mod tests {
         };
         assert_eq!(summary.monthly_payments[0].amount_minor, 120_000);
         assert_eq!(summary.payment_months, ["2026-10"]);
+    }
+
+    #[test]
+    fn property_summary_exposes_currency_totals_without_claiming_an_outstanding_balance() {
+        let summary = PropertyDashboardSummary {
+            contract_count: 2,
+            tenant_count: 1,
+            rent_by_currency: vec![CurrencyAmountTotal {
+                currency_code: "SAR".to_string(),
+                currency_decimal_digits: 2,
+                amount_minor: 120_000,
+            }],
+            posted_allocations_by_currency: Some(vec![CurrencyAmountTotal {
+                currency_code: "SAR".to_string(),
+                currency_decimal_digits: 2,
+                amount_minor: 40_000,
+            }]),
+        };
+        assert_eq!(summary.contract_count, 2);
+        assert_eq!(summary.rent_by_currency[0].amount_minor, 120_000);
+        assert_eq!(
+            summary
+                .posted_allocations_by_currency
+                .as_ref()
+                .expect("payment metrics are visible")[0]
+                .amount_minor,
+            40_000
+        );
     }
 }

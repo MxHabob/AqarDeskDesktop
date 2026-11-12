@@ -1,5 +1,5 @@
 use crate::{
-    application::{ApplicationError, UnitRepository, require_permission},
+    application::{ApplicationError, Page, PageRequest, UnitRepository, require_permission},
     domain::{ActorContext, Permission, PropertyId, PropertyUnit, PropertyUnitInput, UnitId},
 };
 
@@ -19,6 +19,18 @@ impl<R: UnitRepository> UnitCatalog<R> {
     ) -> Result<Vec<PropertyUnit>, ApplicationError> {
         require_permission(actor, Permission::ViewUnits)?;
         self.units.list(actor.organization_id(), property_id).await
+    }
+
+    pub async fn list_page(
+        &self,
+        actor: ActorContext,
+        property_id: Option<PropertyId>,
+        page: PageRequest,
+    ) -> Result<Page<PropertyUnit>, ApplicationError> {
+        require_permission(actor, Permission::ViewUnits)?;
+        self.units
+            .list_page(actor.organization_id(), property_id, page)
+            .await
     }
 
     pub async fn create(

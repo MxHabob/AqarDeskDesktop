@@ -12,12 +12,23 @@
 		users: User[];
 		loading: boolean;
 		busy: boolean;
+		hasMore?: boolean;
+		onloadmore?: () => Promise<unknown>;
 		toolbarActions?: Snippet;
 		onToggle: (user: User) => void;
 		onEdit: (user: User) => void;
 	};
 
-	let { users, loading, busy, toolbarActions, onToggle, onEdit }: Props = $props();
+	let {
+		users,
+		loading,
+		busy,
+		hasMore = false,
+		onloadmore,
+		toolbarActions,
+		onToggle,
+		onEdit
+	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
@@ -119,6 +130,8 @@
 		formatCellValue={(row, column) => formatGridCell(row, column, app.organizationTimezone)}
 		readonly
 		height="100%"
+		{hasMore}
+		{onloadmore}
 		emptyTitle={m.users_empty()}
 		emptyDescription={m.users_description()}
 		onaction={handleGridAction}

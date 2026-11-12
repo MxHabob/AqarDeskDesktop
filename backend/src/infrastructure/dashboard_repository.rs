@@ -1,11 +1,11 @@
 use crate::{
     application::{
-        ApplicationError, DashboardRepository, DashboardSummary, MonthlyPayment,
-        PaymentCurrencyTotal, StatusCount,
+        ApplicationError, CurrencyAmountTotal, DashboardRepository, DashboardSummary,
+        MonthlyPayment, PaymentCurrencyTotal, PropertyDashboardSummary, StatusCount,
     },
     infrastructure::{
         currency_repository::Entity as CurrencyEntity,
-        models::{payment, tenant, unit},
+        models::{payment, payment_allocation, property_dashboard_contract, tenant, unit},
         property_repository::{Column as PropertyColumn, Entity as PropertyEntity},
     },
 };
@@ -15,7 +15,7 @@ use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, sea_query::Expr,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub struct SeaOrmDashboardRepository {
     database: DatabaseConnection,
@@ -230,6 +230,166 @@ impl DashboardRepository for SeaOrmDashboardRepository {
             payment_status_counts: payment_statuses,
         })
     }
+
+    async fn property_summary(
+        &self,
+        organization_id: &str,
+        property_id: &str,
+        include_payments: bool,
+    ) -> Result<PropertyDashboardSummary, ApplicationError> {
+        let property = PropertyEntity::find_by_id(property_id)
+            .filter(PropertyColumn::OrganizationId.eq(organization_id))
+            .filter(PropertyColumn::DeletedAt.is_null())
+            .one(&self.database)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+
+        let contracts = property_dashboard_contract::Entity::find()
+            .filter(property_dashboard_contract::Column::OrganizationId.eq(organization_id))
+            .filter(property_dashboard_contract::Column::PropertyId.eq(property.id))
+            .order_by_desc(property_dashboard_contract::Column::Id)
+            .all(&self.database)
+            .await
+            .map_err(persistence_error)?;
+
+        let contract_count = u64::try_from(contracts.len()).map_err(|error| {
+            tracing::error!(%error, "Dashboard contract count exceeds the supported range");
+            ApplicationError::Persistence
+        })?;
+        let tenant_count = u64::try_from(
+            contracts
+                .iter()
+                .map(|contract| contract.tenant_id.as_str())
+                .collect::<HashSet<_>>()
+                .len(),
+        )
+        .map_err(|error| {
+            tracing::error!(%error, "Dashboard tenant count exceeds the supported range");
+            ApplicationError::Persistence
+        })?;
+
+        let mut rent_totals = BTreeMap::<String, (i64, i16)>::new();
+        for contract in &contracts {
+            let total = rent_totals
+                .entry(contract.currency_code.clone())
+                .or_insert((0, contract.currency_decimal_digits));
+            total.0 =
+                add_dashboard_amount(total.0, contract.rent_amount_minor, &contract.currency_code)?;
+        }
+        let rent_by_currency = to_currency_amounts(rent_totals);
+
+        let posted_allocations_by_currency = if include_payments {
+            let contract_ids = contracts
+                .iter()
+                .map(|contract| contract.id.clone())
+                .collect::<Vec<_>>();
+            if contract_ids.is_empty() {
+                Some(Vec::new())
+            } else {
+                let allocations = payment_allocation::Entity::find()
+                    .filter(payment_allocation::Column::OrganizationId.eq(organization_id))
+                    .filter(
+                        payment_allocation::Column::ContractDocumentId.is_in(contract_ids.clone()),
+                    )
+                    .all(&self.database)
+                    .await
+                    .map_err(persistence_error)?;
+                let payment_ids = allocations
+                    .iter()
+                    .map(|allocation| allocation.payment_id.clone())
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                if payment_ids.is_empty() {
+                    Some(Vec::new())
+                } else {
+                    let posted_payments = payment::Entity::find()
+                        .select_only()
+                        .column(payment::Column::Id)
+                        .filter(payment::Column::OrganizationId.eq(organization_id))
+                        .filter(payment::Column::Status.eq("posted"))
+                        .filter(payment::Column::Id.is_in(payment_ids))
+                        .into_tuple::<String>()
+                        .all(&self.database)
+                        .await
+                        .map_err(persistence_error)?
+                        .into_iter()
+                        .collect::<HashSet<_>>();
+                    let contract_currencies = contracts
+                        .iter()
+                        .map(|contract| {
+                            (
+                                contract.id.as_str(),
+                                (
+                                    contract.currency_code.as_str(),
+                                    contract.currency_decimal_digits,
+                                ),
+                            )
+                        })
+                        .collect::<HashMap<_, _>>();
+                    let mut payment_totals = BTreeMap::<String, (i64, i16)>::new();
+                    for allocation in allocations
+                        .iter()
+                        .filter(|allocation| posted_payments.contains(&allocation.payment_id))
+                    {
+                        let (currency_code, decimal_digits) = contract_currencies
+                            .get(allocation.contract_document_id.as_str())
+                            .copied()
+                            .ok_or_else(|| {
+                                tracing::error!(
+                                    contract_id = %allocation.contract_document_id,
+                                    "Payment allocation references a contract outside the property summary"
+                                );
+                                ApplicationError::Persistence
+                            })?;
+                        let total = payment_totals
+                            .entry(currency_code.to_string())
+                            .or_insert((0, decimal_digits));
+                        total.0 =
+                            add_dashboard_amount(total.0, allocation.amount_minor, currency_code)?;
+                    }
+                    Some(to_currency_amounts(payment_totals))
+                }
+            }
+        } else {
+            None
+        };
+
+        Ok(PropertyDashboardSummary {
+            contract_count,
+            tenant_count,
+            rent_by_currency,
+            posted_allocations_by_currency,
+        })
+    }
+}
+
+fn add_dashboard_amount(
+    total: i64,
+    amount: i64,
+    currency_code: &str,
+) -> Result<i64, ApplicationError> {
+    total.checked_add(amount).ok_or_else(|| {
+        tracing::error!(
+            %currency_code,
+            "Property dashboard amount exceeds the supported integer range"
+        );
+        ApplicationError::Persistence
+    })
+}
+
+fn to_currency_amounts(totals: BTreeMap<String, (i64, i16)>) -> Vec<CurrencyAmountTotal> {
+    totals
+        .into_iter()
+        .map(
+            |(currency_code, (amount_minor, currency_decimal_digits))| CurrencyAmountTotal {
+                currency_code,
+                currency_decimal_digits,
+                amount_minor,
+            },
+        )
+        .collect()
 }
 
 struct ReportingMonth {

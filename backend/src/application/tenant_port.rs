@@ -1,5 +1,5 @@
 use crate::{
-    application::ApplicationError,
+    application::{ApplicationError, Page, PageRequest},
     domain::{OrganizationId, Tenant, TenantId, UserId},
 };
 use std::collections::HashMap;
@@ -7,6 +7,14 @@ use std::collections::HashMap;
 #[async_trait::async_trait]
 pub trait TenantRepository: Send + Sync {
     async fn list(&self, organization_id: OrganizationId) -> Result<Vec<Tenant>, ApplicationError>;
+
+    async fn list_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<Tenant>, ApplicationError> {
+        Ok(Page::from_items(self.list(organization_id).await?, page.limit()))
+    }
 
     async fn names(
         &self,

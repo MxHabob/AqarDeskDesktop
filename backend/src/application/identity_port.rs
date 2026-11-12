@@ -1,5 +1,5 @@
 use crate::{
-    application::ApplicationError,
+    application::{ApplicationError, Page, PageRequest},
     domain::{Organization, OrganizationId, RolePermissionSet, UserAccount, UserId},
 };
 
@@ -81,6 +81,17 @@ pub trait IdentityRepository: Send + Sync {
         &self,
         organization_id: OrganizationId,
     ) -> Result<Vec<UserAccount>, ApplicationError>;
+
+    async fn list_users_page(
+        &self,
+        organization_id: OrganizationId,
+        page: PageRequest,
+    ) -> Result<Page<UserAccount>, ApplicationError> {
+        Ok(Page::from_items(
+            self.list_users(organization_id).await?,
+            page.limit(),
+        ))
+    }
 
     async fn create_user(
         &self,

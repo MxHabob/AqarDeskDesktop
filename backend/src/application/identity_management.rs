@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+        ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, Page, PageRequest,
+        UserUpdate,
         require_admin,
     },
     domain::{AccessRole, ActorContext, Organization, Permission, RolePermissionSet, UserAccount},
@@ -66,6 +67,17 @@ impl<R: IdentityRepository> IdentityService<R> {
     ) -> Result<Vec<UserAccount>, ApplicationError> {
         require_admin(actor)?;
         self.identities.list_users(actor.organization_id()).await
+    }
+
+    pub async fn list_users_page(
+        &self,
+        actor: ActorContext,
+        page: PageRequest,
+    ) -> Result<Page<UserAccount>, ApplicationError> {
+        require_admin(actor)?;
+        self.identities
+            .list_users_page(actor.organization_id(), page)
+            .await
     }
 
     pub async fn list_role_permissions(

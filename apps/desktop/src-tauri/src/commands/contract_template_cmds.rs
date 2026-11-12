@@ -1,5 +1,5 @@
 use aqardesk_backend::{
-    application::{ContractTemplateInput, ContractTemplateService},
+    application::{ContractTemplateInput, ContractTemplateService, Page, PageRequest},
     infrastructure::SeaOrmContractTemplateRepository,
 };
 use tauri::State;
@@ -22,6 +22,30 @@ pub async fn contract_templates_list(
         .list(actor)
         .await
         .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn contract_templates_list_page(
+    state: State<'_, PlatformState>,
+    limit: u64,
+    offset: u64,
+) -> Result<Page<aqardesk_backend::application::ContractTemplate>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "contract_templates")
+        .await?;
+    let page = PageRequest::new(limit, offset).map_err(application_error)?;
+    let templates = ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database))
+        .list(actor)
+        .await
+        .map_err(application_error)?;
+    let items = templates
+        .into_iter()
+        .skip(usize::try_from(page.offset()).unwrap_or(usize::MAX))
+        .take(usize::try_from(page.fetch_limit()).unwrap_or(usize::MAX))
+        .collect();
+    Ok(Page::from_items(items, page.limit()))
 }
 
 #[tauri::command]
