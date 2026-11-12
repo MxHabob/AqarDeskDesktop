@@ -14,7 +14,7 @@ AqarDesk desktop releases are built and published by
 
 1. Start from a clean working tree on `main`.
 2. Run `bun run release:prepare -- patch` (or `minor`, `major`, or an explicit version).
-   Use `--dry-run` to preview the version/files first.
+   Preview first with `bun run release:prepare -- --dry-run patch`.
 3. Review and complete the generated `releases/vX.Y.Z.md`, then commit the
    version and release-note changes.
 4. Push the commit and matching `vX.Y.Z` tag. The workflow validates the tag

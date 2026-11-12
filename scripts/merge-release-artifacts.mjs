@@ -26,6 +26,13 @@ export function mergeUpdaterManifests({ manifests, version, tag, repository, fil
   if (manifests.length !== expectedPlatforms.length) {
     throw new Error(`Expected ${expectedPlatforms.length} updater manifests; found ${manifests.length}.`);
   }
+  if (!/^[^/]+\/[^/]+$/.test(repository ?? "") || !/^v\d+\.\d+\.\d+$/.test(tag ?? "") || tag !== `v${version}`) {
+    throw new Error("Invalid release repository, tag, or version.");
+  }
+  const artifactPatterns = {
+    "windows-x86_64": /-setup\.exe$/,
+    "darwin-aarch64": /\.app\.tar\.gz$/,
+  };
   const merged = { ...manifests[0], platforms: {} };
   for (const manifest of manifests) {
     if (manifest.version !== version) throw new Error(`Updater version ${manifest.version} does not match ${version}.`);
@@ -37,16 +44,28 @@ export function mergeUpdaterManifests({ manifests, version, tag, repository, fil
       if (!expectedPlatforms.includes(platform) || merged.platforms[platform]) {
         throw new Error(`Unexpected or duplicate updater platform: ${platform}.`);
       }
-      if (!entry?.url || !entry?.signature?.trim()) throw new Error(`Updater entry is incomplete for ${platform}.`);
+      if (
+        typeof entry?.url !== "string" ||
+        typeof entry?.signature !== "string" ||
+        !entry.signature.trim()
+      ) {
+        throw new Error(`Updater entry is incomplete for ${platform}.`);
+      }
       const url = new URL(entry.url);
+      const encodedFilename = url.pathname.split("/").pop();
+      const filename = decodeURIComponent(encodedFilename);
       if (
         url.origin !== "https://github.com" ||
-        url.pathname !== `/${repository}/releases/download/${tag}/${url.pathname.split("/").pop()}` ||
-        !files.has(decodeURIComponent(url.pathname.split("/").pop()))
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        url.pathname !== `/${repository}/releases/download/${tag}/${encodedFilename}` ||
+        !artifactPatterns[platform].test(filename) ||
+        !files.has(filename)
       ) {
         throw new Error(`Updater URL is invalid or references a missing artifact for ${platform}.`);
       }
-      const filename = decodeURIComponent(url.pathname.split("/").pop());
       if (!files.has(`${filename}.sig`)) throw new Error(`Updater signature file is missing for ${platform}.`);
       entry.signature = entry.signature.trim();
       merged.platforms[platform] = entry;

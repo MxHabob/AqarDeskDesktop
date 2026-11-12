@@ -512,7 +512,9 @@ mod tests {
             config
                 .local_database_path(app_data_dir)
                 .expect("resolve local path"),
-            PathBuf::from("C:\\AqarDesk\\data\\db\\aqardesk.sqlite")
+            PathBuf::from("C:\\AqarDesk\\data")
+                .join("db")
+                .join("aqardesk.sqlite")
         );
     }
 }
