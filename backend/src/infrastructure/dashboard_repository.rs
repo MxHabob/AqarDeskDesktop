@@ -248,6 +248,7 @@ impl DashboardRepository for SeaOrmDashboardRepository {
         let contracts = property_dashboard_contract::Entity::find()
             .filter(property_dashboard_contract::Column::OrganizationId.eq(organization_id))
             .filter(property_dashboard_contract::Column::PropertyId.eq(property.id))
+            .filter(property_dashboard_contract::Column::Status.eq("active"))
             .order_by_desc(property_dashboard_contract::Column::Id)
             .all(&self.database)
             .await

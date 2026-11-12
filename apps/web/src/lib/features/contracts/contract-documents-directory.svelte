@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus, Printer } from '@lucide/svelte';
+	import { MoreHorizontal, Plus, Printer } from '@lucide/svelte';
 	import {
 		Button,
 		Sheet,
@@ -7,8 +7,17 @@
 		SheetFooter,
 		SheetHeader,
 		SheetTitle,
+		Input,
+		Textarea,
 		toast
 	} from '@aqardesk/ui';
+	import {
+		DropdownMenu,
+		DropdownMenuContent,
+		DropdownMenuItem,
+		DropdownMenuSeparator,
+		DropdownMenuTrigger
+	} from '@aqardesk/ui/components/ui/dropdown-menu';
 	import type { ContractDocument } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
@@ -34,6 +43,11 @@
 		canCreate?: boolean;
 		createDisabled?: boolean;
 		onCreate?: () => void;
+		onEditDraft?: (contract: ContractDocument) => void;
+		onIssueDraft?: (contract: ContractDocument) => Promise<boolean>;
+		onDeleteDraft?: (contract: ContractDocument) => Promise<boolean>;
+		onAmend?: (contract: ContractDocument) => void;
+		onEnd?: (contractId: string, effectiveDate: string, reason: string) => Promise<boolean>;
 	};
 
 	let {
@@ -44,12 +58,21 @@
 		selectedContract = null,
 		canCreate = false,
 		createDisabled = false,
-		onCreate
+		onCreate,
+		onEditDraft,
+		onIssueDraft,
+		onDeleteDraft,
+		onAmend,
+		onEnd
 	}: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	let selected = $state<ContractDocument | undefined>();
 	let viewerOpen = $state(false);
+	let endSheetOpen = $state(false);
+	let effectiveDate = $state('');
+	let endReason = $state('');
+	let ending = $state(false);
 
 	$effect(() => {
 		if (selectedContract) openContract(selectedContract);
@@ -61,6 +84,12 @@
 		{ id: 'property_name', header: m.properties_name(), width: 180 },
 		{ id: 'unit_number', header: m.contracts_select_unit(), width: 140 },
 		{ id: 'template_name', header: m.contracts_template(), width: 190 },
+		{
+			id: 'status',
+			header: m.contracts_status(),
+			width: 130,
+			accessor: (row) => contractStatusLabel(String(row.status ?? ''))
+		},
 		{ id: 'start_date', header: m.contracts_start_date(), width: 130 },
 		{ id: 'end_date', header: m.contracts_end_date(), width: 130 },
 		{
@@ -80,6 +109,17 @@
 			}
 		}
 	]);
+
+	function contractStatusLabel(status: string) {
+		switch (status) {
+			case 'draft': return m.contracts_status_draft();
+			case 'active': return m.contracts_status_active();
+			case 'amended': return m.contracts_status_amended();
+			case 'terminated': return m.contracts_status_terminated();
+			case 'cancelled': return m.contracts_status_cancelled();
+			default: return status;
+		}
+	}
 
 	function openContract(contract: ContractDocument | undefined) {
 		if (!contract) return;
@@ -151,6 +191,54 @@
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
 		}
+	}
+
+	async function issueDraft() {
+		if (!selected || !onIssueDraft) return;
+		if (await onIssueDraft(selected)) viewerOpen = false;
+	}
+
+	function editDraft() {
+		if (!selected || !onEditDraft) return;
+		onEditDraft(selected);
+		viewerOpen = false;
+	}
+
+	function startAmendment() {
+		if (!selected || !onAmend) return;
+		onAmend(selected);
+		viewerOpen = false;
+	}
+
+	async function deleteDraft() {
+		if (!selected || !onDeleteDraft) return;
+		if (!window.confirm(m.contracts_delete_draft_confirm())) return;
+		if (await onDeleteDraft(selected)) viewerOpen = false;
+	}
+
+	async function endContract() {
+		if (!selected || !onEnd) return;
+		if (!effectiveDate || !endReason.trim()) {
+			toast.error(m.contracts_end_required());
+			return;
+		}
+		ending = true;
+		try {
+			if (!(await onEnd(selected.id, effectiveDate, endReason.trim()))) return;
+			endSheetOpen = false;
+			viewerOpen = false;
+			effectiveDate = '';
+			endReason = '';
+		} finally {
+			ending = false;
+		}
+	}
+
+	function openEndSheet() {
+		effectiveDate = '';
+		endReason = '';
+		endSheetOpen = true;
+		viewerOpen = false;
 	}
 </script>
 
@@ -231,13 +319,63 @@
 					{/if}
 				</article>
 			</div>
-			<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+			<SheetFooter class="shrink-0 flex-row flex-wrap items-center justify-between gap-2 border-t border-border bg-popover px-4 py-3">
 				<Button variant="outline" onclick={() => (viewerOpen = false)}>{m.common_cancel()}</Button>
-				<Button onclick={printDocument}>
-					<Printer size={15} class="me-2" />
-					{m.contracts_print()}
-				</Button>
+				<DropdownMenu dir={rtl ? 'rtl' : 'ltr'}>
+					<DropdownMenuTrigger>
+						{#snippet child({ props }: { props: Record<string, unknown> })}
+							<Button {...props} variant="default" class="min-w-32">
+								<MoreHorizontal size={16} class="me-2" />
+								{m.contracts_actions()}
+							</Button>
+						{/snippet}
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" side="top" class="min-w-52">
+						{#if canCreate && selected.status === 'draft'}
+							<DropdownMenuItem onclick={editDraft}>{m.contracts_edit_draft()}</DropdownMenuItem>
+							<DropdownMenuItem onclick={issueDraft}>{m.contracts_issue_draft()}</DropdownMenuItem>
+							<DropdownMenuItem class="text-destructive focus:text-destructive" onclick={deleteDraft}>
+								{m.contracts_delete_draft()}
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+						{:else if canCreate && selected.status === 'active'}
+							<DropdownMenuItem onclick={startAmendment}>{m.contracts_amend()}</DropdownMenuItem>
+							<DropdownMenuItem class="text-destructive focus:text-destructive" onclick={openEndSheet}>
+								{m.contracts_end()}
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+						{/if}
+						<DropdownMenuItem onclick={printDocument}>
+							<Printer size={15} class="me-2" />
+							{m.contracts_print()}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</SheetFooter>
 		{/if}
+	</SheetContent>
+</Sheet>
+
+<Sheet bind:open={endSheetOpen}>
+	<SheetContent side="end" class="max-w-lg">
+		<SheetHeader class="shrink-0 px-4 py-4">
+			<SheetTitle>{m.contracts_end()}</SheetTitle>
+		</SheetHeader>
+		<div class="grid gap-4 p-4">
+			<label class="grid gap-2 text-sm" for="contract-end-effective-date">
+				<span>{m.contracts_end_date()}</span>
+				<Input id="contract-end-effective-date" type="date" bind:value={effectiveDate} />
+			</label>
+			<label class="grid gap-2 text-sm" for="contract-end-reason">
+				<span>{m.contracts_end_reason()}</span>
+				<Textarea id="contract-end-reason" bind:value={endReason} maxlength={1000} rows={4} />
+			</label>
+		</div>
+		<SheetFooter class="shrink-0 border-t border-border bg-popover px-4 py-3">
+			<Button variant="outline" onclick={() => (endSheetOpen = false)} disabled={ending}>{m.common_cancel()}</Button>
+			<Button variant="destructive" onclick={endContract} disabled={ending}>
+				{ending ? m.common_processing() : m.contracts_end()}
+			</Button>
+		</SheetFooter>
 	</SheetContent>
 </Sheet>

@@ -274,6 +274,7 @@ impl PaymentRepository for SeaOrmPaymentRepository {
         payment_contract::Entity::find()
             .filter(payment_contract::Column::OrganizationId.eq(organization_id.to_string()))
             .filter(payment_contract::Column::TenantId.eq(tenant_id.to_string()))
+            .filter(payment_contract::Column::Status.eq("active"))
             .order_by_asc(payment_contract::Column::ContractNumber)
             .all(&self.database)
             .await

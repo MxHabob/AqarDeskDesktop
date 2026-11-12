@@ -55,6 +55,10 @@ export type ContractDocument = {
 	document_style: ContractDocumentStyle;
 	created_by: string;
 	created_at: string;
+	status: 'draft' | 'active' | 'amended' | 'terminated' | 'cancelled';
+	status_reason: string | null;
+	status_effective_date: string | null;
+	parent_contract_id: string | null;
 };
 
 export type ContractDocumentStyle = {
@@ -72,6 +76,9 @@ export type ContractDocumentStyle = {
 };
 
 export type ContractDocumentInput = {
+	draft_id: string | null;
+	parent_contract_id: string | null;
+	status: 'draft' | 'active';
 	template_id: string;
 	tenant_id: string;
 	property_id: string;
@@ -81,6 +88,11 @@ export type ContractDocumentInput = {
 	currency_code: string;
 	rent_amount_minor: number;
 	deposit_amount_minor: number;
+};
+
+export type ContractEndInput = {
+	effective_date: string;
+	reason: string;
 };
 
 export type PaymentContract = {
@@ -330,6 +342,12 @@ export const desktopApi = {
 		invoke<PaymentContract[]>('platform_payments_contracts', { tenantId }),
 	createContractDocument: (input: ContractDocumentInput) =>
 		invoke<ContractDocument>('contract_documents_create', { input }),
+	deleteContractDraft: (contractId: string) =>
+		invoke<void>('contract_documents_delete_draft', { contractId }),
+	issueContractDraft: (contractId: string) =>
+		invoke<ContractDocument>('contract_documents_issue_draft', { contractId }),
+	endContract: (contractId: string, input: ContractEndInput) =>
+		invoke<ContractDocument>('contract_documents_end', { contractId, input }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	getPropertyDashboardSummary: (propertyId: string) =>
 		invoke<PropertyDashboardSummary>('dashboard_get_property_summary', { propertyId }),

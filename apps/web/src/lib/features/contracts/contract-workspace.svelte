@@ -66,6 +66,9 @@
 	let loadError = $state('');
 	let preparing = $state(false);
 	let builderOpen = $state(false);
+	let draftId = $state<string | null>(null);
+	let parentContractId = $state<string | null>(null);
+	let savingAsDraft = $state(false);
 	let currencyManuallySelected = $state(false);
 	const canViewContracts = $derived(
 		hasPermission(app.currentUser?.role, 'view_contracts', app.currentUser?.permissions)
@@ -426,6 +429,9 @@
 			const organizationId = app.currentUser?.organization_id;
 			if (!organizationId) throw new Error('The active organization is unavailable.');
 			const saved = await desktopApi.createContractDocument({
+				draft_id: draftId,
+				parent_contract_id: parentContractId,
+				status: savingAsDraft || draftId || parentContractId ? 'draft' : 'active',
 				template_id: input.templateId,
 				tenant_id: input.tenantId,
 				property_id: input.propertyId,
@@ -444,9 +450,83 @@
 			});
 			selectedContractForPreview = saved;
 			builderOpen = false;
+			draftId = null;
+			parentContractId = null;
+			savingAsDraft = false;
 			toast.success(m.contracts_saved());
 		} finally {
 			preparing = false;
+		}
+	}
+
+	function setFormFromContract(contract: ContractDocument, asAmendment: boolean) {
+		draftId = asAmendment ? null : contract.id;
+		parentContractId = asAmendment ? contract.id : contract.parent_contract_id;
+		const activeTemplateId = activeTemplates.some((template) => template.id === contract.template_id)
+			? contract.template_id
+			: activeTemplates[0]?.id ?? '';
+		form.setFieldValue('templateId', activeTemplateId);
+		form.setFieldValue('tenantId', contract.tenant_id);
+		form.setFieldValue('propertyId', contract.property_id);
+		form.setFieldValue('unitId', contract.unit_id);
+		form.setFieldValue('startDate', asAmendment ? localDateValue() : contract.start_date);
+		form.setFieldValue('endDate', contract.end_date);
+		form.setFieldValue('currencyCode', contract.currency_code);
+		currencyManuallySelected = true;
+		const scale = 10 ** contract.currency_decimal_digits;
+		form.setFieldValue('rentAmount', (contract.rent_amount_minor / scale).toFixed(contract.currency_decimal_digits));
+		form.setFieldValue('depositAmount', (contract.deposit_amount_minor / scale).toFixed(contract.currency_decimal_digits));
+		builderOpen = true;
+	}
+
+	async function refreshContractQueries(propertyIdToRefresh?: string) {
+		const organizationId = app.currentUser?.organization_id;
+		if (!organizationId) throw new Error('The active organization is unavailable.');
+		await queryClient.invalidateQueries({
+			queryKey: contractDocumentQueryKeys.pages(organizationId, propertyId)
+		});
+		if (propertyIdToRefresh) {
+			await queryClient.invalidateQueries({
+				queryKey: contractDocumentQueryKeys.property(organizationId, propertyIdToRefresh)
+			});
+		}
+	}
+
+	async function issueDraft(contract: ContractDocument): Promise<boolean> {
+		try {
+			await desktopApi.issueContractDraft(contract.id);
+			await refreshContractQueries(contract.property_id);
+			toast.success(m.contracts_draft_issued());
+			return true;
+		} catch (cause) {
+			app.setError(cause);
+			return false;
+		}
+	}
+
+	async function deleteDraft(contract: ContractDocument): Promise<boolean> {
+		try {
+			await desktopApi.deleteContractDraft(contract.id);
+			await refreshContractQueries(contract.property_id);
+			toast.success(m.contracts_draft_deleted());
+			return true;
+		} catch (cause) {
+			app.setError(cause);
+			return false;
+		}
+	}
+
+	async function endContract(contractId: string, effectiveDate: string, reason: string): Promise<boolean> {
+		try {
+			const contract = contractDocuments.find((item) => item.id === contractId);
+			if (!contract) throw new Error('The selected contract is no longer available.');
+			await desktopApi.endContract(contractId, { effective_date: effectiveDate, reason });
+			await refreshContractQueries(contract.property_id);
+			toast.success(m.contracts_end_saved());
+			return true;
+		} catch (cause) {
+			app.setError(cause);
+			return false;
 		}
 	}
 </script>
@@ -480,7 +560,17 @@
 			selectedContract={selectedContractForPreview}
 			canCreate={canCreateContracts}
 			createDisabled={!canStartContract}
-			onCreate={() => (builderOpen = true)}
+			onCreate={() => {
+				draftId = null;
+				parentContractId = null;
+				savingAsDraft = false;
+				builderOpen = true;
+			}}
+			onEditDraft={(contract) => setFormFromContract(contract, false)}
+			onIssueDraft={issueDraft}
+			onDeleteDraft={deleteDraft}
+			onAmend={(contract) => setFormFromContract(contract, true)}
+			onEnd={endContract}
 		/>
 		{#if canCreateContracts && activeTemplates.length === 0}
 			<div class="rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
@@ -790,8 +880,25 @@
 						>
 							{m.common_cancel()}
 						</Button>
+						{#if !draftId && !parentContractId}
+							<Button
+								type="button"
+								variant="outline"
+								disabled={isReadonly || preparing || !selectedCurrency}
+								onclick={() => {
+									savingAsDraft = true;
+									void form.handleSubmit();
+								}}
+							>
+								{m.contracts_save_draft()}
+							</Button>
+						{/if}
 						<Button type="submit" disabled={isReadonly || preparing || !selectedCurrency}>
-							{preparing ? m.common_processing() : m.contracts_generate()}
+							{preparing
+								? m.common_processing()
+								: draftId || parentContractId
+									? m.contracts_save_draft()
+									: m.contracts_generate()}
 						</Button>
 					</SheetFooter>
 				</form>

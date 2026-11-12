@@ -168,6 +168,7 @@ pub mod payment_contract {
         pub currency_code: String,
         pub currency_decimal_digits: i16,
         pub rent_amount_minor: i64,
+        pub status: String,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -208,6 +209,7 @@ pub mod property_dashboard_contract {
         pub currency_code: String,
         pub currency_decimal_digits: i16,
         pub rent_amount_minor: i64,
+        pub status: String,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

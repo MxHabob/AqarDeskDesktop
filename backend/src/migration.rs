@@ -14,6 +14,7 @@ mod m20261112_000009_operation_permissions;
 mod m20261112_000010_contract_permissions;
 mod m20261112_000011_contract_documents;
 mod m20261112_000012_payment_allocations;
+mod m20261112_000014_contract_lifecycle;
 mod m20261112_000013_contract_document_design;
 
 pub struct PlatformMigrator;
@@ -35,6 +36,7 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000010_contract_permissions::Migration),
             Box::new(m20261112_000011_contract_documents::Migration),
             Box::new(m20261112_000012_payment_allocations::Migration),
+            Box::new(m20261112_000014_contract_lifecycle::Migration),
             Box::new(m20261112_000013_contract_document_design::Migration),
         ]
     }
