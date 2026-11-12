@@ -7,11 +7,16 @@ export function normalizeUpdaterPublicKey(rawValue) {
   if (!rawValue?.trim()) {
     throw new Error("TAURI_UPDATER_PUBLIC_KEY is required for signed production releases.");
   }
-  let publicKey = rawValue.trim().replace(/\r\n/g, "\n");
-  if (!publicKey.startsWith("untrusted comment:")) {
-    const encoded = rawValue.trim().replace(/\s+/g, "");
+  const value = rawValue.trim();
+  let encoded;
+  let publicKey;
+  if (value.startsWith("untrusted comment:")) {
+    publicKey = value.replace(/\r\n/g, "\n");
+    encoded = Buffer.from(publicKey, "utf8").toString("base64");
+  } else {
+    encoded = value;
     if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
-      throw new Error("TAURI_UPDATER_PUBLIC_KEY must be a minisign public key or its base64 encoding.");
+      throw new Error("TAURI_UPDATER_PUBLIC_KEY must contain the Tauri-generated .pub key.");
     }
     const decoded = Buffer.from(encoded, "base64");
     if (decoded.toString("base64") !== encoded) throw new Error("TAURI_UPDATER_PUBLIC_KEY is not canonical base64.");
@@ -28,7 +33,7 @@ export function normalizeUpdaterPublicKey(rawValue) {
   ) {
     throw new Error("TAURI_UPDATER_PUBLIC_KEY is not a valid minisign public key.");
   }
-  return publicKey;
+  return encoded;
 }
 
 function prepare() {

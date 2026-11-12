@@ -88,9 +88,16 @@ test("rejects incomplete or conflicting updater metadata", () => {
 
 test("validates the public updater key before generating build configuration", () => {
   const key = Buffer.alloc(42, 1).toString("base64");
+  const minisignKey = `untrusted comment: release public key\n${key}`;
+  const tauriKey = Buffer.from(minisignKey).toString("base64");
   assert.equal(
-    normalizeUpdaterPublicKey(`untrusted comment: release public key\n${key}`),
-    `untrusted comment: release public key\n${key}`,
+    normalizeUpdaterPublicKey(tauriKey),
+    tauriKey,
   );
-  assert.throws(() => normalizeUpdaterPublicKey("not-a-minisign-key"), /minisign/);
+  assert.equal(
+    normalizeUpdaterPublicKey(minisignKey),
+    tauriKey,
+  );
+  assert.throws(() => normalizeUpdaterPublicKey(Buffer.from(tauriKey).toString("base64")), /valid minisign public key/);
+  assert.throws(() => normalizeUpdaterPublicKey("not-a-minisign-key"), /Tauri-generated \.pub key/);
 });

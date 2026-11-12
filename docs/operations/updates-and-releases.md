@@ -29,8 +29,9 @@ updater packages. The release tag must point to a commit reachable from `main`.
 
 Before the first release, configure these repository settings:
 
-- Variable `TAURI_UPDATER_PUBLIC_KEY`: the Minisign public key corresponding
-  to the updater signing key. It is injected into a temporary build config.
+- Variable `TAURI_UPDATER_PUBLIC_KEY`: the exact contents of the Tauri-generated
+  `.pub` file for the updater signing key. Do not base64-encode it again. It is
+  validated and injected into a temporary build config.
 - Secret `TAURI_SIGNING_PRIVATE_KEY`: the matching private signing key.
 - Secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: its password, or an empty value
   for an unencrypted key.
