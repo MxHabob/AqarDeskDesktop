@@ -159,7 +159,10 @@ function prepare() {
     ? bumpVersion(baseline, requested)
     : requested.replace(/^v/, "");
   parseVersion(nextVersion);
-  if (compareVersions(nextVersion, baseline) <= 0) {
+  const isInitialRelease = !taggedVersion
+    && !["patch", "minor", "major"].includes(requested)
+    && compareVersions(nextVersion, currentVersions.package) === 0;
+  if (compareVersions(nextVersion, baseline) <= 0 && !isInitialRelease) {
     throw new Error(`New version ${nextVersion} must be greater than current/latest version ${baseline}.`);
   }
 

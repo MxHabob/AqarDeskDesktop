@@ -81,6 +81,13 @@ test("prepares a release in a clean repository and synchronizes all app versions
     runGit("add", ".");
     runGit("commit", "--quiet", "-m", "feat: add release preparation");
 
+    execFileSync(process.execPath, ["scripts/prepare-release.mjs", "1.0.0"], { cwd: root });
+    assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/package.json"), "utf8")).version, "1.0.0");
+    assert.match(readFileSync(path.join(root, "releases/v1.0.0.md"), "utf8"), /add release preparation/);
+
+    runGit("add", ".");
+    runGit("commit", "--quiet", "-m", "docs: add initial release notes");
+    runGit("tag", "v1.0.0");
     execFileSync(process.execPath, ["scripts/prepare-release.mjs", "patch"], { cwd: root });
 
     assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/package.json"), "utf8")).version, "1.0.1");
@@ -88,7 +95,7 @@ test("prepares a release in a clean repository and synchronizes all app versions
     assert.match(readFileSync(path.join(root, "Cargo.lock"), "utf8"), /version = "1\.0\.1"/);
     assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.conf.json"), "utf8")).version, "1.0.1");
     assert.equal(JSON.parse(readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.dev.conf.json"), "utf8")).version, "1.0.1");
-    assert.match(readFileSync(path.join(root, "releases/v1.0.1.md"), "utf8"), /add release preparation/);
+    assert.match(readFileSync(path.join(root, "releases/v1.0.1.md"), "utf8"), /Add user-facing changes/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
