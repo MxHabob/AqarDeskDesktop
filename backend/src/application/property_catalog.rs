@@ -20,10 +20,12 @@ impl<R: PropertyRepository> PropertyCatalog<R> {
     pub async fn create(
         &self,
         actor: ActorContext,
-        input: PropertyInput,
+        mut input: PropertyInput,
     ) -> Result<Property, ApplicationError> {
         require_permission(actor, Permission::CreateProperties)?;
-        let property = Property::create(PropertyId::new(), actor.organization_id(), input)?;
+        let id = PropertyId::new();
+        input.code = generated_property_code(id);
+        let property = Property::create(id, actor.organization_id(), input)?;
         self.properties.insert(property, actor.user_id()).await
     }
 
@@ -31,9 +33,10 @@ impl<R: PropertyRepository> PropertyCatalog<R> {
         &self,
         actor: ActorContext,
         property_id: PropertyId,
-        input: PropertyInput,
+        mut input: PropertyInput,
     ) -> Result<Property, ApplicationError> {
         require_permission(actor, Permission::UpdateProperties)?;
+        input.code = generated_property_code(property_id);
         let property = Property::create(property_id, actor.organization_id(), input)?;
         self.properties.update(property, actor.user_id()).await
     }
@@ -48,4 +51,9 @@ impl<R: PropertyRepository> PropertyCatalog<R> {
             .archive(actor.organization_id(), property_id, actor.user_id())
             .await
     }
+}
+
+fn generated_property_code(id: PropertyId) -> String {
+    let compact_id = id.as_uuid().simple().to_string();
+    format!("PR-{}", &compact_id[..29])
 }

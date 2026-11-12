@@ -123,7 +123,7 @@
 	});
 	const schema = z.object({
 		name: z.string().trim().min(1, m.properties_name()),
-		code: z.string().trim().min(1, m.properties_code()),
+		code: z.string(),
 		property_type: z.enum([
 			'residential',
 			'commercial',
@@ -280,7 +280,13 @@
 		<form.Field name="code">
 			{#snippet children(field)}
 				<FormField label={m.properties_code()} id="property-code" error={getFieldError(field.state.meta.errors)}>
-					<Input id="property-code" value={field.state.value} oninput={(event) => field.handleChange(event.currentTarget.value)} onblur={field.handleBlur} dir="ltr" />
+					<Input
+						id="property-code"
+						value={initial?.code ?? field.state.value}
+						readonly
+						placeholder={initial ? undefined : m.properties_code_generated()}
+						dir="ltr"
+					/>
 				</FormField>
 			{/snippet}
 		</form.Field>

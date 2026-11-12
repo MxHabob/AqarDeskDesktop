@@ -594,6 +594,7 @@
 	"properties_empty": "لا توجد عقارات لعرضها.",
 	"properties_name": "اسم العقار",
 	"properties_code": "رمز العقار",
+	"properties_code_generated": "يُنشأ تلقائياً عند الحفظ",
 	"properties_type": "نوع العقار",
 	"properties_type_residential": "سكني",
 	"properties_type_commercial": "محلات تجارية",

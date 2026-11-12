@@ -183,8 +183,8 @@ impl PropertyRepository for SeaOrmPropertyRepository {
             .map_err(persistence_error)?
             .ok_or(ApplicationError::NotFound)?;
         let input = &property.input;
+        let existing_code = existing.code.clone();
         let mut active = existing.into_active_model();
-        active.code = Set(input.code.clone());
         active.name = Set(input.name.clone());
         active.property_type = Set(input.property_type.as_str().to_string());
         active.description = Set(input.description.clone());
@@ -225,7 +225,7 @@ impl PropertyRepository for SeaOrmPropertyRepository {
             "updated",
             "property",
             &property.id.to_string(),
-            serde_json::json!({"code": property.input.code}),
+            serde_json::json!({"code": existing_code}),
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
@@ -658,7 +658,9 @@ mod tests {
             .await
             .expect("create property");
 
-        assert_eq!(created.input.code, "APT-1");
+        assert!(created.input.code.starts_with("PR-"));
+        assert_eq!(created.input.code.len(), 32);
+        assert_ne!(created.input.code, "APT-1");
         assert_eq!(created.input.name, "Residence");
         assert_eq!(catalog.list(actor).await.expect("list").len(), 1);
         assert!(
@@ -757,6 +759,7 @@ mod tests {
             .clone()
             .expect("stored owner identifier");
         let mut updated_input = created.input.clone();
+        updated_input.code = "MANUALLY-CHANGED".to_string();
         updated_input.owners[0].name = "Updated owner".to_string();
         updated_input.owners[0].ownership_share_percent = Some(Decimal::from(75));
         updated_input.owners.truncate(1);
@@ -765,6 +768,7 @@ mod tests {
             .await
             .expect("update owner details");
 
+        assert_eq!(updated.input.code, created.input.code);
         assert_eq!(
             updated.input.owners[0].id.as_deref(),
             Some(owner_id.as_str())

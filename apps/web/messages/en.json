@@ -594,6 +594,7 @@
 	"properties_empty": "There are no properties to display.",
 	"properties_name": "Property name",
 	"properties_code": "Property code",
+	"properties_code_generated": "Generated automatically when saved",
 	"properties_type": "Property type",
 	"properties_type_residential": "Residential",
 	"properties_type_commercial": "Commercial properties",
