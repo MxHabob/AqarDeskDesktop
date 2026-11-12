@@ -196,7 +196,7 @@ export function createAppContext() {
 		}
 	}
 
-	async function addUser(input: { name: string; email: string; password: string; role: string }) {
+	async function addUser(input: { name: string; email: string; password: string; role_id: string }) {
 		busy = true;
 		clearMessages();
 		try {

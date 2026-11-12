@@ -7,6 +7,7 @@
 	} from '@lucide/svelte';
 	import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@aqardesk/ui';
 	import * as m from '#lib/paraglide/messages';
+	import { canViewBusinessView } from '#lib/features/auth/permissions';
 	import { getHtmlDirection, getInlineEndSide } from '#lib/core/i18n/direction';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from '#lib/shell/navigation';
@@ -27,13 +28,13 @@
 	let { active, currentUser, organizationName, onSelect, onLogout }: Props = $props();
 	const tooltipSide = $derived(getInlineEndSide(getHtmlDirection()));
 
-	const links = [
+	const allLinks = [
 		{ key: 'overview', label: m.nav_overview(), icon: LayoutDashboard, active: ['overview'] },
 		{
 			key: 'properties',
 			label: m.nav_properties(),
 			icon: Building2,
-			active: ['properties', 'units', 'tenants']
+			active: ['properties', 'units', 'tenants', 'owners']
 		},
 		{
 			key: 'contracts',
@@ -48,6 +49,14 @@
 			active: ['users', 'settings', 'account']
 		}
 	] satisfies { key: ViewKey; label: string; icon: typeof Building2; active: string[] }[];
+	const links = $derived(
+		allLinks.filter((item) =>
+			item.key !== 'properties' ||
+			(['properties', 'units', 'tenants', 'owners'] as const).some(
+				(view) => canViewBusinessView(currentUser.role, view, currentUser.permissions)
+			)
+		)
+	);
 </script>
 
 <TooltipProvider delayDuration={150}>

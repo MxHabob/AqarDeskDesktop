@@ -15,6 +15,7 @@
 	import type { CurrencySettings, OrganizationSettings, OrganizationSettingsInput } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission } from '#lib/features/auth/permissions';
 	import CurrencySelector from '#lib/features/settings/currency-selector.svelte';
 	import ConnectionSettingsCard from '#lib/features/settings/connection-settings-card.svelte';
 	import LanguageSettingsCard from '#lib/features/settings/language-settings-card.svelte';
@@ -25,7 +26,9 @@
 
 	const app = getAppContext();
 	const timeZones = ['UTC', ...Intl.supportedValuesOf('timeZone')];
-	const canEditOrganization = $derived(app.currentUser?.role === 'admin');
+	const canEditOrganization = $derived(
+		hasPermission(app.currentUser?.role, 'manage_administration', app.currentUser?.permissions)
+	);
 	let saved = $state<OrganizationSettings | null>(null);
 	let currencies = $state<CurrencySettings[]>([]);
 	let draft = $state<OrganizationSettingsInput>({

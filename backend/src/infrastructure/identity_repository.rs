@@ -2,11 +2,17 @@ use crate::{
     application::{
         ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
     },
-    domain::{AccessRole, Organization, OrganizationId, UserAccount, UserId},
+    domain::{
+        AccessRole, Organization, OrganizationId, Permission, RolePermissionSet, UserAccount,
+        UserId,
+    },
     infrastructure::{
         audit,
         contract_template_repository::seed_onboarding_templates,
-        models::{installation, organization, organization_currency, user},
+        models::{
+            installation, organization, organization_currency, organization_role, role_permission,
+            user,
+        },
     },
 };
 use argon2::{
@@ -36,6 +42,204 @@ impl SeaOrmIdentityRepository {
 
 #[async_trait::async_trait]
 impl IdentityRepository for SeaOrmIdentityRepository {
+    async fn list_role_permissions(
+        &self,
+        organization_id: OrganizationId,
+    ) -> Result<Vec<RolePermissionSet>, ApplicationError> {
+        load_role_permissions(&self.database, organization_id).await
+    }
+
+    async fn update_role_permissions(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        role_id: &str,
+        permissions: Vec<Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let role = organization_role::Entity::find()
+            .filter(organization_role::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(organization_role::Column::RoleId.eq(role_id))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        if role.system_role.as_deref() == Some("admin") {
+            return Err(crate::domain::DomainError::Validation(
+                "Administrator permissions are fixed and cannot be changed.",
+            )
+            .into());
+        }
+        role_permission::Entity::delete_many()
+            .filter(role_permission::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(role_permission::Column::RoleId.eq(role_id))
+            .exec(&transaction)
+            .await
+            .map_err(persistence_error)?;
+
+        let now = Utc::now();
+        for permission in editable_permissions() {
+            role_permission::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                role_id: Set(role_id.to_string()),
+                permission_code: Set(permission.as_str().to_string()),
+                is_enabled: Set(permissions.contains(&permission)),
+                updated_at: Set(now),
+                updated_by: Set(Some(actor_id.to_string())),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        }
+
+        audit::record(
+            &transaction,
+            &organization_id.to_string(),
+            &actor_id.to_string(),
+            "updated",
+            "role_permissions",
+            role_id,
+            serde_json::json!({
+                "role_id": role_id,
+                "permissions": permissions.iter().map(|permission| permission.as_str()).collect::<Vec<_>>()
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)?;
+
+        let role_permissions = load_role_permissions(&self.database, organization_id).await?;
+        role_permissions
+            .into_iter()
+            .find(|set| set.role_id == role_id)
+            .ok_or(ApplicationError::Persistence)
+    }
+
+    async fn create_role(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        name: &str,
+        permissions: Vec<Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError> {
+        let permissions = editable_permissions()
+            .into_iter()
+            .filter(|permission| permissions.contains(permission))
+            .collect::<Vec<_>>();
+        let normalized_name = name.trim().to_lowercase();
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        if organization_role::Entity::find()
+            .filter(organization_role::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(organization_role::Column::NormalizedName.eq(&normalized_name))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .is_some()
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "A role with this name already exists.",
+            )
+            .into());
+        }
+        let role_id = uuid::Uuid::new_v4().to_string();
+        organization_role::ActiveModel {
+            organization_id: Set(organization_id.to_string()),
+            role_id: Set(role_id.clone()),
+            name: Set(name.trim().to_string()),
+            normalized_name: Set(normalized_name),
+            is_system: Set(false),
+            system_role: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
+        .insert(&transaction)
+        .await
+        .map_err(persistence_error)?;
+        let now = Utc::now();
+        for permission in editable_permissions() {
+            role_permission::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                role_id: Set(role_id.clone()),
+                permission_code: Set(permission.as_str().to_string()),
+                is_enabled: Set(permissions.contains(&permission)),
+                updated_at: Set(now),
+                updated_by: Set(Some(actor_id.to_string())),
+            }
+            .insert(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        }
+        audit::record(
+            &transaction,
+            &organization_id.to_string(),
+            &actor_id.to_string(),
+            "created",
+            "role",
+            &role_id,
+            serde_json::json!({
+                "name": name.trim(),
+                "permissions": permissions.iter().map(|permission| permission.as_str()).collect::<Vec<_>>()
+            }),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)?;
+        Ok(RolePermissionSet {
+            role_id,
+            name: name.trim().to_string(),
+            is_system: false,
+            system_role: None,
+            permissions,
+        })
+    }
+
+    async fn delete_role(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        role_id: &str,
+    ) -> Result<(), ApplicationError> {
+        let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let role = organization_role::Entity::find()
+            .filter(organization_role::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(organization_role::Column::RoleId.eq(role_id))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .ok_or(ApplicationError::NotFound)?;
+        if role.is_system {
+            return Err(
+                crate::domain::DomainError::Validation("System roles cannot be deleted.").into(),
+            );
+        }
+        if user::Entity::find()
+            .filter(user::Column::OrganizationId.eq(organization_id.to_string()))
+            .filter(user::Column::RoleId.eq(role_id))
+            .one(&transaction)
+            .await
+            .map_err(persistence_error)?
+            .is_some()
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "A role assigned to users cannot be deleted.",
+            )
+            .into());
+        }
+        organization_role::Entity::delete_by_id((organization_id.to_string(), role_id.to_string()))
+            .exec(&transaction)
+            .await
+            .map_err(persistence_error)?;
+        audit::record(
+            &transaction,
+            &organization_id.to_string(),
+            &actor_id.to_string(),
+            "deleted",
+            "role",
+            role_id,
+            serde_json::json!({"name": role.name}),
+        )
+        .await?;
+        transaction.commit().await.map_err(persistence_error)
+    }
+
     async fn has_users(&self) -> Result<bool, ApplicationError> {
         let count = user::Entity::find()
             .count(&self.database)
@@ -95,6 +299,7 @@ impl IdentityRepository for SeaOrmIdentityRepository {
         .insert(&transaction)
         .await
         .map_err(persistence_error)?;
+        seed_system_roles(&transaction, organization_id, now).await?;
         let user_model = insert_user(
             &transaction,
             organization_id,
@@ -102,6 +307,7 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             input.email,
             input.password,
             AccessRole::Admin,
+            AccessRole::Admin.as_str(),
             now,
         )
         .await?;
@@ -209,7 +415,8 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .update(&self.database)
             .await
             .map_err(persistence_error)?;
-        restore_user(model)
+        let user = restore_user(model)?;
+        hydrate_user_permissions(&self.database, user).await
     }
 
     async fn get_active_user(
@@ -221,7 +428,15 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .one(&self.database)
             .await
             .map_err(persistence_error)?;
-        model.map(restore_user).transpose()
+        match model {
+            Some(model) => {
+                let user = restore_user(model)?;
+                hydrate_user_permissions(&self.database, user)
+                    .await
+                    .map(Some)
+            }
+            None => Ok(None),
+        }
     }
 
     async fn list_users(
@@ -234,7 +449,24 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .all(&self.database)
             .await
             .map_err(persistence_error)?;
-        models.into_iter().map(restore_user).collect()
+        let mut users = models
+            .into_iter()
+            .map(restore_user)
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some(first) = users.first() {
+            let policies = load_role_permissions(&self.database, first.organization_id).await?;
+            for user in &mut users {
+                if let Some(policy) = policies
+                    .iter()
+                    .find(|policy| policy.role_id == user.role_id)
+                {
+                    user.permissions = policy.permissions.clone();
+                    user.role_name = (!policy.is_system).then(|| policy.name.clone());
+                    user.role = policy.system_role.unwrap_or(AccessRole::Staff);
+                }
+            }
+        }
+        Ok(users)
     }
 
     async fn create_user(
@@ -257,13 +489,18 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             .into());
         }
         let transaction = self.database.begin().await.map_err(persistence_error)?;
+        let role = find_role(&transaction, organization_id, input.role_id).await?;
         let model = insert_user(
             &transaction,
             organization_id,
             input.name,
             &email,
             input.password,
-            input.role,
+            role.system_role
+                .as_deref()
+                .and_then(AccessRole::parse)
+                .unwrap_or(AccessRole::Staff),
+            input.role_id,
             Utc::now(),
         )
         .await?;
@@ -274,11 +511,12 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             "created",
             "user",
             &model.id,
-            serde_json::json!({"role": input.role.as_str()}),
+            serde_json::json!({"role_id": input.role_id}),
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
-        restore_user(model)
+        let user = restore_user(model)?;
+        hydrate_user_permissions(&self.database, user).await
     }
 
     async fn set_user_active(
@@ -317,7 +555,8 @@ impl IdentityRepository for SeaOrmIdentityRepository {
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
-        restore_user(model)
+        let user = restore_user(model)?;
+        hydrate_user_permissions(&self.database, user).await
     }
 
     async fn update_user(
@@ -352,7 +591,14 @@ impl IdentityRepository for SeaOrmIdentityRepository {
         let mut active = model.into_active_model();
         active.full_name = Set(input.name.trim().to_string());
         active.email = Set(email);
-        active.access_role = Set(input.role.as_str().to_string());
+        let role = find_role(&transaction, organization_id, input.role_id).await?;
+        let base_role = role
+            .system_role
+            .as_deref()
+            .and_then(AccessRole::parse)
+            .unwrap_or(AccessRole::Staff);
+        active.access_role = Set(base_role.as_str().to_string());
+        active.role_id = Set(input.role_id.to_string());
         active.updated_at = Set(Utc::now());
         if let Some(password) = input.password {
             active.password_hash = Set(hash_password(password)?);
@@ -371,14 +617,66 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             "user",
             &user_id.to_string(),
             serde_json::json!({
-                "role": input.role.as_str(),
+                "role_id": input.role_id,
                 "password_changed": input.password.is_some()
             }),
         )
         .await?;
         transaction.commit().await.map_err(persistence_error)?;
-        restore_user(model)
+        let user = restore_user(model)?;
+        hydrate_user_permissions(&self.database, user).await
     }
+}
+
+async fn find_role<C: sea_orm::ConnectionTrait>(
+    connection: &C,
+    organization_id: OrganizationId,
+    role_id: &str,
+) -> Result<organization_role::Model, ApplicationError> {
+    organization_role::Entity::find()
+        .filter(organization_role::Column::OrganizationId.eq(organization_id.to_string()))
+        .filter(organization_role::Column::RoleId.eq(role_id))
+        .one(connection)
+        .await
+        .map_err(persistence_error)?
+        .ok_or(ApplicationError::NotFound)
+}
+
+async fn seed_system_roles(
+    transaction: &sea_orm::DatabaseTransaction,
+    organization_id: OrganizationId,
+    now: chrono::DateTime<Utc>,
+) -> Result<(), ApplicationError> {
+    for role in [AccessRole::Admin, AccessRole::Staff, AccessRole::Readonly] {
+        organization_role::ActiveModel {
+            organization_id: Set(organization_id.to_string()),
+            role_id: Set(role.as_str().to_string()),
+            name: Set(role.as_str().to_string()),
+            normalized_name: Set(role.as_str().to_string()),
+            is_system: Set(true),
+            system_role: Set(Some(role.as_str().to_string())),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await
+        .map_err(persistence_error)?;
+
+        for permission in editable_permissions() {
+            role_permission::ActiveModel {
+                organization_id: Set(organization_id.to_string()),
+                role_id: Set(role.as_str().to_string()),
+                permission_code: Set(permission.as_str().to_string()),
+                is_enabled: Set(role.default_permissions().contains(&permission)),
+                updated_at: Set(now),
+                updated_by: Set(None),
+            }
+            .insert(transaction)
+            .await
+            .map_err(persistence_error)?;
+        }
+    }
+    Ok(())
 }
 
 async fn insert_user(
@@ -388,6 +686,7 @@ async fn insert_user(
     email: &str,
     password: &str,
     role: AccessRole,
+    role_id: &str,
     now: chrono::DateTime<Utc>,
 ) -> Result<user::Model, ApplicationError> {
     let password_hash = hash_password(password)?;
@@ -398,6 +697,7 @@ async fn insert_user(
         email: Set(email.trim().to_ascii_lowercase()),
         password_hash: Set(password_hash),
         access_role: Set(role.as_str().to_string()),
+        role_id: Set(role_id.to_string()),
         is_active: Set(true),
         failed_login_attempts: Set(0),
         locked_until: Set(None),
@@ -453,9 +753,106 @@ fn restore_user(model: user::Model) -> Result<UserAccount, ApplicationError> {
         name: model.full_name,
         email: model.email,
         role,
+        role_id: model.role_id,
+        role_name: None,
+        permissions: role.default_permissions(),
         is_active: model.is_active,
         created_at: model.created_at,
     })
+}
+
+async fn hydrate_user_permissions<C: sea_orm::ConnectionTrait>(
+    database: &C,
+    mut user: UserAccount,
+) -> Result<UserAccount, ApplicationError> {
+    let policies = load_role_permissions(database, user.organization_id).await?;
+    let policy = policies
+        .into_iter()
+        .find(|policy| policy.role_id == user.role_id)
+        .ok_or(ApplicationError::Persistence)?;
+    user.permissions = policy.permissions;
+    user.role_name = (!policy.is_system).then(|| policy.name.clone());
+    user.role = policy.system_role.unwrap_or(AccessRole::Staff);
+    Ok(user)
+}
+
+async fn load_role_permissions<C: sea_orm::ConnectionTrait>(
+    database: &C,
+    organization_id: OrganizationId,
+) -> Result<Vec<RolePermissionSet>, ApplicationError> {
+    let roles = organization_role::Entity::find()
+        .filter(organization_role::Column::OrganizationId.eq(organization_id.to_string()))
+        .order_by_desc(organization_role::Column::IsSystem)
+        .order_by_asc(organization_role::Column::Name)
+        .all(database)
+        .await
+        .map_err(persistence_error)?;
+    let mut policies = roles
+        .into_iter()
+        .map(|role| {
+            let system_role = role.system_role.as_deref().and_then(AccessRole::parse);
+            let mut permissions = system_role
+                .map(AccessRole::default_permissions)
+                .unwrap_or_default();
+            if system_role == Some(AccessRole::Admin)
+                && !permissions.contains(&Permission::ManageAdministration)
+            {
+                permissions.push(Permission::ManageAdministration);
+            }
+            RolePermissionSet {
+                role_id: role.role_id,
+                name: role.name,
+                is_system: role.is_system,
+                system_role,
+                permissions,
+            }
+        })
+        .collect::<Vec<_>>();
+    let models = role_permission::Entity::find()
+        .filter(role_permission::Column::OrganizationId.eq(organization_id.to_string()))
+        .all(database)
+        .await
+        .map_err(persistence_error)?;
+
+    for model in models {
+        let permission = Permission::parse(&model.permission_code).ok_or_else(|| {
+            tracing::error!(permission = %model.permission_code, "Persisted role permission is invalid");
+            ApplicationError::Persistence
+        })?;
+        let policy = policies
+            .iter_mut()
+            .find(|policy| policy.role_id == model.role_id)
+            .ok_or_else(|| {
+                tracing::error!(role_id = %model.role_id, "Persisted role permission references a missing role");
+                ApplicationError::Persistence
+            })?;
+        policy
+            .permissions
+            .retain(|candidate| *candidate != permission);
+        if model.is_enabled {
+            policy.permissions.push(permission);
+        }
+    }
+
+    for policy in &mut policies {
+        let is_admin = policy.system_role == Some(AccessRole::Admin);
+        policy.permissions = editable_permissions()
+            .into_iter()
+            .filter(|permission| policy.permissions.contains(permission))
+            .collect();
+        if is_admin
+            && !policy
+                .permissions
+                .contains(&Permission::ManageAdministration)
+        {
+            policy.permissions.push(Permission::ManageAdministration);
+        }
+    }
+    Ok(policies)
+}
+
+fn editable_permissions() -> [Permission; 18] {
+    Permission::BUSINESS
 }
 
 fn restore_organization(model: organization::Model) -> Result<Organization, ApplicationError> {
@@ -625,6 +1022,71 @@ mod tests {
             .expect("login");
         let actor =
             crate::domain::ActorContext::new(authenticated.id, organization.id, authenticated.role);
+        let role_permissions = service
+            .list_role_permissions(actor)
+            .await
+            .expect("list role permissions");
+        assert_eq!(
+            role_permissions
+                .iter()
+                .find(|policy| policy.role_id == "staff")
+                .expect("staff permissions")
+                .permissions,
+            AccessRole::Staff.default_permissions()
+        );
+        service
+            .update_role_permissions(actor, "staff", vec![Permission::ViewProperties])
+            .await
+            .expect("save staff permissions");
+        let sales_role = service
+            .create_role(
+                actor,
+                "Sales",
+                vec![
+                    Permission::ViewPayments,
+                    Permission::ViewTenants,
+                    Permission::RecordPayments,
+                ],
+            )
+            .await
+            .expect("create custom sales role");
+        assert_eq!(
+            sales_role.permissions,
+            vec![
+                Permission::ViewTenants,
+                Permission::ViewPayments,
+                Permission::RecordPayments
+            ]
+        );
+        let sales_user = service
+            .create_user(
+                actor,
+                NewUser {
+                    name: "Sales",
+                    email: "sales@example.com",
+                    password: "another-secure-password",
+                    role_id: &sales_role.role_id,
+                },
+            )
+            .await
+            .expect("create sales user");
+        assert_eq!(sales_user.role_name.as_deref(), Some("Sales"));
+        assert_eq!(
+            sales_user.permissions,
+            vec![
+                Permission::ViewTenants,
+                Permission::ViewPayments,
+                Permission::RecordPayments
+            ]
+        );
+        let sales_actor = crate::domain::ActorContext::with_permissions(
+            sales_user.id,
+            sales_user.organization_id,
+            sales_user.role,
+            sales_user.permissions.clone(),
+        );
+        assert!(sales_actor.has_permission(Permission::RecordPayments));
+        assert!(!sales_actor.has_permission(Permission::ViewProperties));
         let created = service
             .create_user(
                 actor,
@@ -632,7 +1094,7 @@ mod tests {
                     name: "Read Only",
                     email: "readonly@example.com",
                     password: "another-secure-password",
-                    role: AccessRole::Readonly,
+                    role_id: "readonly",
                 },
             )
             .await
@@ -646,7 +1108,7 @@ mod tests {
                     name: "Updated Read Only",
                     email: "updated-readonly@example.com",
                     password: Some("updated-secure-password"),
-                    role: AccessRole::Staff,
+                    role_id: "staff",
                 },
             )
             .await
@@ -654,6 +1116,27 @@ mod tests {
         assert_eq!(updated.name, "Updated Read Only");
         assert_eq!(updated.email, "updated-readonly@example.com");
         assert_eq!(updated.role, AccessRole::Staff);
+        assert_eq!(updated.permissions, vec![Permission::ViewProperties]);
+        assert!(
+            !crate::domain::ActorContext::with_permissions(
+                updated.id,
+                updated.organization_id,
+                updated.role,
+                updated.permissions.clone(),
+            )
+            .has_permission(Permission::RecordPayments)
+        );
+        assert_eq!(
+            service
+                .list_role_permissions(actor)
+                .await
+                .expect("read saved role permissions")
+                .into_iter()
+                .find(|policy| policy.role_id == "staff")
+                .expect("saved staff permissions")
+                .permissions,
+            vec![Permission::ViewProperties]
+        );
         assert_eq!(
             service
                 .login("updated-readonly@example.com", "updated-secure-password")
@@ -671,7 +1154,7 @@ mod tests {
                         name: "Duplicate",
                         email: "admin@example.com",
                         password: None,
-                        role: AccessRole::Staff,
+                        role_id: "staff",
                     },
                 )
                 .await
@@ -680,7 +1163,13 @@ mod tests {
         );
         assert_eq!(
             service.list_users(actor).await.expect("list users").len(),
-            2
+            3
+        );
+        assert!(
+            service
+                .delete_role(actor, &sales_role.role_id)
+                .await
+                .is_err()
         );
         service
             .set_user_active(actor, created.id, false)

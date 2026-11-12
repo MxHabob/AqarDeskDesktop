@@ -1,6 +1,6 @@
 use crate::{
-    application::{ApplicationError, require_write},
-    domain::{ActorContext, OrganizationId, Payment, PaymentId, PaymentInput},
+    application::{ApplicationError, require_permission},
+    domain::{ActorContext, OrganizationId, Payment, PaymentId, PaymentInput, Permission},
 };
 
 #[async_trait::async_trait]
@@ -28,6 +28,7 @@ impl<R: PaymentRepository> PaymentLedger<R> {
     }
 
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Payment>, ApplicationError> {
+        require_permission(actor, Permission::ViewPayments)?;
         self.payments.list(actor.organization_id()).await
     }
 
@@ -36,7 +37,7 @@ impl<R: PaymentRepository> PaymentLedger<R> {
         actor: ActorContext,
         input: PaymentInput,
     ) -> Result<Payment, ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::RecordPayments)?;
         let payment = Payment::record(
             PaymentId::new(),
             actor.organization_id(),
@@ -51,7 +52,7 @@ impl<R: PaymentRepository> PaymentLedger<R> {
         actor: ActorContext,
         payment_id: PaymentId,
     ) -> Result<(), ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::VoidPayments)?;
         self.payments
             .void(actor.organization_id(), actor.user_id(), payment_id)
             .await

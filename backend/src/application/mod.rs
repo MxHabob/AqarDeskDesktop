@@ -7,6 +7,8 @@ mod errors;
 mod identity_management;
 mod identity_port;
 mod organization_settings;
+mod owner_directory;
+mod owner_port;
 mod payment_ledger;
 mod profile;
 mod property_catalog;
@@ -35,6 +37,8 @@ pub use organization_settings::{
     OrganizationSettings, OrganizationSettingsInput, OrganizationSettingsRepository,
     OrganizationSettingsService,
 };
+pub use owner_directory::OwnerDirectory;
+pub use owner_port::OwnerRepository;
 pub use payment_ledger::{PaymentLedger, PaymentRepository};
 pub use profile::{ProfileRepository, ProfileService, ProfileSettings, ProfileSettingsInput};
 pub use property_catalog::PropertyCatalog;
@@ -44,4 +48,4 @@ pub use tenant_port::TenantRepository;
 pub use unit_catalog::UnitCatalog;
 pub use unit_port::UnitRepository;
 
-pub(crate) use authorization::{require_admin, require_write};
+pub(crate) use authorization::{require_admin, require_permission};

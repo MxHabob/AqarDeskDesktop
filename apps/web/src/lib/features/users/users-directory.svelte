@@ -5,6 +5,7 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
 	import { formatGridCell } from '#lib/core/i18n';
+	import { isPermission, permissionLabel } from '#lib/features/auth/permissions';
 	import { AqarDeskGrid, type GridActionEvent, type AqarDeskColumnDef } from '@aqardesk/svelte-grid';
 
 	type Props = {
@@ -25,12 +26,18 @@
 		{
 			id: 'role',
 			header: m.users_role(),
-			type: 'enum',
-			options: [
-				{ value: 'admin', label: m.users_role_admin() },
-				{ value: 'staff', label: m.users_role_staff() },
-				{ value: 'readonly', label: m.users_role_readonly() }
-			]
+			accessor: (row: Record<string, unknown>) => {
+				if (typeof row.role_name === 'string') return row.role_name;
+				if (row.role === 'admin') return m.users_role_admin();
+				if (row.role === 'readonly') return m.users_role_readonly();
+				return m.users_role_staff();
+			}
+		},
+		{
+			id: 'permissions',
+			header: m.settings_permissions(),
+			width: 280,
+			accessor: (row: Record<string, unknown>) => formatPermissions(row.permissions)
 		},
 		{
 			id: 'status',
@@ -86,6 +93,14 @@
 		} else if (event.actionId === 'activate' || event.actionId === 'deactivate') {
 			onToggle(user);
 		}
+	}
+
+	function formatPermissions(value: unknown): string {
+		if (!Array.isArray(value)) return '';
+		return value
+			.map((permission: unknown) => isPermission(permission) ? permissionLabel(permission) : '')
+			.filter(Boolean)
+			.join(' · ');
 	}
 
 </script>

@@ -1,6 +1,8 @@
 use super::{DomainError, OrganizationId};
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -112,6 +114,16 @@ impl PropertyStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PropertyOwnerInput {
+    pub id: Option<String>,
+    pub name: String,
+    pub phone_number: String,
+    pub phone_label: Option<String>,
+    pub is_whatsapp: bool,
+    pub ownership_share_percent: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PropertyInput {
     pub code: String,
     pub name: String,
@@ -121,8 +133,18 @@ pub struct PropertyInput {
     pub address_line_2: Option<String>,
     pub city: String,
     pub region: Option<String>,
+    pub district: Option<String>,
+    pub neighborhood: Option<String>,
     pub postal_code: Option<String>,
     pub country_code: String,
+    pub lot_area_square_meters: Option<Decimal>,
+    pub building_area_square_meters: Option<Decimal>,
+    pub frontage_meters: Option<Decimal>,
+    pub depth_meters: Option<Decimal>,
+    pub latitude: Option<Decimal>,
+    pub longitude: Option<Decimal>,
+    #[serde(default)]
+    pub owners: Vec<PropertyOwnerInput>,
     pub status: PropertyStatus,
 }
 
@@ -149,6 +171,8 @@ impl Property {
         input.description = clean_optional(input.description);
         input.address_line_2 = clean_optional(input.address_line_2);
         input.region = clean_optional(input.region);
+        input.district = clean_optional(input.district);
+        input.neighborhood = clean_optional(input.neighborhood);
         input.postal_code = clean_optional(input.postal_code);
 
         if input.code.is_empty() || input.code.len() > 32 {
@@ -174,6 +198,76 @@ impl Property {
         {
             return Err(DomainError::Validation(
                 "Country code must contain two ASCII letters.",
+            ));
+        }
+        if input.owners.len() > 100 {
+            return Err(DomainError::Validation(
+                "A property cannot have more than 100 owners.",
+            ));
+        }
+
+        for area in [
+            input.lot_area_square_meters,
+            input.building_area_square_meters,
+            input.frontage_meters,
+            input.depth_meters,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if area < Decimal::ZERO {
+                return Err(DomainError::Validation(
+                    "Property measurements cannot be negative.",
+                ));
+            }
+        }
+        if input
+            .latitude
+            .is_some_and(|latitude| !(-Decimal::from(90)..=Decimal::from(90)).contains(&latitude))
+            || input.longitude.is_some_and(|longitude| {
+                !(-Decimal::from(180)..=Decimal::from(180)).contains(&longitude)
+            })
+        {
+            return Err(DomainError::Validation(
+                "Property coordinates are outside their valid range.",
+            ));
+        }
+        let mut ownership_total = Decimal::ZERO;
+        let mut owner_ids = HashSet::new();
+        for owner in &mut input.owners {
+            owner.name = owner.name.trim().to_string();
+            owner.phone_number = owner.phone_number.trim().to_string();
+            owner.phone_label = clean_optional(owner.phone_label.take());
+            if owner.name.is_empty()
+                || owner.name.len() > 160
+                || owner.phone_number.is_empty()
+                || owner.phone_number.len() > 64
+            {
+                return Err(DomainError::Validation(
+                    "Each property owner needs a name and phone number.",
+                ));
+            }
+            if owner
+                .id
+                .as_ref()
+                .is_some_and(|id| !owner_ids.insert(id.clone()))
+            {
+                return Err(DomainError::Validation(
+                    "A property owner cannot be listed more than once.",
+                ));
+            }
+            if let Some(share) = owner.ownership_share_percent {
+                if !(Decimal::ZERO..=Decimal::from(100)).contains(&share) || share.scale() > 2 {
+                    return Err(DomainError::Validation(
+                        "Ownership share must be between 0 and 100 percent.",
+                    ));
+                }
+                ownership_total += share;
+            }
+        }
+        if ownership_total > Decimal::from(100) {
+            return Err(DomainError::Validation(
+                "Total ownership share cannot exceed 100 percent.",
             ));
         }
 
@@ -220,8 +314,17 @@ mod tests {
             address_line_2: None,
             city: " City ".to_string(),
             region: None,
+            district: None,
+            neighborhood: None,
             postal_code: None,
             country_code: " us ".to_string(),
+            lot_area_square_meters: None,
+            building_area_square_meters: None,
+            frontage_meters: None,
+            depth_meters: None,
+            latitude: None,
+            longitude: None,
+            owners: Vec::new(),
             status: PropertyStatus::Active,
         }
     }
@@ -242,6 +345,50 @@ mod tests {
         let mut input = property_input();
         input.country_code = "USA".to_string();
 
+        assert!(matches!(
+            Property::create(PropertyId::new(), OrganizationId::new(), input),
+            Err(DomainError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn property_creation_rejects_invalid_dimensions_and_ownership_totals() {
+        let mut invalid_area = property_input();
+        invalid_area.lot_area_square_meters = Some(Decimal::new(-1, 0));
+        assert!(matches!(
+            Property::create(PropertyId::new(), OrganizationId::new(), invalid_area),
+            Err(DomainError::Validation(_))
+        ));
+
+        let mut invalid_owners = property_input();
+        invalid_owners.owners = vec![
+            PropertyOwnerInput {
+                id: None,
+                name: "First owner".to_string(),
+                phone_number: "0500000001".to_string(),
+                phone_label: None,
+                is_whatsapp: false,
+                ownership_share_percent: Some(Decimal::from(60)),
+            },
+            PropertyOwnerInput {
+                id: None,
+                name: "Second owner".to_string(),
+                phone_number: "0500000002".to_string(),
+                phone_label: None,
+                is_whatsapp: false,
+                ownership_share_percent: Some(Decimal::from(50)),
+            },
+        ];
+        assert!(matches!(
+            Property::create(PropertyId::new(), OrganizationId::new(), invalid_owners),
+            Err(DomainError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn property_creation_rejects_coordinates_outside_geographic_ranges() {
+        let mut input = property_input();
+        input.latitude = Some(Decimal::from(91));
         assert!(matches!(
             Property::create(PropertyId::new(), OrganizationId::new(), input),
             Err(DomainError::Validation(_))

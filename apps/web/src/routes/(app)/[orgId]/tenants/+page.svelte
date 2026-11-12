@@ -3,6 +3,7 @@
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission } from '#lib/features/auth/permissions';
 	import { desktopApi } from '#lib/api/desktop';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { queryClient } from '#lib/core/query-client';
@@ -15,10 +16,22 @@
 	let { data }: PageProps = $props();
 	const app = getAppContext();
 	const organizationId = $derived(data.orgId);
+	const canView = $derived(
+		hasPermission(app.currentUser?.role, 'view_tenants', app.currentUser?.permissions)
+	);
+	const canCreate = $derived(
+		hasPermission(app.currentUser?.role, 'create_tenants', app.currentUser?.permissions)
+	);
+	const canUpdate = $derived(
+		hasPermission(app.currentUser?.role, 'update_tenants', app.currentUser?.permissions)
+	);
+	const canArchive = $derived(
+		hasPermission(app.currentUser?.role, 'archive_tenants', app.currentUser?.permissions)
+	);
 	const tenantsQuery = createQuery(() => ({
 		queryKey: tenantQueryKeys.all(organizationId),
 		queryFn: desktopApi.listTenants,
-		enabled: !!app.currentUser
+		enabled: !!app.currentUser && canView
 	}));
 	let open = $state(false);
 	let selectedTenant = $state<Tenant | undefined>();
@@ -63,12 +76,14 @@
 	});
 </script>
 
-{#if app.currentUser}
+{#if app.currentUser && canView}
 	<div class="flex min-h-0 flex-1 flex-col">
 		<TenantsDirectory
 			{tenants}
 			loading={tenantsQuery.isLoading}
-			readonly={app.currentUser.role === 'readonly'}
+			{canCreate}
+			{canUpdate}
+			{canArchive}
 			onAdd={() => { selectedTenant = undefined; open = true; }}
 			onEdit={(tenant) => { selectedTenant = tenant; open = true; }}
 			onArchive={(tenant) => void archiveTenant(tenant)}

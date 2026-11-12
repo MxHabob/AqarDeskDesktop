@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Database, Globe2, Server, ShieldCheck } from '@lucide/svelte';
+	import { Database, FolderOpen, Globe2, LoaderCircle, Server } from '@lucide/svelte';
+	import { save } from '@tauri-apps/plugin-dialog';
 	import {
 		Button,
 		Card,
@@ -8,13 +9,15 @@
 		SelectContent,
 		SelectItem,
 		SelectTrigger,
-		SelectValue
+		SelectValue,
+		toast
 	} from '@aqardesk/ui';
 	import type { ConnectionMode } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 	import FormField from '#lib/shared/components/form-field.svelte';
 
 	type Props = {
+		desktopShell: boolean;
 		mode: ConnectionMode;
 		databasePath: string;
 		serverUrl: string;
@@ -39,6 +42,7 @@
 	};
 
 	let {
+		desktopShell,
 		mode,
 		databasePath,
 		serverUrl,
@@ -61,63 +65,88 @@
 		onPasswordChange,
 		onSslModeChange
 	}: Props = $props();
+
+	async function chooseDatabasePath() {
+		try {
+			const path = await save({
+				title: m.database_choose_location(),
+				defaultPath: databasePath || 'aqardesk.sqlite',
+				filters: [{ name: 'SQLite database', extensions: ['sqlite', 'sqlite3', 'db'] }]
+			});
+			if (path) onDatabasePathChange(path);
+		} catch (cause) {
+			toast.error(cause instanceof Error ? cause.message : String(cause));
+		}
+	}
 </script>
 
-<Card class="rounded-xl bg-card p-5 shadow-card ring-border/50 sm:p-6">
+<Card class="rounded-xl border-border/70 bg-card p-5 shadow-card sm:p-6">
 	<form class="grid gap-5" onsubmit={onSubmit}>
-		<div class="grid gap-2 sm:grid-cols-3">
+		<div role="group" class="grid gap-2 sm:grid-cols-3" aria-label={m.connection_mode_label()}>
 			<Button
 				variant="outline"
 				class={mode === 'local'
-					? 'h-auto min-h-24 flex-col items-start justify-start rounded-lg border-primary bg-accent p-3 text-start text-accent-foreground'
-					: 'h-auto min-h-24 flex-col items-start justify-start rounded-lg p-3 text-start'}
+					? 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-primary bg-accent px-2 py-3 text-center text-accent-foreground shadow-sm'
+					: 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-border/70 px-2 py-3 text-center hover:border-primary/50'}
+				aria-pressed={mode === 'local'}
+				disabled={busy}
 				onclick={() => onModeChange('local')}
 			>
-				<Database size={18} />
-				<strong>{m.connection_local()}</strong>
-				<small class="whitespace-normal text-start text-xs font-normal">
-					{m.connection_local_description()}
-				</small>
+				<Database size={18} class={mode === 'local' ? 'text-primary' : 'text-muted-foreground'} />
+				<strong class="text-sm leading-tight">{m.connection_local()}</strong>
 			</Button>
 			<Button
 				variant="outline"
 				class={mode === 'direct'
-					? 'h-auto min-h-24 flex-col items-start justify-start rounded-lg border-primary bg-accent p-3 text-start text-accent-foreground'
-					: 'h-auto min-h-24 flex-col items-start justify-start rounded-lg p-3 text-start'}
+					? 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-primary bg-accent px-2 py-3 text-center text-accent-foreground shadow-sm'
+					: 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-border/70 px-2 py-3 text-center hover:border-primary/50'}
+				aria-pressed={mode === 'direct'}
+				disabled={busy}
 				onclick={() => onModeChange('direct')}
 			>
-				<Server size={18} />
-				<strong>{m.connection_direct()}</strong>
-				<small class="whitespace-normal text-start text-xs font-normal">
-					{m.connection_direct_description()}
-				</small>
+				<Server size={18} class={mode === 'direct' ? 'text-primary' : 'text-muted-foreground'} />
+				<strong class="text-sm leading-tight">{m.connection_direct()}</strong>
 			</Button>
 			<Button
 				variant="outline"
 				class={mode === 'api'
-					? 'h-auto min-h-24 flex-col items-start justify-start rounded-lg border-primary bg-accent p-3 text-start text-accent-foreground'
-					: 'h-auto min-h-24 flex-col items-start justify-start rounded-lg p-3 text-start'}
+					? 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-primary bg-accent px-2 py-3 text-center text-accent-foreground shadow-sm'
+					: 'h-auto min-h-20 flex-col items-center justify-center gap-2 rounded-lg border-border/70 px-2 py-3 text-center hover:border-primary/50'}
+				aria-pressed={mode === 'api'}
+				disabled={busy}
 				onclick={() => onModeChange('api')}
 			>
-				<Globe2 size={18} />
-				<strong>{m.connection_api()}</strong>
-				<small class="whitespace-normal text-start text-xs font-normal">
-					{m.connection_api_description()}
-				</small>
+				<Globe2 size={18} class={mode === 'api' ? 'text-primary' : 'text-muted-foreground'} />
+				<strong class="text-sm leading-tight">{m.connection_api()}</strong>
 			</Button>
 		</div>
 
 		{#if mode === 'local'}
 			<FormField label={m.connection_database_file()} id="database-path">
-				<Input
-					id="database-path"
-					value={databasePath}
-					oninput={(event) => onDatabasePathChange(event.currentTarget.value)}
-					required
-					dir="ltr"
-					autocomplete="off"
-					class="rounded-md"
-				/>
+				<div class="flex min-w-0 gap-2">
+					<Input
+						id="database-path"
+						value={databasePath}
+						oninput={(event) => onDatabasePathChange(event.currentTarget.value)}
+						required
+						disabled={busy}
+						dir="ltr"
+						autocomplete="off"
+						class="min-w-0 rounded-md font-mono text-xs"
+					/>
+					{#if desktopShell}
+						<Button
+							variant="outline"
+							class="h-9 shrink-0 rounded-md"
+							type="button"
+							disabled={busy}
+							onclick={chooseDatabasePath}
+						>
+							<FolderOpen size={16} />
+							<span>{m.connection_choose_file()}</span>
+						</Button>
+					{/if}
+				</div>
 			</FormField>
 		{:else if mode === 'api'}
 			<FormField label={m.connection_server_url()} id="server-url">
@@ -127,6 +156,7 @@
 					value={serverUrl}
 					oninput={(event) => onServerUrlChange(event.currentTarget.value)}
 					required
+					disabled={busy}
 					dir="ltr"
 					placeholder="https://api.example.com"
 					autocomplete="url"
@@ -141,6 +171,7 @@
 						value={host}
 						oninput={(event) => onHostChange(event.currentTarget.value)}
 						required
+						disabled={busy}
 						dir="ltr"
 						autocomplete="off"
 						class="rounded-md"
@@ -155,6 +186,7 @@
 						min="1"
 						max="65535"
 						required
+						disabled={busy}
 						dir="ltr"
 						class="rounded-md"
 					/>
@@ -165,6 +197,7 @@
 						value={databaseName}
 						oninput={(event) => onDatabaseNameChange(event.currentTarget.value)}
 						required
+						disabled={busy}
 						dir="ltr"
 						autocomplete="off"
 						class="rounded-md"
@@ -176,6 +209,7 @@
 						value={username}
 						oninput={(event) => onUsernameChange(event.currentTarget.value)}
 						required
+						disabled={busy}
 						dir="ltr"
 						autocomplete="username"
 						class="rounded-md"
@@ -187,6 +221,7 @@
 						type="password"
 						value={password}
 						oninput={(event) => onPasswordChange(event.currentTarget.value)}
+						disabled={busy}
 						dir="ltr"
 						autocomplete="new-password"
 						class="rounded-md"
@@ -196,6 +231,7 @@
 					<Select
 						type="single"
 						value={sslMode}
+						disabled={busy}
 						onValueChange={onSslModeChange}
 					>
 						<SelectTrigger id="ssl-mode" class="h-9 w-full rounded-md text-sm">
@@ -209,10 +245,6 @@
 					</Select>
 				</FormField>
 			</div>
-			<p class="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-				<ShieldCheck size={15} class="mt-0.5 shrink-0 text-foreground" />
-				{m.connection_security_note()}
-			</p>
 		{/if}
 
 		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -224,10 +256,12 @@
 					disabled={busy}
 					onclick={onApiCheck}
 				>
-					{m.common_retry()}
+					{#if busy}<LoaderCircle size={16} class="animate-spin" />{/if}
+					{m.connection_test_api()}
 				</Button>
 			{/if}
-			<Button class="h-10 rounded-md px-5" type="submit" disabled={busy}>
+			<Button class="h-10 rounded-md px-5 sm:min-w-40" type="submit" disabled={busy}>
+				{#if busy}<LoaderCircle size={16} class="animate-spin" />{/if}
 				{busy ? m.common_processing() : m.common_connect()}
 			</Button>
 		</div>

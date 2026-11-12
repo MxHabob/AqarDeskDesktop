@@ -26,6 +26,7 @@
 	let { active, title, currentUser, organizationName, connected, onSelect, onLogout, children }: Props = $props();
 	let sidebarSize = $state(2);
 	let desktopShell = $state(false);
+	const sidebarPersistId = 'workspace-secondary-sidebar';
 	const showContextNavigation = $derived(
 		active !== 'overview' &&
 			active !== 'account' &&
@@ -40,8 +41,10 @@
 			`/${currentUser.organization_id}/properties`,
 			`/${currentUser.organization_id}/units`,
 			`/${currentUser.organization_id}/tenants`,
+			`/${currentUser.organization_id}/owners`,
 			`/${currentUser.organization_id}/payments`,
 			`/${currentUser.organization_id}/settings/users`,
+			`/${currentUser.organization_id}/settings/permissions`,
 			`/${currentUser.organization_id}/settings/currencies`,
 			`/${currentUser.organization_id}/settings/audit`,
 			`/${currentUser.organization_id}/settings/contract-templates`
@@ -65,6 +68,7 @@
 						...(currentUser.role === 'admin'
 							? [
 									{ key: 'users', label: m.settings_user_management() },
+									{ key: 'permissions', label: m.settings_permissions() },
 									{ key: 'currencies', label: m.settings_currencies() },
 									{ key: 'contract-templates', label: m.settings_contract_templates() },
 									{ key: 'databases', label: m.nav_database_management() },
@@ -82,6 +86,11 @@
 		);
 	}
 
+	function expandSidebar() {
+		sidebarSize = 2;
+		localStorage.setItem(`resizer:${sidebarPersistId}`, '2');
+	}
+
 	onMount(() => {
 		desktopShell = '__TAURI_INTERNALS__' in window;
 	});
@@ -91,14 +100,14 @@
 	<div class="hidden h-full md:flex">
 		<AppSidebar {active} {currentUser} {organizationName} {onSelect} {onLogout} />
 	</div>
-	<MainViewport name="workspace-secondary-sidebar" bind:sidebarSize showLeft={showContextNavigation}>
+	<MainViewport name={sidebarPersistId} bind:sidebarSize showLeft={showContextNavigation}>
 		{#snippet left()}
 			<SidebarNav
 				{active}
 				{currentUser}
 				collapsed={sidebarSize === 0}
 				{onSelect}
-				onExpand={() => (sidebarSize = 2)}
+				onExpand={expandSidebar}
 				navigation={settingsNavigation}
 				onNavigate={navigateSettings}
 			/>

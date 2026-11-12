@@ -1,8 +1,9 @@
 use crate::{
     application::{
         ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, UserUpdate,
+        require_admin,
     },
-    domain::{AccessRole, ActorContext, Organization, UserAccount},
+    domain::{AccessRole, ActorContext, Organization, Permission, RolePermissionSet, UserAccount},
 };
 
 pub struct IdentityService<R> {
@@ -67,6 +68,82 @@ impl<R: IdentityRepository> IdentityService<R> {
         self.identities.list_users(actor.organization_id()).await
     }
 
+    pub async fn list_role_permissions(
+        &self,
+        actor: ActorContext,
+    ) -> Result<Vec<RolePermissionSet>, ApplicationError> {
+        require_admin(actor)?;
+        self.identities
+            .list_role_permissions(actor.organization_id())
+            .await
+    }
+
+    pub async fn update_role_permissions(
+        &self,
+        actor: ActorContext,
+        role_id: &str,
+        permissions: Vec<Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError> {
+        require_admin(actor)?;
+        if role_id == AccessRole::Admin.as_str() {
+            return Err(crate::domain::DomainError::Validation(
+                "Administrator permissions are fixed and cannot be changed.",
+            )
+            .into());
+        }
+
+        validate_role_permissions(&permissions)?;
+
+        self.identities
+            .update_role_permissions(
+                actor.organization_id(),
+                actor.user_id(),
+                role_id,
+                permissions,
+            )
+            .await
+    }
+
+    pub async fn create_role(
+        &self,
+        actor: ActorContext,
+        name: &str,
+        permissions: Vec<Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError> {
+        require_admin(actor)?;
+        validate_role_permissions(&permissions)?;
+        let name = name.trim();
+        let normalized_name = name.to_lowercase();
+        if name.is_empty()
+            || name.chars().count() > 80
+            || ["admin", "staff", "readonly"].contains(&normalized_name.as_str())
+        {
+            return Err(crate::domain::DomainError::Validation(
+                "Enter a unique custom role name of at most 80 characters.",
+            )
+            .into());
+        }
+        self.identities
+            .create_role(actor.organization_id(), actor.user_id(), name, permissions)
+            .await
+    }
+
+    pub async fn delete_role(
+        &self,
+        actor: ActorContext,
+        role_id: &str,
+    ) -> Result<(), ApplicationError> {
+        require_admin(actor)?;
+        if ["admin", "staff", "readonly"].contains(&role_id) {
+            return Err(
+                crate::domain::DomainError::Validation("System roles cannot be deleted.").into(),
+            );
+        }
+        self.identities
+            .delete_role(actor.organization_id(), actor.user_id(), role_id)
+            .await
+    }
+
     pub async fn create_user(
         &self,
         actor: ActorContext,
@@ -109,6 +186,12 @@ impl<R: IdentityRepository> IdentityService<R> {
         input: UserUpdate<'_>,
     ) -> Result<UserAccount, ApplicationError> {
         require_admin(actor)?;
+        if actor.user_id() == user_id && input.role_id != AccessRole::Admin.as_str() {
+            return Err(crate::domain::DomainError::Validation(
+                "You cannot change the role of the account currently in use.",
+            )
+            .into());
+        }
         if input.name.trim().is_empty()
             || !valid_email(input.email)
             || input.password.is_some_and(|password| password.len() < 12)
@@ -124,19 +207,50 @@ impl<R: IdentityRepository> IdentityService<R> {
     }
 }
 
-fn require_admin(actor: ActorContext) -> Result<(), ApplicationError> {
-    if actor.role() == AccessRole::Admin {
-        Ok(())
-    } else {
-        Err(ApplicationError::Forbidden)
-    }
-}
-
 fn valid_email(value: &str) -> bool {
     let value = value.trim();
     value.len() <= 254
         && value.contains('@')
         && !value.bytes().any(|byte| byte.is_ascii_whitespace())
+}
+
+fn validate_role_permissions(permissions: &[Permission]) -> Result<(), ApplicationError> {
+    let mut unique = std::collections::HashSet::new();
+    if permissions.iter().any(|permission| {
+        *permission == Permission::ManageAdministration || !unique.insert(*permission)
+    }) {
+        return Err(crate::domain::DomainError::Validation(
+            "The role permission list contains an unsupported or duplicate permission.",
+        )
+        .into());
+    }
+    let dependencies = [
+        (Permission::CreateProperties, Permission::ViewProperties),
+        (Permission::UpdateProperties, Permission::ViewProperties),
+        (Permission::ArchiveProperties, Permission::ViewProperties),
+        (Permission::CreateOwners, Permission::ViewOwners),
+        (Permission::UpdateOwners, Permission::ViewOwners),
+        (Permission::CreateUnits, Permission::ViewUnits),
+        (Permission::CreateUnits, Permission::ViewProperties),
+        (Permission::UpdateUnits, Permission::ViewUnits),
+        (Permission::UpdateUnits, Permission::ViewProperties),
+        (Permission::ArchiveUnits, Permission::ViewUnits),
+        (Permission::CreateTenants, Permission::ViewTenants),
+        (Permission::UpdateTenants, Permission::ViewTenants),
+        (Permission::ArchiveTenants, Permission::ViewTenants),
+        (Permission::RecordPayments, Permission::ViewPayments),
+        (Permission::RecordPayments, Permission::ViewTenants),
+        (Permission::VoidPayments, Permission::ViewPayments),
+    ];
+    if dependencies.iter().any(|(operation, prerequisite)| {
+        permissions.contains(operation) && !permissions.contains(prerequisite)
+    }) {
+        return Err(crate::domain::DomainError::Validation(
+            "View permissions are required before granting write permissions.",
+        )
+        .into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -148,6 +262,38 @@ mod tests {
 
     #[async_trait::async_trait]
     impl IdentityRepository for UnreachableRepository {
+        async fn list_role_permissions(
+            &self,
+            _: OrganizationId,
+        ) -> Result<Vec<RolePermissionSet>, ApplicationError> {
+            unreachable!()
+        }
+        async fn update_role_permissions(
+            &self,
+            _: OrganizationId,
+            _: UserId,
+            _: &str,
+            _: Vec<Permission>,
+        ) -> Result<RolePermissionSet, ApplicationError> {
+            unreachable!()
+        }
+        async fn create_role(
+            &self,
+            _: OrganizationId,
+            _: UserId,
+            _: &str,
+            _: Vec<Permission>,
+        ) -> Result<RolePermissionSet, ApplicationError> {
+            unreachable!()
+        }
+        async fn delete_role(
+            &self,
+            _: OrganizationId,
+            _: UserId,
+            _: &str,
+        ) -> Result<(), ApplicationError> {
+            unreachable!()
+        }
         async fn has_users(&self) -> Result<bool, ApplicationError> {
             Ok(false)
         }
@@ -234,11 +380,106 @@ mod tests {
                         name: "Staff",
                         email: "staff@example.com",
                         password: None,
-                        role: AccessRole::Staff,
+                        role_id: "staff",
                     },
                 )
                 .await,
             Err(ApplicationError::Forbidden)
+        ));
+        assert!(matches!(
+            service
+                .update_role_permissions(actor, "staff", vec![Permission::ViewProperties])
+                .await,
+            Err(ApplicationError::Forbidden)
+        ));
+    }
+
+    #[tokio::test]
+    async fn administrator_permissions_cannot_be_reconfigured() {
+        let service = IdentityService::new(UnreachableRepository);
+        let actor = ActorContext::new(UserId::new(), OrganizationId::new(), AccessRole::Admin);
+        assert!(matches!(
+            service
+                .update_role_permissions(actor, "admin", Vec::new())
+                .await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
+        ));
+        assert!(matches!(
+            service
+                .update_role_permissions(
+                    actor,
+                    "staff",
+                    vec![Permission::ViewProperties, Permission::ViewProperties]
+                )
+                .await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
+        ));
+        assert!(matches!(
+            service
+                .update_role_permissions(actor, "staff", vec![Permission::ManageAdministration])
+                .await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
+        ));
+        assert!(matches!(
+            service.create_role(actor, " ADMIN ", Vec::new()).await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
+        ));
+        assert!(matches!(
+            service
+                .create_role(actor, "Sales", vec![Permission::ManageAdministration])
+                .await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
+        ));
+    }
+
+    #[test]
+    fn write_permissions_require_their_read_dependencies() {
+        assert!(validate_role_permissions(&[Permission::CreateProperties]).is_err());
+        assert!(
+            validate_role_permissions(&[Permission::ViewPayments, Permission::RecordPayments,])
+                .is_err()
+        );
+        assert!(
+            validate_role_permissions(&[
+                Permission::ViewPayments,
+                Permission::ViewTenants,
+                Permission::RecordPayments,
+            ])
+            .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn administrator_cannot_demote_the_active_account() {
+        let service = IdentityService::new(UnreachableRepository);
+        let user_id = UserId::new();
+        let actor = ActorContext::new(user_id, OrganizationId::new(), AccessRole::Admin);
+        assert!(matches!(
+            service
+                .update_user(
+                    actor,
+                    user_id,
+                    UserUpdate {
+                        name: "Admin",
+                        email: "admin@example.com",
+                        password: None,
+                        role_id: "staff",
+                    }
+                )
+                .await,
+            Err(ApplicationError::Domain(
+                crate::domain::DomainError::Validation(_)
+            ))
         ));
     }
 }

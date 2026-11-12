@@ -1,17 +1,21 @@
 mod identity;
 mod money;
+mod owner;
 mod payment;
 mod property;
 mod tenant;
 mod unit;
 
 pub use identity::{
-    AccessRole, ActorContext, Organization, OrganizationId, PaymentId, TenantId, UnitId,
-    UserAccount, UserId,
+    AccessRole, ActorContext, Organization, OrganizationId, OwnerId, PaymentId, Permission,
+    RolePermissionSet, TenantId, UnitId, UserAccount, UserId,
 };
 pub use money::{CurrencyCode, Money};
+pub use owner::{Owner, OwnerInput};
 pub use payment::{Payment, PaymentInput, PaymentMethod, PaymentStatus};
-pub use property::{Property, PropertyId, PropertyInput, PropertyStatus, PropertyType};
+pub use property::{
+    Property, PropertyId, PropertyInput, PropertyOwnerInput, PropertyStatus, PropertyType,
+};
 pub use tenant::{Tenant, TenantInput};
 pub use unit::{PropertyUnit, PropertyUnitInput, UnitStatus, UnitType};
 

@@ -5,6 +5,7 @@
 	import { deLocalizeUrl } from '#lib/paraglide/runtime';
 	import type { LayoutProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission, type Permission } from '#lib/features/auth/permissions';
 	import type { ViewKey } from '#lib/shell/navigation';
 	import { getViewPath } from '#lib/shell/navigation';
 	import AppShell from '#lib/shell/app-shell.svelte';
@@ -17,20 +18,32 @@
 	const routeParts = $derived(deLocalizeUrl(page.url).pathname.split('/').filter(Boolean).slice(1));
 	const section = $derived(routeParts[0] ?? 'overview');
 	const active = $derived(
-		(['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing'] as string[]).includes(section)
+		(['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing'] as string[]).includes(section)
 			? (section as ViewKey)
 			: 'overview'
 	);
+	const requiredPermission = $derived.by((): Permission | undefined => {
+		switch (section) {
+			case 'properties': return 'view_properties';
+			case 'units': return 'view_units';
+			case 'tenants': return 'view_tenants';
+			case 'owners': return 'view_owners';
+			case 'payments': return 'view_payments';
+			default: return undefined;
+		}
+	});
 	const title = $derived.by(() => {
-		const known = ['properties', 'units', 'tenants', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing', 'organization', 'profile', 'audit', 'currencies', 'contract-templates'];
+		const known = ['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing', 'organization', 'profile', 'audit', 'currencies', 'contract-templates', 'permissions'];
 		const routeName = [...routeParts].reverse().find((part) => known.includes(part)) ?? section;
 		switch (routeName) {
 			case 'properties': return m.nav_properties();
 			case 'units': return m.nav_units();
 			case 'tenants': return m.nav_tenants();
+			case 'owners': return m.nav_owners();
 			case 'contracts': return m.nav_contracts();
 			case 'payments': return m.nav_payments();
 			case 'users': return m.nav_users();
+			case 'permissions': return m.settings_permissions();
 			case 'settings': return m.nav_settings();
 			case 'databases': return m.database_management_title();
 			case 'account': return m.nav_account();
@@ -52,15 +65,23 @@
 			void goto('/login', { replaceState: true });
 		} else if (organization !== app.currentUser.organization_id) {
 			void goto(`/${app.currentUser.organization_id}`, { replaceState: true });
-		} else if (active === 'users' && app.currentUser.role !== 'admin') {
+		} else if (
+			requiredPermission &&
+			!hasPermission(app.currentUser.role, requiredPermission, app.currentUser.permissions)
+		) {
+			void goto(getViewPath(organization, 'overview'), { replaceState: true });
+		} else if (
+			active === 'users' &&
+			!hasPermission(app.currentUser.role, 'manage_administration', app.currentUser.permissions)
+		) {
 			void goto(getViewPath(organization, 'overview'), { replaceState: true });
 		} else if (
 			(active === 'billing' ||
 				(active === 'settings' &&
-					['users', 'audit', 'currencies', 'contract-templates', 'databases'].includes(
+					['users', 'permissions', 'audit', 'currencies', 'contract-templates', 'databases'].includes(
 						routeParts.slice(1).join('/')
 					))) &&
-			app.currentUser.role !== 'admin'
+			!hasPermission(app.currentUser.role, 'manage_administration', app.currentUser.permissions)
 		) {
 			void goto(`/${organization}/settings`, { replaceState: true });
 		}
@@ -71,7 +92,24 @@
 	}
 
 	function selectView(view: ViewKey) {
-		if (app.currentUser) void goto(getViewPath(app.currentUser.organization_id, view));
+		if (!app.currentUser) return;
+		if (view === 'properties') {
+			const availableView = (
+				[
+					['properties', 'view_properties'],
+					['units', 'view_units'],
+					['tenants', 'view_tenants'],
+					['owners', 'view_owners']
+				] as const
+			).find(([, permission]) =>
+				hasPermission(app.currentUser?.role, permission, app.currentUser?.permissions)
+			)?.[0];
+			if (availableView) {
+				void goto(getViewPath(app.currentUser.organization_id, availableView));
+				return;
+			}
+		}
+		void goto(getViewPath(app.currentUser.organization_id, view));
 	}
 </script>
 

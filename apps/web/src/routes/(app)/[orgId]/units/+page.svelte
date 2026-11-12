@@ -3,6 +3,7 @@
 	import { toast } from '@aqardesk/ui';
 	import type { PageProps } from './$types';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission } from '#lib/features/auth/permissions';
 	import { desktopApi } from '#lib/api/desktop';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import { queryClient } from '#lib/core/query-client';
@@ -16,15 +17,30 @@
 	let { data }: PageProps = $props();
 	const app = getAppContext();
 	const organizationId = $derived(data.orgId);
+	const canView = $derived(
+		hasPermission(app.currentUser?.role, 'view_units', app.currentUser?.permissions)
+	);
+	const canViewProperties = $derived(
+		hasPermission(app.currentUser?.role, 'view_properties', app.currentUser?.permissions)
+	);
+	const canCreate = $derived(
+		hasPermission(app.currentUser?.role, 'create_units', app.currentUser?.permissions)
+	);
+	const canUpdate = $derived(
+		hasPermission(app.currentUser?.role, 'update_units', app.currentUser?.permissions)
+	);
+	const canArchive = $derived(
+		hasPermission(app.currentUser?.role, 'archive_units', app.currentUser?.permissions)
+	);
 	const unitsQuery = createQuery(() => ({
 		queryKey: unitQueryKeys.all(organizationId),
 		queryFn: desktopApi.listUnits,
-		enabled: !!app.currentUser
+		enabled: !!app.currentUser && canView
 	}));
 	const propertiesQuery = createQuery(() => ({
 		queryKey: propertyQueryKeys.all(organizationId),
 		queryFn: desktopApi.listProperties,
-		enabled: !!app.currentUser
+		enabled: !!app.currentUser && canViewProperties
 	}));
 	let open = $state(false);
 	let selectedUnit = $state<PropertyUnit | undefined>();
@@ -33,7 +49,7 @@
 	const properties = $derived(propertiesQuery.data ?? []);
 	$effect(() => {
 		if (unitsQuery.error) app.setError(unitsQuery.error);
-		if (propertiesQuery.error) app.setError(propertiesQuery.error);
+		if (canViewProperties && propertiesQuery.error) app.setError(propertiesQuery.error);
 	});
 
 	async function saveUnit(values: PropertyUnitInput) {
@@ -70,14 +86,15 @@
 	}
 </script>
 
-{#if app.currentUser}
+{#if app.currentUser && canView}
 	<div class="flex min-h-0 flex-1 flex-col">
 		<UnitsDirectory
 			{units}
 			{properties}
 			loading={unitsQuery.isLoading || propertiesQuery.isLoading}
-			readonly={app.currentUser.role === 'readonly'}
-			canAdd={properties.length > 0}
+			{canUpdate}
+			{canArchive}
+			canAdd={canCreate && properties.length > 0}
 			onAdd={() => { selectedUnit = undefined; open = true; }}
 			onEdit={(unit) => { selectedUnit = unit; open = true; }}
 			onArchive={(unit) => void archiveUnit(unit)}

@@ -12,23 +12,76 @@
   "app": {
     "windows": [
       {
-        "title": "AqarDesk Desktop",
-        "width": 800,
-        "height": 600,
+        "label": "main",
+        "title": "AqarDesk",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 650,
         "center": true,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "maximized": false,
+        "decorations": false,
+        "transparent": false,
+        "visible": true,
+        "focus": true,
+        "skipTaskbar": false
       }
     ],
+
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "base-uri": "'self'",
+        "object-src": "'none'",
+        "frame-ancestors": "'none'",
+        "form-action": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "media-src": "'self' asset: blob:",
+        "worker-src": "'self' blob:"
+      },
+      "dangerousDisableAssetCspModification": false,
+      "freezePrototype": true,
+
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/AqarDesk/**",
+          "$LOCALAPPDATA/AqarDesk/**",
+          "$RESOURCE/**"
+        ]
+      },
+
+      "capabilities": [
+        "default",
+        "desktop-capability"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
+    "resources": [
+      "release-notes.json"
+    ],
+    "macOS": {
+      "dmg": {
+        "background": "./images/installer.png"
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "sidebarImage": "./images/orbis-installer-sidebar.bmp"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -43,10 +96,11 @@
   "plugins": {
     "updater": {
       "pubkey": "",
-      "endpoints": [
-        "https://github.com/MxHabob/AqarDeskDesktop/releases/latest/download/latest.json"
-      ],
-      "dangerousInsecureTransportProtocol": false
+      "endpoints": [],
+      "dangerousInsecureTransportProtocol": false,
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

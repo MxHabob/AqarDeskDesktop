@@ -12,13 +12,14 @@
 		units: PropertyUnit[];
 		properties: Property[];
 		loading: boolean;
-		readonly: boolean;
+		canUpdate: boolean;
+		canArchive: boolean;
 		canAdd: boolean;
 		onAdd: () => void;
 		onEdit: (unit: PropertyUnit) => void;
 		onArchive: (unit: PropertyUnit) => void;
 	};
-	let { units, properties, loading, readonly, canAdd, onAdd, onEdit, onArchive }: Props = $props();
+	let { units, properties, loading, canUpdate, canArchive, canAdd, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const propertyNames = $derived(new Map(properties.map((property) => [property.id, property.name])));
 	const rtl = $derived(getLocale() === 'ar');
@@ -58,8 +59,8 @@
 			type: 'action',
 			meta: {
 				items: [
-					{ id: 'edit', icon: 'Pencil', label: m.units_edit(), variant: 'outline', disabled: () => readonly },
-					{ id: 'archive', icon: 'Trash2', label: m.units_archive(), variant: 'destructive', disabled: () => readonly }
+					{ id: 'edit', icon: 'Pencil', label: m.units_edit(), variant: 'outline', disabled: () => !canUpdate },
+					{ id: 'archive', icon: 'Trash2', label: m.units_archive(), variant: 'destructive', disabled: () => !canArchive }
 				]
 			}
 		}
@@ -68,9 +69,9 @@
 	function handleGridAction(event: GridActionEvent) {
 		const unit = units.find((item) => item.id === String(event.row.id ?? ''));
 		if (!unit) return;
-		if (event.actionId === 'dblclick') onEdit(unit);
-		if (event.actionId === 'edit') onEdit(unit);
-		if (event.actionId === 'archive') onArchive(unit);
+		if (event.actionId === 'dblclick' && canUpdate) onEdit(unit);
+		if (event.actionId === 'edit' && canUpdate) onEdit(unit);
+		if (event.actionId === 'archive' && canArchive) onArchive(unit);
 	}
 </script>
 
@@ -88,7 +89,7 @@
 		onaction={handleGridAction}
 	>
 		{#snippet toolbarActions()}
-			<Button class="rounded-md" disabled={readonly || !canAdd} onclick={onAdd}>
+			<Button class="rounded-md" disabled={!canAdd} onclick={onAdd}>
 				<Plus size={16} />{m.units_add()}
 			</Button>
 		{/snippet}
