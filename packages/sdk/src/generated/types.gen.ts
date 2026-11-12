@@ -136,6 +136,24 @@ export type OrganizationSettingsInput = {
     timezone: string;
 };
 
+export type Owner = {
+	created_at: string;
+	id: string;
+	is_whatsapp: boolean;
+	name: string;
+	organization_id: string;
+	phone_label?: string | null;
+	phone_number: string;
+	updated_at: string;
+};
+
+export type OwnerInput = {
+	is_whatsapp: boolean;
+	name: string;
+	phone_label?: string | null;
+	phone_number: string;
+};
+
 export type Payment = {
     amount_minor: number;
     currency_code: string;
@@ -183,9 +201,18 @@ export type Property = {
     country_code: string;
     created_at: string;
     description?: string | null;
+    district?: string | null;
+    neighborhood?: string | null;
+    lot_area_square_meters?: number | null;
+    building_area_square_meters?: number | null;
+    frontage_meters?: number | null;
+    depth_meters?: number | null;
+    latitude?: number | null;
+    longitude?: number | null;
     id: string;
     name: string;
     organization_id: string;
+    owners: PropertyOwner[];
     postal_code?: string | null;
     property_type: PropertyType;
     region?: string | null;
@@ -200,11 +227,38 @@ export type PropertyInput = {
     code: string;
     country_code: string;
     description?: string | null;
+    district?: string | null;
+    neighborhood?: string | null;
+    lot_area_square_meters?: number | null;
+    building_area_square_meters?: number | null;
+    frontage_meters?: number | null;
+    depth_meters?: number | null;
+    latitude?: number | null;
+    longitude?: number | null;
     name: string;
+    owners: PropertyOwnerInput[];
     postal_code?: string | null;
     property_type: PropertyType;
     region?: string | null;
     status: PropertyStatus;
+};
+
+export type PropertyOwner = {
+    id: string;
+    is_whatsapp: boolean;
+    name: string;
+    ownership_share_percent?: number | null;
+    phone_label?: string | null;
+    phone_number: string;
+};
+
+export type PropertyOwnerInput = {
+    id?: string | null;
+    is_whatsapp: boolean;
+    name: string;
+    ownership_share_percent?: number | null;
+    phone_label?: string | null;
+    phone_number: string;
 };
 
 export type PropertyStatus = 'active' | 'inactive' | 'archived';

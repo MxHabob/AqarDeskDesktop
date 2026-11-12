@@ -18,6 +18,7 @@
 		properties: Building2,
 		units: Building2,
 		tenants: UsersRound,
+		owners: UsersRound,
 		contracts: ScrollText,
 		payments: ReceiptText,
 		users: UsersRound,

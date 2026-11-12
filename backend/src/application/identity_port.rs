@@ -1,20 +1,20 @@
 use crate::{
     application::ApplicationError,
-    domain::{Organization, OrganizationId, UserAccount, UserId},
+    domain::{Organization, OrganizationId, RolePermissionSet, UserAccount, UserId},
 };
 
 pub struct NewUser<'a> {
     pub name: &'a str,
     pub email: &'a str,
     pub password: &'a str,
-    pub role: crate::domain::AccessRole,
+    pub role_id: &'a str,
 }
 
 pub struct UserUpdate<'a> {
     pub name: &'a str,
     pub email: &'a str,
     pub password: Option<&'a str>,
-    pub role: crate::domain::AccessRole,
+    pub role_id: &'a str,
 }
 
 pub struct OrganizationBootstrap<'a> {
@@ -26,6 +26,34 @@ pub struct OrganizationBootstrap<'a> {
 
 #[async_trait::async_trait]
 pub trait IdentityRepository: Send + Sync {
+    async fn list_role_permissions(
+        &self,
+        organization_id: OrganizationId,
+    ) -> Result<Vec<RolePermissionSet>, ApplicationError>;
+
+    async fn update_role_permissions(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        role_id: &str,
+        permissions: Vec<crate::domain::Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError>;
+
+    async fn create_role(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        name: &str,
+        permissions: Vec<crate::domain::Permission>,
+    ) -> Result<RolePermissionSet, ApplicationError>;
+
+    async fn delete_role(
+        &self,
+        organization_id: OrganizationId,
+        actor_id: UserId,
+        role_id: &str,
+    ) -> Result<(), ApplicationError>;
+
     async fn has_users(&self) -> Result<bool, ApplicationError>;
 
     async fn organization_name(

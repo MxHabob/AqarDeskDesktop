@@ -13,6 +13,7 @@
 		ref = $bindable(null),
 		value = $bindable(),
 		type,
+		checked = $bindable(false),
 		files = $bindable(),
 		class: className,
 		"data-slot": dataSlot = "input",
@@ -31,6 +32,18 @@
 		type="file"
 		bind:files
 		bind:value
+		{...restProps}
+	/>
+{:else if type === "checkbox"}
+	<input
+		bind:this={ref}
+		data-slot={dataSlot}
+		class={cn(
+			"size-4 shrink-0 rounded border-input accent-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
+			className
+		)}
+		type="checkbox"
+		bind:checked
 		{...restProps}
 	/>
 {:else}

@@ -14,35 +14,37 @@
 	} from '@aqardesk/ui';
 	import FormField from '#lib/shared/components/form-field.svelte';
 	import type { User } from '#lib/features/auth/types';
+	import type { RolePermissionSet } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 
 	export type UserFormValues = {
 		name: string;
 		email: string;
 		password: string;
-		role: 'admin' | 'staff' | 'readonly';
+		role_id: string;
 	};
 
 	type Props = {
 		initial?: User;
+		roles: RolePermissionSet[];
 		busy: boolean;
+		roleLocked?: boolean;
 		onSubmit: (values: UserFormValues) => Promise<boolean>;
 		onCancel: () => void;
 	};
 
-	let { initial, busy, onSubmit, onCancel }: Props = $props();
+	let { initial, roles, busy, roleLocked = false, onSubmit, onCancel }: Props = $props();
 
 	const defaultValues = untrack(
 		(): UserFormValues => ({
 			name: initial?.name ?? '',
 			email: initial?.email ?? '',
 			password: '',
-			role:
-				initial?.role === 'admin'
-					? 'admin'
-					: initial?.role === 'readonly'
-						? 'readonly'
-						: 'staff'
+			role_id:
+				initial?.role_id ??
+				roles.find((role) => role.system_role === 'staff')?.role_id ??
+				roles[0]?.role_id ??
+				'staff'
 		})
 	);
 
@@ -50,7 +52,7 @@
 		name: z.string().trim().min(1, m.users_name()),
 		email: z.email(m.auth_email()),
 		password: z.string(),
-		role: z.enum(['admin', 'staff', 'readonly'])
+		role_id: z.string().min(1)
 	}).superRefine((values, context) => {
 		if ((!initial || values.password) && values.password.length < 12) {
 			context.addIssue({
@@ -86,8 +88,15 @@
 		void form.handleSubmit();
 	}
 
-	function setRole(value: string, change: (value: UserFormValues['role']) => void) {
-		if (value === 'admin' || value === 'staff' || value === 'readonly') change(value);
+	function setRole(value: string, change: (value: string) => void) {
+		if (roles.some((role) => role.role_id === value)) change(value);
+	}
+
+	function roleTitle(role: RolePermissionSet) {
+		if (role.system_role === 'admin') return m.users_role_admin();
+		if (role.system_role === 'staff') return m.users_role_staff();
+		if (role.system_role === 'readonly') return m.users_role_readonly();
+		return role.name;
 	}
 </script>
 
@@ -148,21 +157,27 @@
 			</FormField>
 		{/snippet}
 	</form.Field>
-	<form.Field name="role">
+	<form.Field name="role_id">
 		{#snippet children(field)}
-			<FormField label={m.users_role()} id="user-role">
+			<FormField
+				label={m.users_role()}
+				id="user-role"
+				description={roleLocked ? m.users_role_current_locked() : m.users_role_permissions_hint()}
+			>
 				<Select
 					type="single"
 					value={field.state.value}
+					disabled={roleLocked}
 					onValueChange={(value) => setRole(value, (role) => field.handleChange(role))}
 				>
 					<SelectTrigger id="user-role" class="h-9 w-full rounded-md text-sm">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="staff">{m.users_role_staff()}</SelectItem>
-						<SelectItem value="admin">{m.users_role_admin()}</SelectItem>
-						<SelectItem value="readonly">{m.users_role_readonly()}</SelectItem>
+						{#each roles as role (role.role_id)}
+							{@const title = roleTitle(role)}
+							<SelectItem value={role.role_id} label={title}>{title}</SelectItem>
+						{/each}
 					</SelectContent>
 				</Select>
 			</FormField>

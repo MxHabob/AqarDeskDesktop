@@ -3,6 +3,7 @@ export type ViewKey =
 	| 'properties'
 	| 'units'
 	| 'tenants'
+	| 'owners'
 	| 'contracts'
 	| 'payments'
 	| 'users'

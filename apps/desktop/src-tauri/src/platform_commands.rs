@@ -5,16 +5,17 @@ use crate::platform_runtime::{
 use aqardesk_backend::{
     application::{
         IdentityService, NewUser, OrganizationBootstrap, OrganizationSettingsService,
-        PaymentLedger, PropertyCatalog, TenantDirectory, UnitCatalog, UserUpdate,
+        OwnerDirectory, PaymentLedger, PropertyCatalog, TenantDirectory, UnitCatalog, UserUpdate,
     },
     domain::{
-        AccessRole, ActorContext, Payment, PaymentInput, Property, PropertyId, PropertyInput,
-        PropertyUnit, PropertyUnitInput, Tenant, TenantId, TenantInput, UnitId, UserAccount,
-        UserId,
+        ActorContext, Owner, OwnerId, OwnerInput, Payment, PaymentInput, Permission, Property,
+        PropertyId, PropertyInput, PropertyUnit, PropertyUnitInput, RolePermissionSet, Tenant,
+        TenantId, TenantInput, UnitId, UserAccount, UserId,
     },
     infrastructure::{
-        SeaOrmIdentityRepository, SeaOrmOrganizationSettingsRepository, SeaOrmPaymentRepository,
-        SeaOrmPropertyRepository, SeaOrmTenantRepository, SeaOrmUnitRepository,
+        SeaOrmIdentityRepository, SeaOrmOrganizationSettingsRepository, SeaOrmOwnerRepository,
+        SeaOrmPaymentRepository, SeaOrmPropertyRepository, SeaOrmTenantRepository,
+        SeaOrmUnitRepository,
     },
 };
 use rust_decimal::prelude::ToPrimitive;
@@ -39,33 +40,91 @@ pub struct PropertyView {
     pub address_line_2: Option<String>,
     pub city: String,
     pub region: Option<String>,
+    pub district: Option<String>,
+    pub neighborhood: Option<String>,
     pub postal_code: Option<String>,
     pub country_code: String,
+    pub lot_area_square_meters: Option<f64>,
+    pub building_area_square_meters: Option<f64>,
+    pub frontage_meters: Option<f64>,
+    pub depth_meters: Option<f64>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub owners: Vec<PropertyOwnerView>,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl From<Property> for PropertyView {
-    fn from(value: Property) -> Self {
-        Self {
+#[derive(Debug, Serialize)]
+pub struct PropertyOwnerView {
+    pub id: String,
+    pub name: String,
+    pub phone_number: String,
+    pub phone_label: Option<String>,
+    pub is_whatsapp: bool,
+    pub ownership_share_percent: Option<f64>,
+}
+
+impl TryFrom<Property> for PropertyView {
+    type Error = String;
+
+    fn try_from(value: Property) -> Result<Self, Self::Error> {
+        let input = value.input;
+        let owners = input
+            .owners
+            .into_iter()
+            .map(|owner| {
+                Ok(PropertyOwnerView {
+                    id: owner.id.ok_or_else(|| {
+                        "A saved property owner is missing its identifier.".to_string()
+                    })?,
+                    name: owner.name,
+                    phone_number: owner.phone_number,
+                    phone_label: owner.phone_label,
+                    is_whatsapp: owner.is_whatsapp,
+                    ownership_share_percent: decimal_to_f64(owner.ownership_share_percent)?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+
+        Ok(Self {
             id: value.id.to_string(),
             organization_id: value.organization_id.to_string(),
-            code: value.input.code,
-            name: value.input.name,
-            property_type: value.input.property_type.as_str().to_string(),
-            description: value.input.description,
-            address_line_1: value.input.address_line_1,
-            address_line_2: value.input.address_line_2,
-            city: value.input.city,
-            region: value.input.region,
-            postal_code: value.input.postal_code,
-            country_code: value.input.country_code,
-            status: value.input.status.as_str().to_string(),
+            code: input.code,
+            name: input.name,
+            property_type: input.property_type.as_str().to_string(),
+            description: input.description,
+            address_line_1: input.address_line_1,
+            address_line_2: input.address_line_2,
+            city: input.city,
+            region: input.region,
+            district: input.district,
+            neighborhood: input.neighborhood,
+            postal_code: input.postal_code,
+            country_code: input.country_code,
+            lot_area_square_meters: decimal_to_f64(input.lot_area_square_meters)?,
+            building_area_square_meters: decimal_to_f64(input.building_area_square_meters)?,
+            frontage_meters: decimal_to_f64(input.frontage_meters)?,
+            depth_meters: decimal_to_f64(input.depth_meters)?,
+            latitude: decimal_to_f64(input.latitude)?,
+            longitude: decimal_to_f64(input.longitude)?,
+            owners,
+            status: input.status.as_str().to_string(),
             created_at: value.created_at.to_rfc3339(),
             updated_at: value.updated_at.to_rfc3339(),
-        }
+        })
     }
+}
+
+fn decimal_to_f64(value: Option<rust_decimal::Decimal>) -> Result<Option<f64>, String> {
+    value
+        .map(|value| {
+            value
+                .to_f64()
+                .ok_or_else(|| "A property measurement cannot be represented safely.".to_string())
+        })
+        .transpose()
 }
 
 #[derive(Debug, Serialize)]
@@ -149,6 +208,33 @@ impl From<Tenant> for TenantView {
             phone: value.input.phone,
             mailing_address: value.input.mailing_address,
             notes: value.input.notes,
+            created_at: value.created_at.to_rfc3339(),
+            updated_at: value.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct OwnerView {
+    pub id: String,
+    pub organization_id: String,
+    pub name: String,
+    pub phone_number: String,
+    pub phone_label: Option<String>,
+    pub is_whatsapp: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<Owner> for OwnerView {
+    fn from(value: Owner) -> Self {
+        Self {
+            id: value.id.to_string(),
+            organization_id: value.organization_id.to_string(),
+            name: value.input.name,
+            phone_number: value.input.phone_number,
+            phone_label: value.input.phone_label,
+            is_whatsapp: value.input.is_whatsapp,
             created_at: value.created_at.to_rfc3339(),
             updated_at: value.updated_at.to_rfc3339(),
         }
@@ -268,10 +354,11 @@ pub(crate) async fn active_actor(state: &PlatformState) -> Result<ActorContext, 
         Err(error) => return Err(application_error(error)),
     };
     *state.current_user.write().await = Some(current_user.clone());
-    Ok(ActorContext::new(
+    Ok(ActorContext::with_permissions(
         current_user.id,
         current_user.organization_id,
         current_user.role,
+        current_user.permissions,
     ))
 }
 
@@ -510,12 +597,81 @@ pub async fn platform_users_list(
 }
 
 #[tauri::command]
+pub async fn platform_role_permissions_list(
+    state: State<'_, PlatformState>,
+) -> Result<Vec<RolePermissionSet>, String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    local_identity(&state)
+        .await?
+        .list_role_permissions(actor)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_role_permissions_update(
+    state: State<'_, PlatformState>,
+    role_id: String,
+    permissions: Vec<Permission>,
+) -> Result<RolePermissionSet, String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    local_identity(&state)
+        .await?
+        .update_role_permissions(actor, &role_id, permissions)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_roles_create(
+    state: State<'_, PlatformState>,
+    name: String,
+    permissions: Vec<Permission>,
+) -> Result<RolePermissionSet, String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    local_identity(&state)
+        .await?
+        .create_role(actor, &name, permissions)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_roles_delete(
+    state: State<'_, PlatformState>,
+    role_id: String,
+) -> Result<(), String> {
+    let actor = active_actor(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "user_management")
+        .await?;
+    local_identity(&state)
+        .await?
+        .delete_role(actor, &role_id)
+        .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
 pub async fn platform_users_create(
     state: State<'_, PlatformState>,
     name: String,
     email: String,
     password: String,
-    role: String,
+    role_id: String,
 ) -> Result<UserAccount, String> {
     let actor = active_actor(&state).await?;
     let organization_id = actor.organization_id().to_string();
@@ -536,8 +692,6 @@ pub async fn platform_users_create(
         .license
         .check_limit_for_organization(&organization_id, "users.max", current_count, 1)
         .await?;
-    let role = AccessRole::parse(&role)
-        .ok_or_else(|| "The selected user role is not supported.".to_string())?;
     identities
         .create_user(
             actor,
@@ -545,7 +699,7 @@ pub async fn platform_users_create(
                 name: &name,
                 email: &email,
                 password: &password,
-                role,
+                role_id: &role_id,
             },
         )
         .await
@@ -558,7 +712,7 @@ pub async fn platform_users_update(
     user_id: String,
     name: String,
     email: String,
-    role: String,
+    role_id: String,
     password: Option<String>,
 ) -> Result<UserAccount, String> {
     let actor = active_actor(&state).await?;
@@ -568,8 +722,6 @@ pub async fn platform_users_update(
         .await?;
     let user_id = UserId::parse(&user_id)
         .map_err(|_| "The selected user identifier is invalid.".to_string())?;
-    let role = AccessRole::parse(&role)
-        .ok_or_else(|| "The selected user role is not supported.".to_string())?;
     local_identity(&state)
         .await?
         .update_user(
@@ -579,7 +731,7 @@ pub async fn platform_users_update(
                 name: &name,
                 email: &email,
                 password: password.as_deref(),
-                role,
+                role_id: &role_id,
             },
         )
         .await
@@ -642,11 +794,11 @@ pub async fn platform_properties_list(
         .license
         .require_feature(&actor.organization_id().to_string(), "properties")
         .await?;
-    PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
+    let properties = PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
         .list(actor)
         .await
-        .map(|properties| properties.into_iter().map(PropertyView::from).collect())
-        .map_err(application_error)
+        .map_err(application_error)?;
+    properties.into_iter().map(PropertyView::try_from).collect()
 }
 
 #[tauri::command]
@@ -667,11 +819,11 @@ pub async fn platform_properties_create(
         .license
         .check_limit_for_organization(&organization_id, "properties.max", current_count, 1)
         .await?;
-    catalog
+    let property = catalog
         .create(actor, input)
         .await
-        .map(PropertyView::from)
-        .map_err(application_error)
+        .map_err(application_error)?;
+    PropertyView::try_from(property)
 }
 
 #[tauri::command]
@@ -687,11 +839,11 @@ pub async fn platform_properties_update(
         .license
         .require_feature(&actor.organization_id().to_string(), "properties")
         .await?;
-    PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
+    let property = PropertyCatalog::new(SeaOrmPropertyRepository::new(&database))
         .update(actor, property_id, input)
         .await
-        .map(PropertyView::from)
-        .map_err(application_error)
+        .map_err(application_error)?;
+    PropertyView::try_from(property)
 }
 
 #[tauri::command]
@@ -799,6 +951,59 @@ pub async fn platform_units_archive(
     UnitCatalog::new(SeaOrmUnitRepository::new(&database))
         .archive(actor, unit_id)
         .await
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_owners_list(
+    state: State<'_, PlatformState>,
+) -> Result<Vec<OwnerView>, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
+    OwnerDirectory::new(SeaOrmOwnerRepository::new(&database))
+        .list(actor)
+        .await
+        .map(|owners| owners.into_iter().map(OwnerView::from).collect())
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_owners_create(
+    state: State<'_, PlatformState>,
+    input: OwnerInput,
+) -> Result<OwnerView, String> {
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
+    OwnerDirectory::new(SeaOrmOwnerRepository::new(&database))
+        .create(actor, input)
+        .await
+        .map(OwnerView::from)
+        .map_err(application_error)
+}
+
+#[tauri::command]
+pub async fn platform_owners_update(
+    state: State<'_, PlatformState>,
+    owner_id: String,
+    input: OwnerInput,
+) -> Result<OwnerView, String> {
+    let owner_id = OwnerId::parse(&owner_id)
+        .map_err(|_| "The selected owner identifier is invalid.".to_string())?;
+    let (actor, database) = local_business_state(&state).await?;
+    state
+        .license
+        .require_feature(&actor.organization_id().to_string(), "properties")
+        .await?;
+    OwnerDirectory::new(SeaOrmOwnerRepository::new(&database))
+        .update(actor, owner_id, input)
+        .await
+        .map(OwnerView::from)
         .map_err(application_error)
 }
 

@@ -25,6 +25,48 @@ pub mod tenant {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+pub mod owner {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "owners")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub name: String,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod owner_phone {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "owner_phones")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub organization_id: String,
+        pub owner_id: String,
+        pub phone_number: String,
+        pub label: Option<String>,
+        pub is_whatsapp: bool,
+        pub created_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 pub mod unit {
     use super::*;
 
@@ -139,12 +181,60 @@ pub mod user {
         pub email: String,
         pub password_hash: String,
         pub access_role: String,
+        pub role_id: String,
         pub is_active: bool,
         pub failed_login_attempts: i32,
         pub locked_until: Option<DateTimeUtc>,
         pub last_login_at: Option<DateTimeUtc>,
         pub created_at: DateTimeUtc,
         pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod organization_role {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "organization_roles")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub organization_id: String,
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub role_id: String,
+        pub name: String,
+        pub normalized_name: String,
+        pub is_system: bool,
+        pub system_role: Option<String>,
+        pub created_at: DateTimeUtc,
+        pub updated_at: DateTimeUtc,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod role_permission {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "organization_role_permissions")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub organization_id: String,
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub role_id: String,
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub permission_code: String,
+        pub is_enabled: bool,
+        pub updated_at: DateTimeUtc,
+        pub updated_by: Option<String>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

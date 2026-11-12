@@ -7,6 +7,10 @@ mod m20261112_000002_onboarding_defaults;
 mod m20261112_000003_contract_template_starters;
 mod m20261112_000004_payment_receipt_templates;
 mod m20261112_000005_default_lease_templates;
+mod m20261112_000006_property_details_and_owners;
+mod m20261112_000007_role_permissions;
+mod m20261112_000008_custom_roles;
+mod m20261112_000009_operation_permissions;
 
 pub struct PlatformMigrator;
 
@@ -20,6 +24,10 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000003_contract_template_starters::Migration),
             Box::new(m20261112_000004_payment_receipt_templates::Migration),
             Box::new(m20261112_000005_default_lease_templates::Migration),
+            Box::new(m20261112_000006_property_details_and_owners::Migration),
+            Box::new(m20261112_000007_role_permissions::Migration),
+            Box::new(m20261112_000008_custom_roles::Migration),
+            Box::new(m20261112_000009_operation_permissions::Migration),
         ]
     }
 }
@@ -35,9 +43,14 @@ pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
         "organizations",
         "currencies",
         "users",
+        "organization_role_permissions",
+        "organization_roles",
         "organization_currencies",
         "user_sessions",
         "properties",
+        "owners",
+        "owner_phones",
+        "property_owners",
         "property_units",
         "tenants",
         "payments",
@@ -118,6 +131,96 @@ mod tests {
             .try_get_by::<String, _>("name")
             .expect("read preserved name");
         assert_eq!(preserved, "Existing customer");
+    }
+
+    #[tokio::test]
+    async fn unified_role_migration_preserves_existing_users_and_permission_values() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect SQLite database");
+        PlatformMigrator::up(&database, Some(8))
+            .await
+            .expect("apply migrations through legacy role permissions");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO organizations (id, name, default_currency, timezone) VALUES ('legacy-org', 'Legacy organization', 'SAR', 'Asia/Riyadh')",
+            ))
+            .await
+            .expect("insert legacy organization");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO users (id, organization_id, full_name, email, password_hash, access_role) VALUES ('legacy-user', 'legacy-org', 'Legacy user', 'legacy@example.com', 'unused', 'readonly')",
+            ))
+            .await
+            .expect("insert legacy user");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO organization_role_permissions (organization_id, access_role, permission_code, is_enabled) VALUES ('legacy-org', 'readonly', 'manage_properties', FALSE), ('legacy-org', 'staff', 'manage_units', TRUE), ('legacy-org', 'staff', 'manage_tenants', FALSE), ('legacy-org', 'staff', 'manage_payments', TRUE)",
+            ))
+            .await
+            .expect("insert legacy role permission");
+
+        initialize(&database)
+            .await
+            .expect("apply unified role migration");
+        let migrated_user = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT role_id FROM users WHERE id = 'legacy-user'",
+            ))
+            .await
+            .expect("query migrated user")
+            .expect("legacy user remains")
+            .try_get_by::<String, _>("role_id")
+            .expect("read migrated user role");
+        let migrated_permission = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT is_enabled FROM organization_role_permissions WHERE organization_id = 'legacy-org' AND role_id = 'readonly' AND permission_code = 'create_properties'",
+            ))
+            .await
+            .expect("query migrated role permission")
+            .expect("legacy permission remains")
+            .try_get_by::<bool, _>("is_enabled")
+            .expect("read migrated permission value");
+        let migrated_view_permission = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT is_enabled FROM organization_role_permissions WHERE organization_id = 'legacy-org' AND role_id = 'readonly' AND permission_code = 'view_properties'",
+            ))
+            .await
+            .expect("query migrated view permission")
+            .expect("legacy view permission remains")
+            .try_get_by::<bool, _>("is_enabled")
+            .expect("read migrated view permission value");
+        let migrated_unit_view_permission = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT is_enabled FROM organization_role_permissions WHERE organization_id = 'legacy-org' AND role_id = 'staff' AND permission_code = 'view_properties'",
+            ))
+            .await
+            .expect("query migrated unit property view permission")
+            .expect("unit property view permission exists")
+            .try_get_by::<bool, _>("is_enabled")
+            .expect("read migrated unit property view permission");
+        let migrated_payment_tenant_view_permission = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT is_enabled FROM organization_role_permissions WHERE organization_id = 'legacy-org' AND role_id = 'staff' AND permission_code = 'view_tenants'",
+            ))
+            .await
+            .expect("query migrated payment tenant view permission")
+            .expect("payment tenant view permission exists")
+            .try_get_by::<bool, _>("is_enabled")
+            .expect("read migrated payment tenant view permission");
+        assert_eq!(migrated_user, "readonly");
+        assert!(!migrated_permission);
+        assert!(!migrated_view_permission);
+        assert!(migrated_unit_view_permission);
+        assert!(migrated_payment_tenant_view_permission);
 
         let tables = identify_legacy_tables(&database)
             .await
@@ -125,6 +228,9 @@ mod tests {
         for expected in [
             "organizations",
             "properties",
+            "owners",
+            "owner_phones",
+            "property_owners",
             "property_units",
             "tenants",
             "payments",
@@ -144,5 +250,59 @@ mod tests {
             .try_get_by::<i64, _>("count")
             .expect("read currency count");
         assert_eq!(currency_count, 10);
+    }
+
+    #[tokio::test]
+    async fn property_details_migration_preserves_existing_property_rows() {
+        let database = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect SQLite database");
+        PlatformMigrator::up(&database, Some(6))
+            .await
+            .expect("apply migrations before property details");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO organizations (id, name, default_currency, timezone) VALUES ('legacy-org', 'Legacy office', 'SAR', 'Asia/Riyadh')",
+            ))
+            .await
+            .expect("insert legacy organization");
+        database
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                "INSERT INTO properties (id, organization_id, code, name, property_type, address_line_1, city, country_code) VALUES ('legacy-property', 'legacy-org', 'LEGACY-1', 'Existing property', 'residential', 'Old street', 'Riyadh', 'SA')",
+            ))
+            .await
+            .expect("insert legacy property");
+
+        initialize(&database)
+            .await
+            .expect("apply property details migration");
+        let property = database
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT name, district, lot_area_square_meters FROM properties WHERE id = 'legacy-property'",
+            ))
+            .await
+            .expect("read migrated property")
+            .expect("legacy property remains");
+        assert_eq!(
+            property
+                .try_get_by::<String, _>("name")
+                .expect("read property name"),
+            "Existing property"
+        );
+        assert_eq!(
+            property
+                .try_get_by::<Option<String>, _>("district")
+                .expect("read new district field"),
+            None
+        );
+        assert_eq!(
+            property
+                .try_get_by::<Option<f64>, _>("lot_area_square_meters")
+                .expect("read new area field"),
+            None
+        );
     }
 }

@@ -2,6 +2,7 @@
 	import { Button } from '@aqardesk/ui';
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import * as m from '#lib/paraglide/messages';
+	import { canViewBusinessView } from '#lib/features/auth/permissions';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from '#lib/shell/navigation';
 
@@ -22,14 +23,15 @@
 	let { active, currentUser, collapsed, onSelect, onExpand, navigation, onNavigate }: Props = $props();
 
 	const group = $derived.by(() => {
-		if (active === 'properties' || active === 'units' || active === 'tenants') {
+		if (active === 'properties' || active === 'units' || active === 'tenants' || active === 'owners') {
 			return {
 				title: m.nav_properties(),
 				items: [
 					{ key: 'properties' as const, label: m.nav_properties() },
 					{ key: 'units' as const, label: m.nav_units() },
-					{ key: 'tenants' as const, label: m.nav_tenants() }
-				]
+					{ key: 'tenants' as const, label: m.nav_tenants() },
+					{ key: 'owners' as const, label: m.nav_owners() }
+				].filter((item) => canViewBusinessView(currentUser.role, item.key, currentUser.permissions))
 			};
 		}
 		if (active === 'contracts' || active === 'payments') {
@@ -38,7 +40,10 @@
 				items: [
 					{ key: 'contracts' as const, label: m.nav_contracts() },
 					{ key: 'payments' as const, label: m.nav_payments() }
-				]
+				].filter((item) =>
+					item.key !== 'payments' ||
+					canViewBusinessView(currentUser.role, 'payments', currentUser.permissions)
+				)
 			};
 		}
 		if (active === 'users' || active === 'settings') {
@@ -59,7 +64,14 @@
 				{ key: 'tenants' as const, label: m.nav_tenants() },
 				{ key: 'contracts' as const, label: m.nav_contracts() },
 				{ key: 'payments' as const, label: m.nav_payments() }
-			]
+			].filter((item) =>
+				item.key === 'contracts' ||
+				(item.key === 'properties'
+					? (['properties', 'units', 'tenants', 'owners'] as const).some((view) =>
+						canViewBusinessView(currentUser.role, view, currentUser.permissions)
+					)
+					: canViewBusinessView(currentUser.role, item.key, currentUser.permissions))
+			)
 		};
 	});
 </script>

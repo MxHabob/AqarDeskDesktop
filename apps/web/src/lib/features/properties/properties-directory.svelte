@@ -12,12 +12,14 @@
 	type Props = {
 		properties: Property[];
 		loading: boolean;
-		readonly: boolean;
+		canCreate: boolean;
+		canUpdate: boolean;
+		canArchive: boolean;
 		onAdd: () => void;
 		onEdit: (property: Property) => void;
 		onArchive: (property: Property) => void;
 	};
-	let { properties, loading, readonly, onAdd, onEdit, onArchive }: Props = $props();
+	let { properties, loading, canCreate, canUpdate, canArchive, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 
@@ -63,13 +65,13 @@
 			type: 'action',
 			meta: {
 				items: [
-					{ id: 'edit', icon: 'Pencil', label: m.properties_edit(), variant: 'outline', disabled: () => readonly },
+					{ id: 'edit', icon: 'Pencil', label: m.properties_edit(), variant: 'outline', disabled: () => !canUpdate },
 					{
 						id: 'archive',
 						icon: 'Trash2',
 						label: m.properties_archive(),
 						variant: 'destructive',
-						disabled: (row: Record<string, unknown>) => readonly || row.status === 'archived'
+						disabled: (row: Record<string, unknown>) => !canArchive || row.status === 'archived'
 					}
 				]
 			}
@@ -79,9 +81,9 @@
 	function handleGridAction(event: GridActionEvent) {
 		const property = properties.find((item) => item.id === String(event.row.id ?? ''));
 		if (!property) return;
-		if (event.actionId === 'dblclick') onEdit(property);
-		if (event.actionId === 'edit') onEdit(property);
-		if (event.actionId === 'archive') onArchive(property);
+		if (event.actionId === 'dblclick' && canUpdate) onEdit(property);
+		if (event.actionId === 'edit' && canUpdate) onEdit(property);
+		if (event.actionId === 'archive' && canArchive) onArchive(property);
 	}
 </script>
 
@@ -99,7 +101,7 @@
 		onaction={handleGridAction}
 	>
 		{#snippet toolbarActions()}
-			<Button class="rounded-md" disabled={readonly} onclick={onAdd}>
+			<Button class="rounded-md" disabled={!canCreate} onclick={onAdd}>
 				<Plus size={16} />{m.properties_add()}
 			</Button>
 		{/snippet}

@@ -14,10 +14,21 @@ import type {
 	PaymentInput,
 	ProfileSettings,
 	ProfileSettingsInput,
+	Owner,
+	OwnerInput,
 	Tenant,
 	TenantInput
 } from '@aqardesk/sdk';
 import type { User } from '#lib/features/auth/types';
+import type { Permission } from '#lib/features/auth/permissions';
+
+export type RolePermissionSet = {
+	role_id: string;
+	name: string;
+	is_system: boolean;
+	system_role: 'admin' | 'staff' | 'readonly' | null;
+	permissions: Permission[];
+};
 
 export type ConnectionMode = 'local' | 'direct' | 'api';
 
@@ -39,7 +50,7 @@ export type CurrencyEditorInput = NewCurrencyInput;
 export type UserEditorInput = {
 	name: string;
 	email: string;
-	role: 'admin' | 'staff' | 'readonly';
+	role_id: string;
 	password?: string;
 };
 
@@ -217,10 +228,17 @@ export const desktopApi = {
 		invoke<void>('contract_templates_set_active', { templateId, isActive }),
 	getDashboardSummary: (months: number) => invoke<DashboardSummary>('dashboard_get_summary', { months }),
 	listUsers: () => invoke<User[]>('platform_users_list'),
-	createUser: (input: { name: string; email: string; password: string; role: string }) =>
-		invoke<void>('platform_users_create', input),
-	updateUser: (userId: string, input: UserEditorInput) =>
-		invoke<User>('platform_users_update', { userId, ...input }),
+	listRolePermissions: () =>
+		invoke<RolePermissionSet[]>('platform_role_permissions_list'),
+	updateRolePermissions: (roleId: string, permissions: Permission[]) =>
+		invoke<RolePermissionSet>('platform_role_permissions_update', { roleId, permissions }),
+	createRole: (name: string, permissions: Permission[]) =>
+		invoke<RolePermissionSet>('platform_roles_create', { name, permissions }),
+	deleteRole: (roleId: string) => invoke<void>('platform_roles_delete', { roleId }),
+	createUser: ({ role_id, ...input }: { name: string; email: string; password: string; role_id: string }) =>
+		invoke<User>('platform_users_create', { ...input, roleId: role_id }),
+	updateUser: (userId: string, { role_id, ...input }: UserEditorInput) =>
+		invoke<User>('platform_users_update', { userId, ...input, roleId: role_id }),
 	setUserActive: (userId: string, isActive: boolean) =>
 		invoke<void>('platform_users_set_active', { userId, isActive }),
 	listProperties: () => invoke<Property[]>('platform_properties_list'),
@@ -230,6 +248,10 @@ export const desktopApi = {
 		invoke<Property>('platform_properties_update', { propertyId, input }),
 	archiveProperty: (propertyId: string) =>
 		invoke<void>('platform_properties_archive', { propertyId }),
+	listOwners: () => invoke<Owner[]>('platform_owners_list'),
+	createOwner: (input: OwnerInput) => invoke<Owner>('platform_owners_create', { input }),
+	updateOwner: (ownerId: string, input: OwnerInput) =>
+		invoke<Owner>('platform_owners_update', { ownerId, input }),
 	listUnits: () => invoke<PropertyUnit[]>('platform_units_list', { propertyId: null }),
 	createUnit: (input: PropertyUnitInput) =>
 		invoke<PropertyUnit>('platform_units_create', { input }),

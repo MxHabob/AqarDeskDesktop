@@ -7,12 +7,15 @@
 	import CurrencySheet from '#lib/features/settings/currency-sheet.svelte';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission } from '#lib/features/auth/permissions';
 	import { formatGridCell } from '#lib/core/i18n';
 	import * as m from '#lib/paraglide/messages';
 
 	const locale = $derived(getLocale());
 	const app = getAppContext();
-	const canManageCurrencies = $derived(app.currentUser?.role === 'admin');
+	const canManageCurrencies = $derived(
+		hasPermission(app.currentUser?.role, 'manage_administration', app.currentUser?.permissions)
+	);
 	const rtl = $derived(locale === 'ar');
 	let currencies = $state<CurrencySettings[]>([]);
 	let organization = $state<OrganizationSettings | null>(null);

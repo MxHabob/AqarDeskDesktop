@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@aqardesk/ui';
-	import type { Property, PropertyInput } from '@aqardesk/sdk';
+	import type { Owner, Property, PropertyInput } from '@aqardesk/sdk';
 	import PropertyForm from '#lib/features/properties/property-form.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	type Props = {
 		open?: boolean;
 		initial?: Property;
+		ownerOptions: Owner[];
 		busy: boolean;
 		onsave: (values: PropertyInput) => Promise<boolean>;
 		onclose: () => void;
 	};
 
-	let { open = $bindable(false), initial, busy, onsave, onclose }: Props = $props();
+	let { open = $bindable(false), initial, ownerOptions, busy, onsave, onclose }: Props = $props();
 </script>
 
 <Sheet bind:open>
@@ -21,7 +22,7 @@
 			<SheetTitle>{initial ? m.properties_edit() : m.properties_add()}</SheetTitle>
 		</SheetHeader>
 		{#if open}
-			<PropertyForm {initial} {busy} onSubmit={onsave} onCancel={onclose} />
+			<PropertyForm {initial} {ownerOptions} {busy} onSubmit={onsave} onCancel={onclose} />
 		{/if}
 	</SheetContent>
 </Sheet>

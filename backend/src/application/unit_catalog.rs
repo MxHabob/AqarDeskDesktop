@@ -1,6 +1,6 @@
 use crate::{
-    application::{ApplicationError, UnitRepository, require_write},
-    domain::{ActorContext, PropertyId, PropertyUnit, PropertyUnitInput, UnitId},
+    application::{ApplicationError, UnitRepository, require_permission},
+    domain::{ActorContext, Permission, PropertyId, PropertyUnit, PropertyUnitInput, UnitId},
 };
 
 pub struct UnitCatalog<R> {
@@ -17,6 +17,7 @@ impl<R: UnitRepository> UnitCatalog<R> {
         actor: ActorContext,
         property_id: Option<PropertyId>,
     ) -> Result<Vec<PropertyUnit>, ApplicationError> {
+        require_permission(actor, Permission::ViewUnits)?;
         self.units.list(actor.organization_id(), property_id).await
     }
 
@@ -25,7 +26,7 @@ impl<R: UnitRepository> UnitCatalog<R> {
         actor: ActorContext,
         input: PropertyUnitInput,
     ) -> Result<PropertyUnit, ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::CreateUnits)?;
         self.units
             .insert(
                 PropertyUnit::create(UnitId::new(), actor.organization_id(), input)?,
@@ -40,7 +41,7 @@ impl<R: UnitRepository> UnitCatalog<R> {
         unit_id: UnitId,
         input: PropertyUnitInput,
     ) -> Result<PropertyUnit, ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::UpdateUnits)?;
         self.units
             .update(
                 PropertyUnit::create(unit_id, actor.organization_id(), input)?,
@@ -54,7 +55,7 @@ impl<R: UnitRepository> UnitCatalog<R> {
         actor: ActorContext,
         unit_id: UnitId,
     ) -> Result<(), ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::ArchiveUnits)?;
         self.units
             .archive(actor.organization_id(), unit_id, actor.user_id())
             .await

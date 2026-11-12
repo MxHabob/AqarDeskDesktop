@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    application::{ApplicationError, TenantRepository, require_write},
-    domain::{ActorContext, Tenant, TenantId, TenantInput},
+    application::{ApplicationError, TenantRepository, require_permission},
+    domain::{ActorContext, Permission, Tenant, TenantId, TenantInput},
 };
 
 pub struct TenantDirectory<R> {
@@ -15,6 +15,7 @@ impl<R: TenantRepository> TenantDirectory<R> {
     }
 
     pub async fn list(&self, actor: ActorContext) -> Result<Vec<Tenant>, ApplicationError> {
+        require_permission(actor, Permission::ViewTenants)?;
         self.tenants.list(actor.organization_id()).await
     }
 
@@ -23,6 +24,7 @@ impl<R: TenantRepository> TenantDirectory<R> {
         actor: ActorContext,
         tenant_ids: &[TenantId],
     ) -> Result<HashMap<TenantId, String>, ApplicationError> {
+        require_permission(actor, Permission::ViewTenants)?;
         self.tenants
             .names(actor.organization_id(), tenant_ids)
             .await
@@ -33,7 +35,7 @@ impl<R: TenantRepository> TenantDirectory<R> {
         actor: ActorContext,
         input: TenantInput,
     ) -> Result<Tenant, ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::CreateTenants)?;
         self.tenants
             .insert(
                 Tenant::create(TenantId::new(), actor.organization_id(), input)?,
@@ -48,7 +50,7 @@ impl<R: TenantRepository> TenantDirectory<R> {
         tenant_id: TenantId,
         input: TenantInput,
     ) -> Result<Tenant, ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::UpdateTenants)?;
         self.tenants
             .update(
                 Tenant::create(tenant_id, actor.organization_id(), input)?,
@@ -62,7 +64,7 @@ impl<R: TenantRepository> TenantDirectory<R> {
         actor: ActorContext,
         tenant_id: TenantId,
     ) -> Result<(), ApplicationError> {
-        require_write(actor)?;
+        require_permission(actor, Permission::ArchiveTenants)?;
         self.tenants
             .archive(actor.organization_id(), tenant_id, actor.user_id())
             .await

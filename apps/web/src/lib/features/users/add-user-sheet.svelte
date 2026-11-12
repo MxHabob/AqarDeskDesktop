@@ -8,14 +8,16 @@
 		SheetTitle
 	} from '@aqardesk/ui';
 	import UserForm, { type UserFormValues } from '#lib/features/users/user-form.svelte';
+	import type { RolePermissionSet } from '#lib/api/desktop';
 	import * as m from '#lib/paraglide/messages';
 
 	type Props = {
 		busy: boolean;
+		roles: RolePermissionSet[];
 		onAdd: (values: UserFormValues) => Promise<boolean>;
 	};
 
-	let { busy, onAdd }: Props = $props();
+	let { busy, roles, onAdd }: Props = $props();
 	let open = $state(false);
 
 	async function addUser(values: UserFormValues) {
@@ -35,6 +37,7 @@
 		{#if open}
 			<UserForm
 				{busy}
+				{roles}
 				onSubmit={async (values) => {
 					await addUser(values);
 					return !open;

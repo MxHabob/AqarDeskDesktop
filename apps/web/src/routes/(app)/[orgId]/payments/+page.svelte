@@ -6,6 +6,7 @@
 	import type { CurrencySettings, Payment, PaymentInput, Tenant } from '@aqardesk/sdk';
 	import { desktopApi } from '#lib/api/desktop';
 	import { getAppContext } from '#lib/core/app-context.svelte';
+	import { hasPermission } from '#lib/features/auth/permissions';
 	import { confirmStore } from '#lib/core/confirm.svelte';
 	import {
 		formatCurrency,
@@ -29,11 +30,19 @@
 	const enabledCurrencies = $derived(
 		currencies.filter((currency) => currency.is_active && currency.is_enabled_for_organization)
 	);
-	const isReadonly = $derived(app.currentUser?.role === 'readonly');
+	const canView = $derived(
+		hasPermission(app.currentUser?.role, 'view_payments', app.currentUser?.permissions)
+	);
+	const canRecord = $derived(
+		hasPermission(app.currentUser?.role, 'record_payments', app.currentUser?.permissions)
+	);
+	const canVoid = $derived(
+		hasPermission(app.currentUser?.role, 'void_payments', app.currentUser?.permissions)
+	);
 	const rtl = $derived(locale === 'ar');
 
 	onMount(() => {
-		void load();
+		if (canView) void load();
 	});
 
 	async function load() {
@@ -41,7 +50,7 @@
 		try {
 			[payments, tenants, currencies] = await Promise.all([
 				desktopApi.listPayments(),
-				desktopApi.listTenants(),
+				canRecord ? desktopApi.listTenants() : Promise.resolve([]),
 				desktopApi.listCurrencies()
 			]);
 		} catch (cause) {
@@ -160,7 +169,7 @@
 						label: m.payments_void(),
 						variant: 'destructive',
 						visible: (row: Record<string, unknown>) => row.status === 'posted',
-						disabled: () => busy || isReadonly
+						disabled: () => busy || !canVoid
 					}
 				]
 			}
@@ -177,6 +186,7 @@
 	}
 </script>
 
+{#if app.currentUser && canView}
 <div class="min-h-0 min-w-0 flex-1">
 	<AqarDeskGrid
 		{columns}
@@ -195,7 +205,7 @@
 				{tenants}
 				currencies={enabledCurrencies}
 				{busy}
-				disabled={isReadonly || tenants.length === 0}
+				disabled={!canRecord || tenants.length === 0}
 				onSubmit={record}
 			/>
 			{#if !loading && tenants.length === 0}
@@ -204,3 +214,4 @@
 		{/snippet}
 	</AqarDeskGrid>
 </div>
+{/if}

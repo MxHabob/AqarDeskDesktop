@@ -3,6 +3,7 @@
 	import { Dialog, DialogContent, DialogTitle, Input } from '@aqardesk/ui';
 	import { Search } from '@lucide/svelte';
 	import * as m from '#lib/paraglide/messages';
+	import { canViewBusinessView } from '#lib/features/auth/permissions';
 	import type { User } from '#lib/features/auth/types';
 	import type { ViewKey } from './navigation';
 	import type { SearchItem } from './search-modal.types';
@@ -23,18 +24,36 @@
 	let selectedIndex = $state(0);
 	let inputElement = $state<HTMLInputElement | null>(null);
 
-	const items = $derived<SearchItem[]>([
-		{ key: 'overview', label: m.nav_overview(), keywords: ['dashboard', 'home', 'الرئيسية'] },
-		{ key: 'properties', label: m.nav_properties(), keywords: ['building', 'عقار'] },
-		{ key: 'units', label: m.nav_units(), keywords: ['apartment', 'وحدة'] },
-		{ key: 'tenants', label: m.nav_tenants(), keywords: ['customer', 'مستأجر'] },
-		{ key: 'contracts', label: m.nav_contracts(), keywords: ['lease', 'عقد'] },
-		{ key: 'payments', label: m.nav_payments(), keywords: ['rent', 'invoice', 'دفعة'] },
-		...(currentUser.role === 'admin'
-			? [{ key: 'users' as const, label: m.nav_users(), keywords: ['team', 'users', 'مستخدم'] }]
-			: []),
-		{ key: 'settings', label: m.nav_settings(), keywords: ['preferences', 'إعدادات'] }
-	]);
+	const items = $derived.by(() => {
+		const allItems: SearchItem[] = [
+			{ key: 'overview', label: m.nav_overview(), keywords: ['dashboard', 'home', 'الرئيسية'] },
+			{ key: 'properties', label: m.nav_properties(), keywords: ['building', 'عقار'] },
+			{ key: 'units', label: m.nav_units(), keywords: ['apartment', 'وحدة'] },
+			{ key: 'tenants', label: m.nav_tenants(), keywords: ['customer', 'مستأجر'] },
+			{ key: 'owners', label: m.nav_owners(), keywords: ['landlord', 'property owner', 'مالك'] },
+			{ key: 'contracts', label: m.nav_contracts(), keywords: ['lease', 'عقد'] },
+			{ key: 'payments', label: m.nav_payments(), keywords: ['rent', 'invoice', 'دفعة'] },
+			...(currentUser.role === 'admin'
+				? [{ key: 'users' as const, label: m.nav_users(), keywords: ['team', 'users', 'مستخدم'] }]
+				: []),
+			{ key: 'settings', label: m.nav_settings(), keywords: ['preferences', 'إعدادات'] }
+		];
+		return allItems.filter((item) => {
+			switch (item.key) {
+				case 'properties':
+					return (['properties', 'units', 'tenants', 'owners'] as const).some((view) =>
+						canViewBusinessView(currentUser.role, view, currentUser.permissions)
+					);
+				case 'units':
+				case 'tenants':
+				case 'owners':
+				case 'payments':
+					return canViewBusinessView(currentUser.role, item.key, currentUser.permissions);
+				default:
+					return true;
+			}
+		});
+	});
 
 	const filteredItems = $derived.by(() => {
 		const normalized = query.trim().toLocaleLowerCase();

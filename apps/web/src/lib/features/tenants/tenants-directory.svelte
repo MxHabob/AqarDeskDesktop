@@ -10,12 +10,14 @@
 	type Props = {
 		tenants: Tenant[];
 		loading: boolean;
-		readonly: boolean;
+		canCreate: boolean;
+		canUpdate: boolean;
+		canArchive: boolean;
 		onAdd: () => void;
 		onEdit: (tenant: Tenant) => void;
 		onArchive: (tenant: Tenant) => void;
 	};
-	let { tenants, loading, readonly, onAdd, onEdit, onArchive }: Props = $props();
+	let { tenants, loading, canCreate, canUpdate, canArchive, onAdd, onEdit, onArchive }: Props = $props();
 	const app = getAppContext();
 	const rtl = $derived(getLocale() === 'ar');
 	const columns: AqarDeskColumnDef[] = $derived([
@@ -28,8 +30,8 @@
 			type: 'action',
 			meta: {
 				items: [
-					{ id: 'edit', icon: 'Pencil', label: m.tenants_edit(), variant: 'outline', disabled: () => readonly },
-					{ id: 'archive', icon: 'Trash2', label: m.tenants_archive(), variant: 'destructive', disabled: () => readonly }
+					{ id: 'edit', icon: 'Pencil', label: m.tenants_edit(), variant: 'outline', disabled: () => !canUpdate },
+					{ id: 'archive', icon: 'Trash2', label: m.tenants_archive(), variant: 'destructive', disabled: () => !canArchive }
 				]
 			}
 		}
@@ -38,9 +40,9 @@
 	function handleGridAction(event: GridActionEvent) {
 		const tenant = tenants.find((item) => item.id === String(event.row.id ?? ''));
 		if (!tenant) return;
-		if (event.actionId === 'dblclick') onEdit(tenant);
-		if (event.actionId === 'edit') onEdit(tenant);
-		if (event.actionId === 'archive') onArchive(tenant);
+		if (event.actionId === 'dblclick' && canUpdate) onEdit(tenant);
+		if (event.actionId === 'edit' && canUpdate) onEdit(tenant);
+		if (event.actionId === 'archive' && canArchive) onArchive(tenant);
 	}
 </script>
 <div class="min-h-0 min-w-0 flex-1">
@@ -57,7 +59,7 @@
 		onaction={handleGridAction}
 	>
 		{#snippet toolbarActions()}
-			<Button class="rounded-md" disabled={readonly} onclick={onAdd}>
+			<Button class="rounded-md" disabled={!canCreate} onclick={onAdd}>
 				<Plus size={16} />{m.tenants_add()}
 			</Button>
 		{/snippet}
