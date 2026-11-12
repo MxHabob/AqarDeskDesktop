@@ -19,6 +19,7 @@ mod m20261112_000014_contract_lifecycle;
 mod m20261112_000015_organization_logo;
 mod m20261112_000016_docforge_default_templates;
 mod m20261112_000017_yemen_legal_template_redesign;
+mod m20261112_000018_payment_allocation_contract_index;
 
 pub struct PlatformMigrator;
 
@@ -44,6 +45,7 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000015_organization_logo::Migration),
             Box::new(m20261112_000016_docforge_default_templates::Migration),
             Box::new(m20261112_000017_yemen_legal_template_redesign::Migration),
+            Box::new(m20261112_000018_payment_allocation_contract_index::Migration),
         ]
     }
 }
@@ -56,6 +58,7 @@ pub async fn initialize(database: &DatabaseConnection) -> Result<(), DbErr> {
 pub async fn verify_schema(database: &DatabaseConnection) -> Result<(), DbErr> {
     let manager = SchemaManager::new(database);
     for table in [
+        "platform_installation",
         "organizations",
         "currencies",
         "users",
@@ -128,6 +131,26 @@ mod tests {
             .await
             .expect("connect SQLite database");
         initialize(&database).await.expect("initialize platform");
+        let query_plan = database
+            .query_all(Statement::from_string(
+                DbBackend::Sqlite,
+                "EXPLAIN QUERY PLAN SELECT payment_id FROM payment_allocations WHERE organization_id = 'org' AND contract_document_id = 'contract'",
+            ))
+            .await
+            .expect("explain property payment allocation lookup");
+        let plan_details = query_plan
+            .iter()
+            .map(|row| {
+                row.try_get_by::<String, _>("detail")
+                    .expect("read query plan detail")
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            plan_details
+                .iter()
+                .any(|detail| { detail.contains("idx_payment_allocations_org_contract_payment") }),
+            "property payment lookup should use the contract allocation index: {plan_details:?}"
+        );
         database
             .execute(Statement::from_string(
                 DbBackend::Sqlite,
