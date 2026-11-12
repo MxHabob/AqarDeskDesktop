@@ -24,8 +24,13 @@
 </script>
 
 <main class="grid h-full min-h-0 overflow-y-auto bg-background font-sans text-foreground scrollbar-none lg:grid-cols-[minmax(18rem,0.8fr)_minmax(30rem,1.2fr)]">
-	<aside class="hidden min-h-0 flex-col justify-between bg-foreground p-10 text-background lg:flex">
-		<div class="grid gap-4">
+	<aside class="relative hidden min-h-0 flex-col justify-between overflow-hidden bg-black p-10 text-background lg:flex">
+		<div
+			class="absolute inset-0 bg-[url('/assets/bg-login-indigo.jpg')] bg-cover bg-center"
+			aria-hidden="true"
+		></div>
+		<div class="absolute inset-0 bg-black/20" aria-hidden="true"></div>
+		<div class="relative z-10 grid gap-4">
 			<span class="grid size-14 place-items-center rounded-xl text-foreground">
 				<AqarDeskLogo size={40} class="text-primary" />
 			</span>
@@ -33,7 +38,7 @@
 			<h1 class="text-3xl font-semibold leading-tight">{m.setup_title()}</h1>
 			<p class="max-w-md text-sm leading-7 text-background/70">{m.setup_description()}</p>
 		</div>
-		<div class="grid gap-3 text-sm text-background/80">
+		<div class="relative z-10 grid gap-3 text-sm text-background/80">
 			<div class="flex items-center gap-3">
 				<span class="grid size-7 place-items-center rounded-full bg-background/10">1</span>
 				{m.setup_step_connection()}
@@ -51,7 +56,7 @@
 				{m.setup_step_ready()}
 			</div>
 		</div>
-		<p class="flex items-center gap-2 text-xs text-background/70">
+		<p class="relative z-10 flex items-center gap-2 text-xs text-background/70">
 			<ShieldCheck size={15} />{m.connection_security_note()}
 		</p>
 	</aside>
@@ -108,7 +113,7 @@
 			/>
 
 			<footer class="flex justify-between text-xs text-muted-foreground">
-				<span>© {new Date().getFullYear()} AqarDesk</span>
+				<span>© {new Date().getFullYear()} Mulverse</span>
 				<span>{m.setup_step_connection()}</span>
 			</footer>
 		</div>
