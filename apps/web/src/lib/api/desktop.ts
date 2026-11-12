@@ -73,6 +73,7 @@ export type ContractDocumentStyle = {
 	show_contract_number: boolean;
 	show_footer: boolean;
 	footer_text: string;
+	organization_logo_data_url: string | null;
 };
 
 export type ContractDocumentInput = {

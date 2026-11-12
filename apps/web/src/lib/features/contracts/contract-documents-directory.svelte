@@ -139,6 +139,7 @@
 			.map((line) => line.trim())
 			.filter(Boolean)
 			.map((line) => {
+				if (line === '[[PAGE_BREAK]]') return { kind: 'page-break', text: '' };
 				const heading = /^(#{1,3})\s+(.+)$/.exec(line);
 				if (heading) return { kind: 'heading', text: heading[2] };
 				const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line);
@@ -160,12 +161,15 @@
 		if (!selected) return;
 		const design = selected.document_style;
 		const hasHeader =
-			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
+			(design.organization_logo_data_url ||
+				(design.show_branding && design.brand_label.trim()) ||
+				design.show_contract_number);
 		const headerHtml = hasHeader
-			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? `<p class="contract-number">${escapeHtml(selected.contract_number)}</p>` : ''}</header>`
+			? `<header><div class="brand-row">${design.organization_logo_data_url ? `<img class="brand-logo" src="${escapeHtml(design.organization_logo_data_url)}" alt="">` : ''}${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}</div>${design.show_contract_number ? `<p class="contract-number">${escapeHtml(selected.contract_number)}</p>` : ''}</header>`
 			: '';
 		const bodyHtml = documentBlocks(selected.document_body)
 			.map((block) => {
+				if (block.kind === 'page-break') return '<div class="page-break"></div>';
 				if (block.kind === 'heading') {
 					return `<h2>${escapeHtml(block.text.replace(/^#{1,3}\s+/, ''))}</h2>`;
 				}
@@ -290,8 +294,11 @@
 					class="mx-auto w-full rounded-md border border-border/70 bg-white text-slate-900 shadow-sm"
 					style={`max-width:${contractDocumentPaperDimensions(selected.document_style.paper_size).width};min-height:${contractDocumentPaperDimensions(selected.document_style.paper_size).height};padding:${selected.document_style.page_margin_mm}mm;font-family:${contractDocumentFont(selected.document_style.font_family)};font-size:${selected.document_style.font_size}px;text-align:${selected.document_style.alignment};background:#fff;color:#172033`}
 				>
-					{#if (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
+					{#if selected.document_style.organization_logo_data_url || (selected.document_style.show_branding && selected.document_style.brand_label.trim()) || selected.document_style.show_contract_number}
 						<header class="mb-8 border-b-2 pb-5" style={`border-color:${selected.document_style.accent_color}`}>
+							{#if selected.document_style.organization_logo_data_url}
+								<img src={selected.document_style.organization_logo_data_url} alt="" class="mb-3 max-h-14 max-w-36 object-contain" />
+							{/if}
 							{#if selected.document_style.show_branding && selected.document_style.brand_label.trim()}
 								<p class="text-sm font-bold" style={`color:${selected.document_style.accent_color}`}>
 									{selected.document_style.brand_label}
@@ -306,6 +313,8 @@
 						{#each documentBlocks(selected.document_body) as block, index (`${block.kind}-${index}`)}
 							{#if block.kind === 'heading'}
 								<h4 class="border-b pb-2 pt-4 text-lg font-semibold" style={`border-color:${selected.document_style.accent_color};color:${selected.document_style.accent_color}`}>{block.text.replace(/^#{1,3}\s+/, '')}</h4>
+							{:else if block.kind === 'page-break'}
+								<hr class="my-6 border-dashed border-slate-300" />
 							{:else if block.kind === 'list-item'}
 								<p><span style={`color:${selected.document_style.accent_color}`}>• </span>{block.text.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')}</p>
 							{:else}

@@ -125,6 +125,7 @@ export type OrganizationSettings = {
     default_currency: string;
     id: string;
     legal_name?: string | null;
+    logo_data_url?: string | null;
     name: string;
     timezone: string;
 };
@@ -132,6 +133,7 @@ export type OrganizationSettings = {
 export type OrganizationSettingsInput = {
     default_currency: string;
     legal_name?: string | null;
+    logo_data_url?: string | null;
     name: string;
     timezone: string;
 };

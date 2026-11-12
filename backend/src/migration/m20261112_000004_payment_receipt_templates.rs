@@ -1,4 +1,6 @@
-use crate::contract_template_defaults::DEFAULT_CONTRACT_TEMPLATES;
+use crate::contract_template_defaults::{
+    DEFAULT_CONTRACT_TEMPLATES, default_template_content, default_template_placeholders,
+};
 use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
 use sha2::{Digest, Sha256};
@@ -25,6 +27,7 @@ impl MigrationTrait for Migration {
                 .iter()
                 .filter(|template| template.lease_type == "receipt")
             {
+                let content = default_template_content(template);
                 let existing = connection
                     .query_one(Statement::from_string(
                         backend,
@@ -43,10 +46,11 @@ impl MigrationTrait for Migration {
 
                 let template_id = Uuid::new_v4().to_string();
                 let version_id = Uuid::new_v4().to_string();
-                let content_hash = Sha256::digest(template.content.as_bytes())
+                let content_hash = Sha256::digest(content.as_bytes())
                     .iter()
                     .map(|byte| format!("{byte:02x}"))
                     .collect::<String>();
+                let placeholders_json = default_template_placeholders(template);
                 connection
                     .execute_unprepared(&format!(
                         "INSERT INTO contract_templates \
@@ -66,12 +70,13 @@ impl MigrationTrait for Migration {
                         "INSERT INTO contract_template_versions \
                          (id, organization_id, template_id, version_number, content_format, content_body, \
                           placeholders_json, content_sha256, change_note) \
-                         VALUES ('{}', '{}', '{}', 1, 'markdown', '{}', '{{}}', '{}', \
-                          'Default payment receipt template')",
+                         VALUES ('{}', '{}', '{}', 1, 'markdown', '{}', '{}', '{}', \
+                          'Default DocForge payment receipt template')",
                         version_id,
                         sql_literal(&organization_id),
                         template_id,
-                        sql_literal(template.content),
+                        sql_literal(&content),
+                        sql_literal(&placeholders_json),
                         content_hash
                     ))
                     .await?;

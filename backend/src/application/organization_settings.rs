@@ -9,6 +9,7 @@ pub struct OrganizationSettings {
     pub id: String,
     pub name: String,
     pub legal_name: Option<String>,
+    pub logo_data_url: Option<String>,
     pub default_currency: String,
     pub timezone: String,
 }
@@ -17,6 +18,7 @@ pub struct OrganizationSettings {
 pub struct OrganizationSettingsInput {
     pub name: String,
     pub legal_name: Option<String>,
+    pub logo_data_url: Option<String>,
     pub default_currency: String,
     pub timezone: String,
 }
@@ -56,6 +58,7 @@ impl<R: OrganizationSettingsRepository> OrganizationSettingsService<R> {
         require_admin(actor)?;
         input.name = input.name.trim().to_string();
         input.legal_name = clean_optional(input.legal_name);
+        input.logo_data_url = clean_optional(input.logo_data_url);
         input.default_currency = input.default_currency.trim().to_ascii_uppercase();
         input.timezone = input.timezone.trim().to_string();
         if input.name.is_empty() {
@@ -77,6 +80,28 @@ impl<R: OrganizationSettingsRepository> OrganizationSettingsService<R> {
             || input.timezone.parse::<chrono_tz::Tz>().is_err()
         {
             return Err(validation("A valid IANA time zone is required."));
+        }
+        if input.logo_data_url.as_deref().is_some_and(|logo| {
+            logo.len() > 1_500_000
+                || ![
+                    "data:image/png;base64,",
+                    "data:image/jpeg;base64,",
+                    "data:image/webp;base64,",
+                ]
+                .iter()
+                .any(|prefix| {
+                    logo.strip_prefix(prefix).is_some_and(|data| {
+                        !data.is_empty()
+                            && data.len() % 4 == 0
+                            && data.bytes().all(|byte| {
+                                byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'=')
+                            })
+                    })
+                })
+        }) {
+            return Err(validation(
+                "Organization logo must be a PNG, JPEG, or WebP image up to 1 MiB.",
+            ));
         }
         self.repository
             .update(

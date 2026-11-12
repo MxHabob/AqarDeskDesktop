@@ -228,6 +228,7 @@ pub mod organization {
         pub id: String,
         pub name: String,
         pub legal_name: Option<String>,
+        pub logo_data_url: Option<String>,
         pub default_currency: String,
         pub timezone: String,
         pub created_at: DateTimeUtc,

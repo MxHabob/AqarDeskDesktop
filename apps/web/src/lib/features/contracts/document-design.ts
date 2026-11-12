@@ -11,7 +11,8 @@ export const DEFAULT_CONTRACT_DOCUMENT_STYLE: ContractDocumentStyle = {
 	brand_label: '',
 	show_contract_number: true,
 	show_footer: true,
-	footer_text: ''
+	footer_text: '',
+	organization_logo_data_url: null
 };
 
 export function contractDocumentStyleFromPlaceholders(
@@ -41,6 +42,8 @@ export function contractDocumentStyleFromPlaceholders(
 		values.show_contract_number ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.show_contract_number;
 	const showFooter = values.show_footer ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.show_footer;
 	const footerText = values.footer_text ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.footer_text;
+	const organizationLogo =
+		values.organization_logo_data_url ?? DEFAULT_CONTRACT_DOCUMENT_STYLE.organization_logo_data_url;
 	if (
 		!(paperSize === 'a4' || paperSize === 'a5' || paperSize === 'letter') ||
 		typeof accentColor !== 'string' ||
@@ -63,7 +66,13 @@ export function contractDocumentStyleFromPlaceholders(
 		typeof showContractNumber !== 'boolean' ||
 		typeof showFooter !== 'boolean' ||
 		typeof footerText !== 'string' ||
-		footerText.length > 400
+		footerText.length > 400 ||
+		!(
+			organizationLogo === null ||
+			(typeof organizationLogo === 'string' &&
+				organizationLogo.length <= 1_500_000 &&
+				/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(organizationLogo))
+		)
 	) {
 		throw new Error('Contract document design settings are invalid.');
 	}
@@ -79,13 +88,15 @@ export function contractDocumentStyleFromPlaceholders(
 		brand_label: brandLabel,
 		show_contract_number: showContractNumber,
 		show_footer: showFooter,
-		footer_text: footerText
+		footer_text: footerText,
+		organization_logo_data_url: organizationLogo
 	};
 }
 
 export function contractTemplatePlaceholdersWithDesign(
 	value: string | null | undefined,
-	design: ContractDocumentStyle
+	design: ContractDocumentStyle,
+	docForgeDocument?: string
 ) {
 	let parsed: Record<string, unknown> = {};
 	if (value?.trim()) {
@@ -95,7 +106,11 @@ export function contractTemplatePlaceholdersWithDesign(
 		}
 		parsed = current as Record<string, unknown>;
 	}
-	return JSON.stringify({ ...parsed, design });
+	return JSON.stringify({
+		...parsed,
+		design,
+		...(docForgeDocument ? { docforge_document: docForgeDocument } : {})
+	});
 }
 
 export function contractDocumentFont(fontFamily: ContractDocumentStyle['font_family']) {
@@ -141,6 +156,7 @@ export function buildPrintDocumentHtml(input: {
 	bodyHtml: string;
 	footerHtml: string;
 }) {
+	const dimensions = contractDocumentPaperDimensions(input.design.paper_size);
 	return `<!doctype html>
 		<html lang="${input.direction === 'rtl' ? 'ar' : 'en'}" dir="${input.direction}">
 			<head>
@@ -170,6 +186,8 @@ export function buildPrintDocumentHtml(input: {
 					main { width: auto; }
 					header { margin-bottom: 8mm; padding-bottom: 5mm; border-bottom: 2px solid ${input.design.accent_color}; }
 					header p { margin: 0; }
+					.brand-row { display: flex; align-items: center; gap: 4mm; }
+					.brand-logo { max-width: 28mm; max-height: 20mm; object-fit: contain; }
 					.brand { color: ${input.design.accent_color}; font-weight: 700; }
 					.contract-number { color: #64748b; font-size: 0.9em; direction: ltr; text-align: start; }
 					h1, h2, h3, h4 { margin: 5mm 0 2mm; color: ${input.design.accent_color}; break-after: avoid-page; }
@@ -180,6 +198,21 @@ export function buildPrintDocumentHtml(input: {
 					.bullet { color: ${input.design.accent_color}; }
 					code { padding: 0 1mm; border-radius: 1mm; background: #f1f5f9; font-family: monospace; }
 					footer { margin-top: 12mm; padding-top: 3mm; border-top: 1px solid ${input.design.accent_color}; color: #64748b; font-size: 0.85em; }
+					.page-break { break-before: page; page-break-before: always; }
+					@media screen {
+						html { background: #e2e8f0; }
+						body {
+							width: ${dimensions.width};
+							min-height: ${dimensions.height};
+							max-width: calc(100vw - 32px);
+							margin: 16px auto;
+							padding: ${input.design.page_margin_mm}mm;
+							box-shadow: 0 8px 24px rgb(15 23 42 / 18%);
+						}
+					}
+					@media print {
+						body { width: auto; min-height: 0; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+					}
 				</style>
 			</head>
 			<body>

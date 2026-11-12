@@ -293,6 +293,7 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             id: Set(organization_id.to_string()),
             name: Set(input.organization_name.trim().to_string()),
             legal_name: Set(None),
+            logo_data_url: Set(None),
             default_currency: Set("SAR".to_string()),
             timezone: Set("Asia/Riyadh".to_string()),
             created_at: Set(now),

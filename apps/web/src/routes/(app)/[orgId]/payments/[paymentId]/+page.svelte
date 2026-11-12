@@ -4,7 +4,8 @@
 	import { goto } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import { ArrowLeft, Printer } from '@lucide/svelte';
-	import { Button, Card, toast } from '@aqardesk/ui';
+	import { Button, toast } from '@aqardesk/ui';
+	import type { TemplateDocument } from '@docforge/core';
 	import type {
 		ContractTemplate,
 		CurrencySettings,
@@ -15,6 +16,12 @@
 	import { formatCurrency, formatDate } from '#lib/core/i18n';
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
+	import {
+		docForgeDocumentFromPlaceholders,
+		docForgeDocumentJsonFromPlaceholders,
+		resolveDocForgeDocument
+	} from '#lib/features/contracts/docforge-template';
+	import DocForgePreview from '#lib/features/templates/docforge-preview.svelte';
 
 	type ReceiptSection = { title: string; items: string[]; paragraphs: string[] };
 	type ReceiptDocument = { title: string; sections: ReceiptSection[]; footer: string[] };
@@ -23,18 +30,86 @@
 	let payment = $state<Payment | null>(null);
 	let organization = $state<OrganizationSettings | null>(null);
 	let currencies = $state<CurrencySettings[]>([]);
-	let templates = $state<ContractTemplate[]>([]);
+	let receiptTemplate = $state<ContractTemplate | null>(null);
+	let receiptDocForge = $state<TemplateDocument | null>(null);
+	let receiptTemplateError = $state<string | null>(null);
 	let loading = $state(true);
 	const locale = $derived(getLocale());
 	const paymentCurrencyCode = $derived(payment?.currency_code ?? '');
-	const receiptTemplate = $derived(
-		templates.find(
-			(template) =>
-				template.is_active &&
-				template.lease_type === 'receipt' &&
-				template.locale.toLowerCase().startsWith(locale) &&
-				template.versions[0]?.content_body?.trim()
-		)
+	const docForgeValues = $derived.by(() => {
+		if (!payment) return {};
+		const currentPayment = payment;
+		const digits =
+			currencies.find((currency) => currency.code === currentPayment.currency_code)?.decimal_digits ?? 2;
+		const allocationRows = currentPayment.allocations.map((allocation) => {
+			const amount = formatCurrency(
+				allocation.amount_minor,
+				currentPayment.currency_code,
+				digits
+			);
+			return {
+				contract_number: allocation.contract_number,
+				property_name: allocation.property_name,
+				unit_number: allocation.unit_number,
+				amount,
+				amount_minor: allocation.amount_minor,
+				display: `${allocation.contract_number} · ${allocation.property_name} (${allocation.unit_number}): ${amount}`
+			};
+		});
+		const firstAllocation = currentPayment.allocations[0];
+		const organizationName = organization?.name ?? m.app_name();
+		const organizationLegalName = organization?.legal_name ?? organizationName;
+		const amount = formatMoney(currentPayment);
+		const method = methodLabel(currentPayment.payment_method);
+		const reference = currentPayment.external_reference || '—';
+		const notes = currentPayment.notes || '—';
+		return {
+			page: 1,
+			items: allocationRows,
+			payments: allocationRows,
+			payment: {
+				id: currentPayment.id,
+				number: currentPayment.id,
+				receipt_number: currentPayment.id,
+				date: formatDate(currentPayment.received_at, 'datetime', undefined, organization?.timezone),
+				status:
+					currentPayment.status === 'posted'
+						? m.payments_status_posted()
+						: m.payments_status_void(),
+				tenant: currentPayment.tenant_name,
+				amount,
+				amount_minor: currentPayment.amount_minor,
+				currency: currentPayment.currency_code,
+				method,
+				reference,
+				description: notes,
+				notes,
+				allocations: allocationRows
+			},
+			tenant: { name: currentPayment.tenant_name, phone: '', email: '', national_id: '' },
+			contract: {
+				number: firstAllocation?.contract_number ?? '',
+				start_date: '',
+				end_date: '',
+				rent: '',
+				deposit: ''
+			},
+			property: { name: firstAllocation?.property_name ?? '', address: '' },
+			unit: { number: firstAllocation?.unit_number ?? '' },
+			organization: {
+				name: organizationName,
+				name_ar: organizationLegalName,
+				phone: '',
+				website: '',
+				address: organization?.legal_name ?? '',
+				logo_url: organization?.logo_data_url ?? ''
+			}
+		};
+	});
+	const renderedDocForge = $derived.by(() =>
+		receiptDocForge
+			? resolveDocForgeDocument(receiptDocForge, docForgeValues)
+			: { document: null, unresolved: [] as string[] }
 	);
 	const renderedTemplate = $derived.by(() => {
 		if (!receiptTemplate || !payment) {
@@ -43,7 +118,10 @@
 		const currentPayment = payment;
 		const templateContent = receiptTemplate.versions[0]?.content_body ?? '';
 		const hasAllocationPlaceholder = templateContent.includes('{{payment.allocations}}');
+		const firstAllocation = currentPayment.allocations[0];
+		const paymentNotes = currentPayment.notes || '—';
 		const values: Record<string, string> = {
+			'payment.number': currentPayment.id,
 			'payment.receipt_number': currentPayment.id,
 			'payment.date': formatDate(currentPayment.received_at, 'datetime', undefined, organization?.timezone),
 			'payment.status':
@@ -63,8 +141,25 @@
 			'payment.currency': currentPayment.currency_code,
 			'payment.method': methodLabel(currentPayment.payment_method),
 			'payment.reference': currentPayment.external_reference || '—',
-			'payment.notes': currentPayment.notes || '—',
-			'organization.name': organization?.name ?? m.app_name()
+			'payment.description': paymentNotes,
+			'payment.notes': paymentNotes,
+			'tenant.name': currentPayment.tenant_name,
+			'tenant.phone': '',
+			'tenant.email': '',
+			'tenant.national_id': '',
+			'contract.number': firstAllocation?.contract_number ?? '',
+			'contract.start_date': '',
+			'contract.end_date': '',
+			'contract.rent': '',
+			'contract.deposit': '',
+			'property.name': firstAllocation?.property_name ?? '',
+			'property.address': '',
+			'unit.number': firstAllocation?.unit_number ?? '',
+			'organization.name': organization?.name ?? m.app_name(),
+			'organization.name_ar': organization?.legal_name ?? organization?.name ?? m.app_name(),
+			'organization.address': organization?.legal_name ?? '',
+			'organization.phone': '',
+			'organization.website': ''
 		};
 		const unresolved = new Set<string>();
 		const content = templateContent.replace(
@@ -79,6 +174,9 @@
 		);
 		return { content, unresolved: [...unresolved], hasAllocationPlaceholder };
 	});
+	const receiptVariablesUnresolved = $derived(
+		(receiptDocForge ? renderedDocForge.unresolved : renderedTemplate.unresolved).length > 0
+	);
 
 	onMount(() => {
 		void load();
@@ -95,11 +193,45 @@
 			]);
 			organization = currentOrganization;
 			currencies = availableCurrencies;
-			templates = availableTemplates;
 			payment = payments.find((item) => item.id === page.params.paymentId) ?? null;
 			if (!payment) toast.error(m.payments_not_found());
+			receiptTemplate = availableTemplates.find((template) => {
+				if (
+					!template.is_active ||
+					template.lease_type !== 'receipt' ||
+					!template.locale.toLowerCase().startsWith(locale)
+				) {
+					return false;
+				}
+				const version = template.versions[0];
+				return Boolean(
+					version?.content_body?.trim() ||
+						getTemplateDocForgeJson(version?.placeholders_json)
+				);
+			}) ?? null;
+			if (receiptTemplate) {
+				const version = receiptTemplate.versions[0];
+				const documentJson = getTemplateDocForgeJson(version?.placeholders_json);
+				if (documentJson) {
+					receiptDocForge = docForgeDocumentFromPlaceholders(
+						version?.placeholders_json,
+						version?.content_body ?? '',
+						receiptTemplate.locale,
+						'a5'
+					);
+					receiptDocForge.meta.documentType = 'receipt';
+					receiptDocForge.meta.entityType = 'receipt';
+					receiptDocForge.meta.locale = receiptTemplate.locale.toLowerCase().startsWith('ar')
+						? 'ar'
+						: 'en';
+					receiptDocForge.meta.pageSetup.size = 'A5';
+					receiptDocForge.meta.pageSetup.orientation = 'portrait';
+				}
+			}
 		} catch (cause) {
-			toast.error(cause instanceof Error ? cause.message : String(cause));
+			const message = cause instanceof Error ? cause.message : String(cause);
+			receiptTemplateError = message;
+			toast.error(message);
 		} finally {
 			loading = false;
 		}
@@ -109,6 +241,11 @@
 		const digits =
 			currencies.find((currency) => currency.code === item.currency_code)?.decimal_digits ?? 2;
 		return formatCurrency(item.amount_minor, item.currency_code, digits);
+	}
+
+	function getTemplateDocForgeJson(placeholders: string | null | undefined) {
+		if (!placeholders?.includes('"docforge_document"')) return null;
+		return docForgeDocumentJsonFromPlaceholders(placeholders);
 	}
 
 	function methodLabel(method: string) {
@@ -163,7 +300,10 @@
 	}
 
 	function printReceipt() {
-		if (!receiptTemplate || renderedTemplate.unresolved.length > 0) return;
+		const unresolved = receiptDocForge
+			? renderedDocForge.unresolved
+			: renderedTemplate.unresolved;
+		if (!receiptTemplate || receiptTemplateError || unresolved.length > 0) return;
 		window.print();
 	}
 </script>
@@ -181,7 +321,7 @@
 		<Button
 			variant="outline"
 			class="rounded-md"
-			disabled={!receiptTemplate || renderedTemplate.unresolved.length > 0}
+			disabled={!receiptTemplate || Boolean(receiptTemplateError) || receiptVariablesUnresolved}
 			onclick={printReceipt}
 		>
 			<Printer size={16} />
@@ -193,16 +333,36 @@
 {#if loading}
 	<p class="py-12 text-center text-sm text-muted-foreground">{m.common_loading()}</p>
 {:else if payment}
-	{#if !receiptTemplate}
+	{#if receiptTemplateError}
+		<p class="mx-auto w-full max-w-2xl rounded-lg border border-destructive/30 p-6 text-center text-sm text-destructive" role="alert">
+			{receiptTemplateError}
+		</p>
+	{:else if !receiptTemplate}
 		<p class="mx-auto w-full max-w-2xl rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
 			{m.payments_receipt_template_missing()}
 		</p>
-	{:else if renderedTemplate.unresolved.length > 0}
+	{:else if receiptVariablesUnresolved}
 		<p class="mx-auto w-full max-w-2xl rounded-lg border border-destructive/30 p-6 text-center text-sm text-destructive" role="alert">
 			{m.payments_receipt_template_variables_missing({
-				variables: renderedTemplate.unresolved.join(', ')
+				variables: (receiptDocForge
+					? renderedDocForge.unresolved
+					: renderedTemplate.unresolved
+				).join(', ')
 			})}
 		</p>
+	{:else if receiptDocForge}
+		<article
+			id="payment-receipt"
+			dir={receiptTemplate?.locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr'}
+			class:docforge-receipt={Boolean(receiptDocForge)}
+			class="receipt-paper mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-300 bg-white text-slate-800 shadow-lg print:max-w-none print:rounded-none print:border-0 print:shadow-none"
+		>
+			<DocForgePreview
+				document={receiptDocForge}
+				values={docForgeValues}
+				id="payment-docforge-preview"
+			/>
+		</article>
 	{:else}
 		{@const document = receiptDocument(renderedTemplate.content)}
 		<article
@@ -212,9 +372,14 @@
 		>
 			<div class="receipt-accent h-3 bg-amber-400"></div>
 			<header class="receipt-header grid gap-5 bg-indigo-950 px-6 py-6 text-white sm:grid-cols-[1fr_auto] sm:items-center sm:px-10">
-				<div class="grid gap-1">
+				<div class="flex items-center gap-4">
+					{#if organization?.logo_data_url}
+						<img src={organization.logo_data_url} alt="" class="max-h-14 max-w-28 rounded bg-white p-1 object-contain print:max-h-12" />
+					{/if}
+					<div class="grid gap-1">
 					<p class="text-xl font-bold tracking-wide">{organization?.name ?? m.app_name()}</p>
 					<p class="text-sm text-indigo-100">{m.payments_receipts()}</p>
+					</div>
 				</div>
 				<div class="justify-self-start rounded-full border-2 border-amber-400 bg-amber-300 px-8 py-2 text-center text-xl font-bold text-indigo-950 sm:justify-self-end">
 					{document.title || m.payments_receipt()}
@@ -345,6 +510,10 @@
 			border: 0 !important;
 			background: white !important;
 			box-shadow: none !important;
+		}
+
+		:global(#payment-receipt.docforge-receipt) {
+			overflow: visible !important;
 		}
 
 		:global(#payment-receipt .receipt-accent),

@@ -16,6 +16,9 @@ mod m20261112_000011_contract_documents;
 mod m20261112_000012_payment_allocations;
 mod m20261112_000013_contract_document_design;
 mod m20261112_000014_contract_lifecycle;
+mod m20261112_000015_organization_logo;
+mod m20261112_000016_docforge_default_templates;
+mod m20261112_000017_yemen_legal_template_redesign;
 
 pub struct PlatformMigrator;
 
@@ -38,6 +41,9 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000012_payment_allocations::Migration),
             Box::new(m20261112_000014_contract_lifecycle::Migration),
             Box::new(m20261112_000013_contract_document_design::Migration),
+            Box::new(m20261112_000015_organization_logo::Migration),
+            Box::new(m20261112_000016_docforge_default_templates::Migration),
+            Box::new(m20261112_000017_yemen_legal_template_redesign::Migration),
         ]
     }
 }

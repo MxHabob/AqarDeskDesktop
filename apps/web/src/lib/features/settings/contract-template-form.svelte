@@ -1,18 +1,22 @@
 <script lang="ts">
 	import { createForm } from '@tanstack/svelte-form';
-	import { tick, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { z } from 'zod';
 	import type { ContractTemplate, ContractTemplateInput } from '@aqardesk/sdk';
 	import type { ContractDocumentStyle } from '#lib/api/desktop';
+	import { desktopApi } from '#lib/api/desktop';
 	import {
 		buildPrintDocumentHtml,
 		contractDocumentFont,
-		contractDocumentPaperDimensions,
-		contractDocumentPaperSize,
 		contractDocumentStyleFromPlaceholders,
 		contractTemplatePlaceholdersWithDesign,
 		printHtmlDocument
 	} from '#lib/features/contracts/document-design';
+	import {
+		docForgeDocumentFromPlaceholders,
+		docForgeDocumentToTemplateContent,
+		serializeDocForgeTemplate
+	} from '#lib/features/contracts/docforge-template';
 	import {
 		Button,
 		Input,
@@ -21,12 +25,12 @@
 		SelectItem,
 		SelectTrigger,
 		SelectValue,
-		SheetFooter,
 		toast
 	} from '@aqardesk/ui';
-	import { Printer } from '@lucide/svelte';
+	import { Eye, Printer } from '@lucide/svelte';
 	import FormField from '#lib/shared/components/form-field.svelte';
 	import { getFieldError } from '#lib/shared/form-errors';
+	import DocForgeTemplateEditor from '#lib/features/settings/docforge-template-editor.svelte';
 	import * as m from '#lib/paraglide/messages';
 
 	type Values = {
@@ -62,6 +66,19 @@
 			)
 		)
 	);
+	let docForgeDocument = $state(
+		untrack(() =>
+			docForgeDocumentFromPlaceholders(
+				initial?.versions[0]?.placeholders_json,
+				initial?.versions[0]?.content_body ?? '',
+				defaultValues.locale,
+				initial?.lease_type === 'receipt' ? 'a5' : 'a4'
+			)
+		)
+	);
+	let organizationName = $state('');
+	let organizationLogo = $state<string | null>(null);
+	let printPreviewHtml = $state<string | null>(null);
 	let contentEditor = $state<HTMLTextAreaElement>();
 	let contentArea = $state<HTMLDivElement>();
 	let documentMode = $state<'edit' | 'preview'>(
@@ -74,6 +91,16 @@
 	let activeVariableIndex = $state(0);
 	let variableMenuPosition = $state({ top: 0, left: 0 });
 	const previewDirection = $derived(preview.locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr');
+
+	onMount(() => {
+		void desktopApi.getOrganizationSettings().then(
+			(settings) => {
+				organizationName = settings.name;
+				organizationLogo = settings.logo_data_url ?? null;
+			},
+			(cause) => toast.error(cause instanceof Error ? cause.message : String(cause))
+		);
+	});
 
 	function isDocumentFont(value: string): value is ContractDocumentStyle['font_family'] {
 		return ['Tahoma', 'Arial', 'Georgia', 'Noto Naskh Arabic'].includes(value);
@@ -285,26 +312,31 @@
 		}
 	}
 
-	async function printTemplate() {
+	function openPrintPreview() {
 		const hasHeader =
-			(design.show_branding && design.brand_label.trim()) || design.show_contract_number;
+			organizationLogo ||
+			(design.show_branding && design.brand_label.trim()) ||
+			design.show_contract_number;
 		const headerHtml = hasHeader
-			? `<header>${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}${design.show_contract_number ? '<p class="contract-number">AQD-20261112-EXAMPLE</p>' : ''}</header>`
+			? `<header><div class="brand-row">${organizationLogo ? `<img class="brand-logo" src="${escapeHtml(organizationLogo)}" alt="">` : ''}${design.show_branding && design.brand_label.trim() ? `<p class="brand">${escapeHtml(design.brand_label)}</p>` : ''}</div>${design.show_contract_number ? '<p class="contract-number">AQD-20261112-EXAMPLE</p>' : ''}</header>`
 			: '';
 		const footerHtml = design.show_footer
 			? `<footer>${escapeHtml(design.footer_text.trim() || m.settings_template_preview_disclaimer())}</footer>`
 			: '';
+		printPreviewHtml = buildPrintDocumentHtml({
+			title: name || m.settings_template_new(),
+			direction: previewDirection,
+			design,
+			headerHtml,
+			bodyHtml: renderMarkdown(preview.content_body),
+			footerHtml
+		});
+	}
+
+	async function printTemplate() {
+		if (!printPreviewHtml) return;
 		try {
-			await printHtmlDocument(
-				buildPrintDocumentHtml({
-					title: name || m.settings_template_new(),
-					direction: previewDirection,
-					design,
-					headerHtml,
-					bodyHtml: renderMarkdown(preview.content_body),
-					footerHtml
-				})
-			);
+			await printHtmlDocument(printPreviewHtml);
 		} catch (cause) {
 			toast.error(cause instanceof Error ? cause.message : String(cause));
 		}
@@ -326,19 +358,19 @@
 				titleError = m.settings_template_content_required();
 				return;
 			}
-			const ok = await onSubmit({
+			await onSubmit({
 				...value,
 				template_key: '',
 				name: name.trim(),
 				content_format: initial?.versions[0]?.content_format ?? '',
 				placeholders_json: contractTemplatePlaceholdersWithDesign(
 					initial?.versions[0]?.placeholders_json,
-					design
+					design,
+					serializeDocForgeTemplate(docForgeDocument)
 				),
 				description: value.description.trim() || null,
 				change_note: value.change_note.trim() || null
 			});
-			if (ok) onCancel();
 		}
 	}));
 
@@ -354,112 +386,46 @@
 </script>
 
 <form id="contract-template-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
+	{#if printPreviewHtml}
+		<section class="flex min-h-0 flex-1 flex-col overflow-hidden">
+			<div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
+				<Button type="button" variant="outline" onclick={() => (printPreviewHtml = null)}>
+					{m.settings_template_back_to_editor()}
+				</Button>
+				<Button type="button" onclick={printTemplate}>
+					<Printer size={15} class="me-2" />
+					{m.settings_template_print()}
+				</Button>
+			</div>
+			<iframe
+				title={m.settings_template_preview()}
+				srcdoc={printPreviewHtml}
+				class="min-h-0 flex-1 border-0 bg-slate-200"
+			></iframe>
+		</section>
+	{:else}
 	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 		<div class="grid content-start gap-4">
 		<form.Field name="content_body">
 			{#snippet children(field)}
 				<div class="grid gap-3">
-					<article
-						id="contract-template-preview"
-						class="mx-auto w-full rounded-lg border border-border/70 bg-background shadow-sm"
-						style={`max-width:${contractDocumentPaperDimensions(design.paper_size).width};font-family:${contractDocumentFont(design.font_family)}`}
-						dir={previewDirection}
-					>
-						<div class="contract-template-toolbar flex items-center justify-between gap-2 border-b border-border/70 px-4 py-2">
-							<span class="text-xs text-muted-foreground">{m.contract_design_settings()}</span>
-							<Button
-								type="button"
-								size="sm"
-								variant={documentMode === 'edit' ? 'secondary' : 'ghost'}
-								onclick={() => (documentMode = 'edit')}
-							>
-								{m.settings_template_edit_document()}
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								variant={documentMode === 'preview' ? 'secondary' : 'ghost'}
-								onclick={() => {
-									variableMenuOpen = false;
-									documentMode = 'preview';
-								}}
-							>
-								{m.settings_template_render_preview()}
-							</Button>
-						</div>
-						<div bind:this={contentArea} class="relative">
-							{#if documentMode === 'edit'}
-								<div class="template-edit-surface">
-									<textarea
-										bind:this={contentEditor}
-										id="template-content"
-										aria-label={m.settings_template_content()}
-										aria-autocomplete="list"
-										value={field.state.value}
-										oninput={(event) => {
-											const value = event.currentTarget.value;
-											updatePreview('content_body', value);
-											field.handleChange(value);
-											syncVariableMenu(event.currentTarget);
-										}}
-										onkeydown={(event) => handleContentKeydown(event, field.handleChange)}
-										onclick={(event) => {
-											if (variableMenuOpen) syncVariableMenu(event.currentTarget);
-										}}
-										onblur={field.handleBlur}
-										placeholder={m.settings_template_preview_empty()}
-										dir="auto"
-										class="min-h-[calc(100dvh-18rem)] w-full resize-y border-0 bg-transparent px-6 py-7 text-sm leading-8 text-foreground outline-none focus-visible:ring-0 scrollbar-none sm:px-10 sm:py-9"
-									></textarea>
-									{#if variableMenuOpen}
-										<div
-											role="listbox"
-											aria-label={m.settings_template_insert_field()}
-											class="absolute z-30 max-h-64 overflow-y-auto scrollbar-none rounded-lg border border-border bg-popover p-1 shadow-lg"
-											style={`top:${variableMenuPosition.top}px;left:${variableMenuPosition.left}px;width:min(22rem,calc(100% - 1rem))`}
-										>
-											{#each filteredTemplateVariables as item, index (item.key)}
-												<button
-													type="button"
-													role="option"
-													aria-selected={index === activeVariableIndex}
-													onpointerdown={(event) => event.preventDefault()}
-													onclick={() => void insertVariable(item.key, field.handleChange)}
-													class={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-start text-sm ${index === activeVariableIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'}`}
-												>
-													<span>{item.label}</span>
-													<code class="shrink-0 text-xs text-muted-foreground" dir="ltr">{`{{${item.key}}}`}</code>
-												</button>
-											{/each}
-										</div>
-									{/if}
-								</div>
-							{:else}
-								<div
-									class="template-document-preview min-h-[calc(100dvh-18rem)] space-y-3 leading-8"
-									style={`min-height:${contractDocumentPaperDimensions(design.paper_size).height};padding:${design.page_margin_mm}mm;font-size:${design.font_size}px;text-align:${design.alignment};background:#fff;color:#172033`}
-									dir={previewDirection}
-								>
-									{#if design.show_branding || design.show_contract_number}
-										<div class="flex flex-wrap items-end justify-between gap-2 border-b-2 pb-3" style={`border-color:${design.accent_color}`}>
-											{#if design.show_branding && design.brand_label.trim()}
-												<span class="text-sm font-bold" style={`color:${design.accent_color}`}>{design.brand_label}</span>
-											{/if}
-											{#if design.show_contract_number}
-												<span class="text-xs text-muted-foreground" dir="ltr">AQD-20261112-EXAMPLE</span>
-											{/if}
-										</div>
-									{/if}
-									{@html renderMarkdown(preview.content_body)}
-									{#if design.show_footer}
-										<footer class="mt-10 border-t pt-3 text-xs text-muted-foreground" style={`border-color:${design.accent_color}`}>
-											{design.footer_text.trim() || m.settings_template_preview_disclaimer()}
-										</footer>
-									{/if}
-								</div>
-							{/if}
-						</div>
-					</article>
+					<DocForgeTemplateEditor
+						document={docForgeDocument}
+						brandLabel={design.brand_label}
+						footerText={design.footer_text}
+						{organizationName}
+						{organizationLogo}
+						variables={allTemplateVariables}
+						onDocumentChange={(next) => {
+							docForgeDocument = next;
+							const content = docForgeDocumentToTemplateContent(next);
+							updatePreview('content_body', content);
+							field.handleChange(content);
+						}}
+						onBrandLabelChange={(value) => (design = { ...design, brand_label: value })}
+						onFooterTextChange={(value) => (design = { ...design, footer_text: value })}
+						onPaperSizeChange={(paper_size) => (design = { ...design, paper_size })}
+					/>
 					{#if field.state.meta.errors.length}
 						<p class="text-sm text-destructive">{fieldError(field.state.meta.errors)}</p>
 					{/if}
@@ -619,7 +585,7 @@
 		</div>
 	</section>
 	</div>
-	<SheetFooter class="sticky bottom-0 z-20 !mt-0 !flex !shrink-0 !flex-col !justify-normal gap-3 border-t border-border bg-popover px-4 py-3 shadow-[0_-8px_20px_-16px_rgba(0,0,0,0.5)]">
+	<div class="sticky bottom-0 z-20 !mt-0 !flex !shrink-0 !flex-col !justify-normal gap-3 border-t border-border bg-popover px-4 py-3 shadow-[0_-8px_20px_-16px_rgba(0,0,0,0.5)]">
 		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 			<form.Field name="lease_type">
 				{#snippet children(field)}
@@ -697,14 +663,15 @@
 			</form.Field>
 		</div>
 		<div class="flex flex-wrap justify-end gap-2">
-			<Button type="button" variant="outline" disabled={busy} onclick={printTemplate}>
-				<Printer size={15} class="me-2" />
-				{m.settings_template_print()}
+			<Button type="button" variant="outline" disabled={busy} onclick={openPrintPreview}>
+				<Eye size={15} class="me-2" />
+				{m.settings_template_preview()}
 			</Button>
 			<Button type="button" variant="outline" disabled={busy} onclick={onCancel}>{m.common_cancel()}</Button>
 			<Button type="submit" disabled={busy}>
 				{busy ? m.common_processing() : m.settings_save_changes()}
 			</Button>
 		</div>
-	</SheetFooter>
+	</div>
+	{/if}
 </form>

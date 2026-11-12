@@ -18,7 +18,7 @@
 	const routeParts = $derived(deLocalizeUrl(page.url).pathname.split('/').filter(Boolean).slice(1));
 	const section = $derived(routeParts[0] ?? 'overview');
 	const active = $derived(
-		(['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing'] as string[]).includes(section)
+		(['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'templates', 'users', 'settings', 'databases', 'account', 'billing'] as string[]).includes(section)
 			? (section as ViewKey)
 			: 'overview'
 	);
@@ -34,7 +34,7 @@
 		}
 	});
 	const title = $derived.by(() => {
-		const known = ['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'users', 'settings', 'databases', 'account', 'billing', 'organization', 'profile', 'audit', 'currencies', 'contract-templates', 'permissions'];
+		const known = ['properties', 'units', 'tenants', 'owners', 'contracts', 'payments', 'templates', 'users', 'settings', 'databases', 'account', 'billing', 'organization', 'profile', 'audit', 'currencies', 'contract-templates', 'permissions'];
 		const routeName = [...routeParts].reverse().find((part) => known.includes(part)) ?? section;
 		switch (routeName) {
 			case 'properties': return m.nav_properties();
@@ -43,6 +43,7 @@
 			case 'owners': return m.nav_owners();
 			case 'contracts': return m.nav_contracts();
 			case 'payments': return m.nav_payments();
+			case 'templates': return m.nav_templates();
 			case 'users': return m.nav_users();
 			case 'permissions': return m.settings_permissions();
 			case 'settings': return m.nav_settings();
@@ -75,6 +76,8 @@
 			active === 'users' &&
 			!hasPermission(app.currentUser.role, 'manage_administration', app.currentUser.permissions)
 		) {
+			void goto(getViewPath(organization, 'overview'), { replaceState: true });
+		} else if (active === 'templates' && app.currentUser.role !== 'admin') {
 			void goto(getViewPath(organization, 'overview'), { replaceState: true });
 		} else if (
 			(active === 'billing' ||

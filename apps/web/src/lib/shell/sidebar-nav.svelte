@@ -49,6 +49,12 @@
 				)
 			};
 		}
+		if (active === 'templates') {
+			return {
+				title: m.nav_templates(),
+				items: [{ key: 'templates' as const, label: m.nav_templates() }]
+			};
+		}
 		if (active === 'users' || active === 'settings') {
 			return {
 				title: m.nav_settings(),

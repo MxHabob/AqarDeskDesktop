@@ -187,6 +187,7 @@ async fn administration_services_persist_version_audit_and_profile_changes() {
             OrganizationSettingsInput {
                 name: " Updated organization ".to_string(),
                 legal_name: Some(" Legal name ".to_string()),
+                logo_data_url: None,
                 default_currency: "USD".to_string(),
                 timezone: "America/New_York".to_string(),
             },

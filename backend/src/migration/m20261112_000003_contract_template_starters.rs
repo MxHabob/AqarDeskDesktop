@@ -1,4 +1,6 @@
-use crate::contract_template_defaults::DEFAULT_CONTRACT_TEMPLATES;
+use crate::contract_template_defaults::{
+    DEFAULT_CONTRACT_TEMPLATES, default_template_content, default_template_placeholders,
+};
 use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
 use sha2::{Digest, Sha256};
@@ -31,27 +33,30 @@ impl MigrationTrait for Migration {
                 .await?;
 
             for row in rows {
+                let content = default_template_content(&template);
                 let template_id: String = row.try_get_by("id")?;
                 let organization_id: String = row.try_get_by("organization_id")?;
                 let version_number: i32 = row.try_get_by("version_number")?;
                 let next_version = version_number.checked_add(1).ok_or_else(|| {
                     DbErr::Custom("Contract template version overflow.".to_string())
                 })?;
-                let content_hash = Sha256::digest(template.content.as_bytes())
+                let content_hash = Sha256::digest(content.as_bytes())
                     .iter()
                     .map(|byte| format!("{byte:02x}"))
                     .collect::<String>();
+                let placeholders_json = default_template_placeholders(&template);
                 let insert = format!(
                     "INSERT INTO contract_template_versions \
                      (id, organization_id, template_id, version_number, content_format, content_body, \
                       placeholders_json, content_sha256, change_note, created_by, created_at) \
-                     VALUES ('{}', '{}', '{}', {}, 'markdown', '{}', '{{}}', '{}', \
-                      'Starter template with data fields; review terms before use.', NULL, CURRENT_TIMESTAMP)",
+                     VALUES ('{}', '{}', '{}', {}, 'markdown', '{}', '{}', '{}', \
+                      'DocForge starter template; review and customize before use.', NULL, CURRENT_TIMESTAMP)",
                     Uuid::new_v4(),
                     sql_literal(&organization_id),
                     sql_literal(&template_id),
                     next_version,
-                    sql_literal(template.content),
+                    sql_literal(&content),
+                    sql_literal(&placeholders_json),
                     content_hash
                 );
                 connection.execute_unprepared(&insert).await?;

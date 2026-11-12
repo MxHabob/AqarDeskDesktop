@@ -1,0 +1,302 @@
+<script lang="ts">
+import * as m from "#lib/paraglide/messages";
+/**
+ * TextPresetsPanel — Text style presets for quick insertion.
+ * Provides heading, subheading, body, caption presets.
+ */
+import type { EditorStore } from "../stores/editor-store.svelte";
+
+let {
+  store,
+}: {
+  store: EditorStore;
+} = $props();
+
+type TextPreset = {
+  id: string;
+  label: string;
+  sampleAr: string;
+  sampleEn: string;
+  style: {
+    fontSize: number;
+    fontWeight: string;
+    fontFamily: string;
+    color: string;
+    lineHeight: number;
+  };
+};
+
+const presets: TextPreset[] = [
+  {
+    id: "heading1",
+    label: m.common_td_heading1(),
+    sampleAr: m.common_td_heading1_sample(),
+    sampleEn: "Add a heading",
+    style: {
+      fontSize: 32,
+      fontWeight: "700",
+      fontFamily: "Rubik",
+      color: "#000000",
+      lineHeight: 1.2,
+    },
+  },
+  {
+    id: "heading2",
+    label: m.common_td_heading2(),
+    sampleAr: m.common_td_heading2_sample(),
+    sampleEn: "Add a subheading",
+    style: {
+      fontSize: 22,
+      fontWeight: "600",
+      fontFamily: "Rubik",
+      color: "#1a1a1a",
+      lineHeight: 1.3,
+    },
+  },
+  {
+    id: "heading3",
+    label: m.common_td_heading3(),
+    sampleAr: m.common_td_heading3_sample(),
+    sampleEn: "Add a small heading",
+    style: {
+      fontSize: 16,
+      fontWeight: "600",
+      fontFamily: "Rubik",
+      color: "#333333",
+      lineHeight: 1.4,
+    },
+  },
+  {
+    id: "body",
+    label: m.common_td_body(),
+    sampleAr: m.common_td_body_sample(),
+    sampleEn: "Add body text",
+    style: {
+      fontSize: 14,
+      fontWeight: "400",
+      fontFamily: "Rubik",
+      color: "#333333",
+      lineHeight: 1.5,
+    },
+  },
+  {
+    id: "body-small",
+    label: m.common_td_body_small(),
+    sampleAr: m.common_td_body_small_sample(),
+    sampleEn: "Add small text",
+    style: {
+      fontSize: 11,
+      fontWeight: "400",
+      fontFamily: "Rubik",
+      color: "#555555",
+      lineHeight: 1.5,
+    },
+  },
+  {
+    id: "caption",
+    label: m.common_td_caption(),
+    sampleAr: m.common_td_caption_sample(),
+    sampleEn: "Add a caption",
+    style: {
+      fontSize: 9,
+      fontWeight: "400",
+      fontFamily: "Rubik",
+      color: "#777777",
+      lineHeight: 1.4,
+    },
+  },
+  {
+    id: "label",
+    label: m.common_td_label(),
+    sampleAr: m.common_td_label_sample(),
+    sampleEn: "Field Label",
+    style: {
+      fontSize: 10,
+      fontWeight: "600",
+      fontFamily: "Rubik",
+      color: "#555555",
+      lineHeight: 1.3,
+    },
+  },
+  {
+    id: "number",
+    label: m.common_td_number(),
+    sampleAr: m.common_td_number_sample(),
+    sampleEn: "1234",
+    style: {
+      fontSize: 36,
+      fontWeight: "700",
+      fontFamily: "Rubik",
+      color: "#1a1a1a",
+      lineHeight: 1.1,
+    },
+  },
+];
+
+function handleDragStart(e: DragEvent, preset: TextPreset) {
+  e.dataTransfer?.setData("application/x-docforge-element", "Text");
+  e.dataTransfer?.setData("application/x-docforge-text-content", preset.sampleAr);
+  e.dataTransfer?.setData(
+    "application/x-docforge-text-font-size",
+    String(preset.style.fontSize),
+  );
+  e.dataTransfer?.setData(
+    "application/x-docforge-text-font-weight",
+    preset.style.fontWeight,
+  );
+  e.dataTransfer?.setData(
+    "application/x-docforge-text-font-family",
+    preset.style.fontFamily,
+  );
+  e.dataTransfer?.setData(
+    "application/x-docforge-text-color",
+    preset.style.color,
+  );
+  e.dataTransfer?.setData(
+    "application/x-docforge-text-line-height",
+    String(preset.style.lineHeight),
+  );
+  e.dataTransfer?.setData("text/plain", preset.sampleAr);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+}
+
+function insertPreset(preset: TextPreset) {
+  const setup = store.document.meta.pageSetup;
+  const pageSizes: Record<string, { width: number; height: number }> = {
+    A4: { width: 210, height: 297 },
+    A3: { width: 297, height: 420 },
+    A5: { width: 148, height: 210 },
+    Letter: { width: 216, height: 279 },
+    Legal: { width: 216, height: 356 },
+  };
+  const pageSize =
+    setup.size === "Custom"
+      ? { width: setup.width ?? 210, height: setup.height ?? 297 }
+      : (pageSizes[setup.size] ?? { width: 210, height: 297 });
+  const dimensions =
+    setup.orientation === "landscape"
+      ? { width: pageSize.height, height: pageSize.width }
+      : pageSize;
+  const selectedPosition =
+    (store.selectedNode as any)?.props?.position ??
+    (store.selectedNode as any)?.position;
+  const lastText = [...(store.activePage?.children ?? [])]
+    .reverse()
+    .find((node) => node.type === "Text");
+  const referencePosition =
+    selectedPosition ??
+    (lastText as any)?.props?.position ??
+    (lastText as any)?.position;
+  const height = Math.max(
+    8,
+    preset.style.fontSize * 0.352778 * preset.style.lineHeight,
+  );
+  let x = referencePosition?.x ?? 18;
+  let y = referencePosition
+    ? referencePosition.y + (Number(referencePosition.height) || 10) + 4
+    : 18;
+  if (y + height > dimensions.height - 18) {
+    x = x + 24 > dimensions.width - 18 ? 18 : x + 24;
+    y = 18;
+  }
+  x = Math.min(x, dimensions.width - 30);
+
+  store.addElement("Text", {
+    content: preset.sampleAr,
+    ...preset.style,
+    textAlign: "start",
+    position: {
+      x,
+      y,
+      width: dimensions.width - x - 18,
+      height,
+    },
+  });
+}
+</script>
+
+<div class="text-presets-panel">
+  <div class="presets-list">
+    {#each presets as preset (preset.id)}
+      <button
+        type="button"
+        class="preset-card"
+        draggable="true"
+        ondragstart={(e) => handleDragStart(e, preset)}
+        onclick={() => insertPreset(preset)}
+      >
+        <div class="preset-preview" style="
+          font-size: {Math.min(preset.style.fontSize, 24)}px;
+          font-weight: {preset.style.fontWeight};
+          font-family: {preset.style.fontFamily}, sans-serif;
+          color: {preset.style.color};
+          line-height: {preset.style.lineHeight};
+          direction: inherit;
+          text-align: start;
+        ">
+          {preset.sampleAr}
+        </div>
+        <span class="preset-label">{preset.label}</span>
+      </button>
+    {/each}
+  </div>
+
+  <div class="px-3 py-2 border-t border-border">
+    <p class="text-[10px] text-muted-foreground text-center">
+      {m.template_msg_drag_text()}
+    </p>
+  </div>
+</div>
+
+<style>
+  .text-presets-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .presets-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .presets-list::-webkit-scrollbar { display: none; }
+
+  .preset-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    cursor: grab;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+  }
+
+  .preset-card:hover {
+    background: var(--color-muted);
+    border-color: var(--color-border);
+  }
+
+  .preset-card:active {
+    cursor: grabbing;
+  }
+
+  .preset-preview {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preset-label {
+    font-size: 11px;
+    color: var(--color-muted-foreground);
+    margin-top: 2px;
+  }
+</style>
