@@ -196,6 +196,10 @@
 		return `${contract.contract_number} · ${contract.property_name} (${contract.unit_number}) · ${contract.start_date} – ${contract.end_date}`;
 	}
 
+	function contractValueLabel(contract: PaymentContract) {
+		return `${contract.contract_number} · ${contract.unit_number}`;
+	}
+
 	function currencyLabel(currency: CurrencySettings) {
 		const name = locale === 'ar' ? currency.name_ar || currency.name : currency.name;
 		return `${currency.code} · ${name} (${currency.symbol})`;
@@ -213,8 +217,8 @@
 	}
 </script>
 
-<form id="payment-form" class="flex min-h-0 flex-1 flex-col" onsubmit={submit}>
-	<div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
+<form id="payment-form" class="flex min-h-0 min-w-0 flex-1 flex-col" onsubmit={submit}>
+	<div class="grid min-h-0 min-w-0 flex-1 content-start gap-3 overflow-y-auto p-4 scrollbar-none">
 		{#if formError}<p class="text-sm text-destructive" role="alert">{formError}</p>{/if}
 		<FormField label={m.payments_tenant()} id="payment-tenant">
 			<Select
@@ -225,8 +229,11 @@
 					void selectTenant(selected ?? '');
 				}}
 			>
-				<SelectTrigger id="payment-tenant" class="h-9 w-full rounded-md text-sm">
-					<SelectValue placeholder={m.payments_select_tenant()} />
+				<SelectTrigger id="payment-tenant" class="h-9 w-full min-w-0 rounded-md text-sm">
+					<SelectValue
+						class="min-w-0 flex-1 truncate"
+						placeholder={m.payments_select_tenant()}
+					/>
 				</SelectTrigger>
 				<SelectContent>
 					{#each tenants as tenant (tenant.id)}
@@ -256,7 +263,7 @@
 										value={allocation.contractId}
 										items={availableContractsFor(index).map((contract) => ({
 											value: contract.id,
-											label: contractLabel(contract)
+											label: contractValueLabel(contract)
 										}))}
 										onValueChange={(selected) => {
 											allocations[index] = { ...allocation, contractId: selected ?? '' };
@@ -265,13 +272,19 @@
 									>
 										<SelectTrigger
 											aria-label={`${m.payments_contract()} ${index + 1}`}
-											class="h-9 w-full rounded-md text-sm"
+											class="h-9 w-full min-w-0 rounded-md text-sm"
 										>
-											<SelectValue placeholder={m.payments_select_contract()} />
+											<SelectValue
+												class="min-w-0 flex-1 truncate"
+												placeholder={m.payments_select_contract()}
+											/>
 										</SelectTrigger>
 										<SelectContent>
 											{#each availableContractsFor(index) as contract (contract.id)}
-												<SelectItem value={contract.id} label={contractLabel(contract)}>
+												<SelectItem
+													value={contract.id}
+													label={contractValueLabel(contract)}
+												>
 													{contractLabel(contract)}
 												</SelectItem>
 											{/each}
@@ -352,8 +365,8 @@
 					if (selected) paymentMethod = selected;
 				}}
 			>
-				<SelectTrigger id="payment-method" class="h-9 w-full rounded-md text-sm">
-					<SelectValue />
+				<SelectTrigger id="payment-method" class="h-9 w-full min-w-0 rounded-md text-sm">
+					<SelectValue class="min-w-0 flex-1 truncate" />
 				</SelectTrigger>
 				<SelectContent>
 					{#each paymentMethods as method (method)}
