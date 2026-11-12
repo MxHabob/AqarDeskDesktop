@@ -12,7 +12,10 @@ pub trait OwnerRepository: Send + Sync {
         organization_id: OrganizationId,
         page: PageRequest,
     ) -> Result<Page<Owner>, ApplicationError> {
-        Ok(Page::from_items(self.list(organization_id).await?, page.limit()))
+        Ok(Page::from_items(
+            self.list(organization_id).await?,
+            page.limit(),
+        ))
     }
 
     async fn insert(&self, owner: Owner, actor_id: UserId) -> Result<Owner, ApplicationError>;

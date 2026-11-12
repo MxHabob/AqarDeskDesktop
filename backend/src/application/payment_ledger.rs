@@ -1,5 +1,5 @@
 use crate::{
-    application::{require_permission, ApplicationError, Page, PageRequest},
+    application::{ApplicationError, Page, PageRequest, require_permission},
     domain::{
         ActorContext, OrganizationId, Payment, PaymentId, PaymentInput, Permission, TenantId,
     },
@@ -22,7 +22,7 @@ pub struct PaymentContract {
 #[async_trait::async_trait]
 pub trait PaymentRepository: Send + Sync {
     async fn list(&self, organization_id: OrganizationId)
-        -> Result<Vec<Payment>, ApplicationError>;
+    -> Result<Vec<Payment>, ApplicationError>;
 
     async fn list_page(
         &self,

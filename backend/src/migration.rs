@@ -14,8 +14,8 @@ mod m20261112_000009_operation_permissions;
 mod m20261112_000010_contract_permissions;
 mod m20261112_000011_contract_documents;
 mod m20261112_000012_payment_allocations;
-mod m20261112_000014_contract_lifecycle;
 mod m20261112_000013_contract_document_design;
+mod m20261112_000014_contract_lifecycle;
 
 pub struct PlatformMigrator;
 

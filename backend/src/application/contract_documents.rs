@@ -195,11 +195,7 @@ impl<R: ContractDocumentRepository> ContractDocumentService<R> {
     ) -> Result<Page<ContractDocument>, ApplicationError> {
         require_permission(actor, Permission::ViewContracts)?;
         self.repository
-            .list_page(
-                &actor.organization_id().to_string(),
-                property_id,
-                page,
-            )
+            .list_page(&actor.organization_id().to_string(), property_id, page)
             .await
     }
 
@@ -313,7 +309,9 @@ fn validate_end(input: &ContractEndInput) -> Result<(), ApplicationError> {
         || input.reason.trim().is_empty()
         || input.reason.trim().len() > 1000
     {
-        return Err(validation("Contract end date and reason are required and must be valid."));
+        return Err(validation(
+            "Contract end date and reason are required and must be valid.",
+        ));
     }
     Ok(())
 }
@@ -367,12 +365,7 @@ mod tests {
             unreachable!()
         }
 
-        async fn delete_draft(
-            &self,
-            _: &str,
-            _: &str,
-            _: &str,
-        ) -> Result<(), ApplicationError> {
+        async fn delete_draft(&self, _: &str, _: &str, _: &str) -> Result<(), ApplicationError> {
             unreachable!()
         }
 

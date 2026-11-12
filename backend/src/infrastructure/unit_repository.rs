@@ -317,8 +317,12 @@ impl SeaOrmUnitRepository {
                 vec![
                     organization_id.to_string().into(),
                     property_id.to_string().into(),
-                    i64::try_from(page.fetch_limit()).map_err(|_| ApplicationError::Persistence)?.into(),
-                    i64::try_from(page.offset()).map_err(|_| ApplicationError::Persistence)?.into(),
+                    i64::try_from(page.fetch_limit())
+                        .map_err(|_| ApplicationError::Persistence)?
+                        .into(),
+                    i64::try_from(page.offset())
+                        .map_err(|_| ApplicationError::Persistence)?
+                        .into(),
                 ],
             )
         } else {
@@ -328,8 +332,12 @@ impl SeaOrmUnitRepository {
                 ),
                 vec![
                     organization_id.to_string().into(),
-                    i64::try_from(page.fetch_limit()).map_err(|_| ApplicationError::Persistence)?.into(),
-                    i64::try_from(page.offset()).map_err(|_| ApplicationError::Persistence)?.into(),
+                    i64::try_from(page.fetch_limit())
+                        .map_err(|_| ApplicationError::Persistence)?
+                        .into(),
+                    i64::try_from(page.offset())
+                        .map_err(|_| ApplicationError::Persistence)?
+                        .into(),
                 ],
             )
         };

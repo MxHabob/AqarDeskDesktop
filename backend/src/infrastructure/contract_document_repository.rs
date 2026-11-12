@@ -472,13 +472,13 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             deposit_amount_minor: Set(input.deposit_amount_minor),
             document_body: Set(document_body),
             document_style_json: Set(document_style_json),
-            created_by: Set(
-                existing_draft
-                    .as_ref()
-                    .map(|draft| draft.created_by.clone())
-                    .unwrap_or_else(|| actor_id.to_string()),
-            ),
-            created_at: Set(existing_draft.as_ref().map_or(now, |draft| draft.created_at)),
+            created_by: Set(existing_draft
+                .as_ref()
+                .map(|draft| draft.created_by.clone())
+                .unwrap_or_else(|| actor_id.to_string())),
+            created_at: Set(existing_draft
+                .as_ref()
+                .map_or(now, |draft| draft.created_at)),
             status: Set(status.clone()),
             status_reason: Set(None),
             status_effective_date: Set(None),
@@ -524,7 +524,10 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
                 parent.status = Set("amended".to_string());
                 parent.status_reason = Set(Some(format!("Amended by {}", model.contract_number)));
                 parent.status_effective_date = Set(Some(amendment_effective_date));
-                parent.update(&transaction).await.map_err(persistence_error)?;
+                parent
+                    .update(&transaction)
+                    .await
+                    .map_err(persistence_error)?;
                 audit::record(
                     &transaction,
                     organization_id,
@@ -663,8 +666,8 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
                 tracing::error!(%error, "Persisted contract start date is invalid");
                 ApplicationError::Persistence
             })?;
-        let end_date = chrono::NaiveDate::parse_from_str(&contract.end_date, "%Y-%m-%d")
-            .map_err(|error| {
+        let end_date =
+            chrono::NaiveDate::parse_from_str(&contract.end_date, "%Y-%m-%d").map_err(|error| {
                 tracing::error!(%error, "Persisted contract end date is invalid");
                 ApplicationError::Persistence
             })?;
@@ -967,7 +970,8 @@ mod tests {
         assert_eq!(updated.document_style.paper_size, "a4");
         assert_eq!(updated.document_style.accent_color, "#C7962F");
 
-        let contracts = ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database));
+        let contracts =
+            ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database));
         let draft = contracts
             .create(
                 actor,
@@ -1055,7 +1059,10 @@ mod tests {
             .issue_draft(actor, &amendment_draft.id)
             .await
             .expect("issue amendment");
-        assert_eq!(amendment.parent_contract_id.as_deref(), Some(updated_document.id.as_str()));
+        assert_eq!(
+            amendment.parent_contract_id.as_deref(),
+            Some(updated_document.id.as_str())
+        );
         let saved_after_amendment = contracts
             .list(actor, Some(&property_id))
             .await

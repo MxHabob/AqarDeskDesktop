@@ -15,7 +15,10 @@ pub trait PropertyRepository: Send + Sync {
         organization_id: OrganizationId,
         page: PageRequest,
     ) -> Result<Page<Property>, ApplicationError> {
-        Ok(Page::from_items(self.list(organization_id).await?, page.limit()))
+        Ok(Page::from_items(
+            self.list(organization_id).await?,
+            page.limit(),
+        ))
     }
 
     async fn insert(

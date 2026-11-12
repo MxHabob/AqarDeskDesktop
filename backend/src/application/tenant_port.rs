@@ -13,7 +13,10 @@ pub trait TenantRepository: Send + Sync {
         organization_id: OrganizationId,
         page: PageRequest,
     ) -> Result<Page<Tenant>, ApplicationError> {
-        Ok(Page::from_items(self.list(organization_id).await?, page.limit()))
+        Ok(Page::from_items(
+            self.list(organization_id).await?,
+            page.limit(),
+        ))
     }
 
     async fn names(

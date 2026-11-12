@@ -1,8 +1,7 @@
 use crate::{
     application::{
         ApplicationError, IdentityRepository, NewUser, OrganizationBootstrap, Page, PageRequest,
-        UserUpdate,
-        require_admin,
+        UserUpdate, require_admin,
     },
     domain::{AccessRole, ActorContext, Organization, Permission, RolePermissionSet, UserAccount},
 };

@@ -63,20 +63,24 @@ async fn tenant_directory_scopes_updates_and_preserves_archived_rows() {
             .len(),
         1
     );
-    assert!(directory
-        .list(other_actor)
-        .await
-        .expect("other org list")
-        .is_empty());
+    assert!(
+        directory
+            .list(other_actor)
+            .await
+            .expect("other org list")
+            .is_empty()
+    );
     directory
         .archive(actor(organization_id), tenant.id)
         .await
         .expect("archive tenant");
-    assert!(directory
-        .list(actor(organization_id))
-        .await
-        .expect("list")
-        .is_empty());
+    assert!(
+        directory
+            .list(actor(organization_id))
+            .await
+            .expect("list")
+            .is_empty()
+    );
     assert_eq!(
         directory
             .names(actor(organization_id), &[tenant.id])
@@ -86,11 +90,13 @@ async fn tenant_directory_scopes_updates_and_preserves_archived_rows() {
             .map(String::as_str),
         Some("Tenant One")
     );
-    assert!(directory
-        .names(other_actor, &[tenant.id])
-        .await
-        .expect("other organization cannot resolve tenant")
-        .is_empty());
+    assert!(
+        directory
+            .names(other_actor, &[tenant.id])
+            .await
+            .expect("other organization cannot resolve tenant")
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -133,11 +139,13 @@ async fn unit_catalog_validates_inputs_and_scopes_all_operations() {
         .archive(actor(organization_id), unit.id)
         .await
         .expect("archive unit");
-    assert!(catalog
-        .list(actor(organization_id), None)
-        .await
-        .expect("list archived unit")
-        .is_empty());
+    assert!(
+        catalog
+            .list(actor(organization_id), None)
+            .await
+            .expect("list archived unit")
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -204,26 +212,30 @@ async fn payment_ledger_records_and_voids_with_atomic_audit_events() {
         .await
         .expect("list payments for property");
     assert_eq!(property_page.items.len(), 1);
-    assert!(ledger
-        .list_page_for_property(actor, "property-3", PageRequest::new(50, 0).expect("page"))
-        .await
-        .expect("empty property payments")
-        .items
-        .is_empty());
+    assert!(
+        ledger
+            .list_page_for_property(actor, "property-3", PageRequest::new(50, 0).expect("page"))
+            .await
+            .expect("empty property payments")
+            .items
+            .is_empty()
+    );
 
     ledger.void(actor, payment.id).await.expect("void payment");
-    assert!(ledger
-        .list(actor)
-        .await
-        .expect("list payments")
-        .iter()
-        .any(|item| item.id == payment.id
-            && item.status == aqardesk_backend::domain::PaymentStatus::Void
-            && item.allocations.len() == 2
-            && item
-                .allocations
-                .iter()
-                .any(|allocation| allocation.contract_number == "AQD-1")));
+    assert!(
+        ledger
+            .list(actor)
+            .await
+            .expect("list payments")
+            .iter()
+            .any(|item| item.id == payment.id
+                && item.status == aqardesk_backend::domain::PaymentStatus::Void
+                && item.allocations.len() == 2
+                && item
+                    .allocations
+                    .iter()
+                    .any(|allocation| allocation.contract_number == "AQD-1"))
+    );
 
     let audit_rows = database
         .query_one(Statement::from_string(

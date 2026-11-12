@@ -1356,7 +1356,11 @@ pub async fn platform_payments_list_page(
         .map_err(application_error)?;
     let ledger = PaymentLedger::new(SeaOrmPaymentRepository::new(&database));
     let page = match property_id {
-        Some(property_id) => ledger.list_page_for_property(actor, &property_id, page).await,
+        Some(property_id) => {
+            ledger
+                .list_page_for_property(actor, &property_id, page)
+                .await
+        }
         None => ledger.list_page(actor, page).await,
     }
     .map_err(application_error)?;
