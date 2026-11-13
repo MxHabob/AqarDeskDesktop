@@ -1,7 +1,7 @@
 {
   "productName": "AqarDesk Desktop Dev",
   "identifier": "com.mulverse.aqardesk.dev",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "bundle": {
     "icon": [
       "icons/dev/32x32.png",
