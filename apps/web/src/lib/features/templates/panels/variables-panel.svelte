@@ -343,7 +343,7 @@ function handleDragStart(e: DragEvent, varName: string) {
   {/if}
 
   <!-- Variable List -->
-  <div class="grow overflow-y-auto scrollbar-hide">
+  <div class="min-h-0 grow overflow-y-auto scrollbar-none">
     {#if variableEntries.length === 0}
       <div class="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <Code size={20} class="text-muted-foreground/30" />

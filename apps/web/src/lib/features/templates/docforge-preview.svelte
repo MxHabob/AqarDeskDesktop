@@ -70,7 +70,11 @@
         role="img"
         aria-label={document.meta.name}
       >
-        <rect width={pageSizePx.width} height={pageSizePx.height} fill="white" />
+        <rect
+          width={pageSizePx.width}
+          height={pageSizePx.height}
+          fill={document.meta.pageSetup.backgroundColor ?? "white"}
+        />
         <CanvasPage {page} {store} {pageSizePx} />
       </svg>
     </section>

@@ -556,7 +556,7 @@ function handleDrop(e: DragEvent) {
             width={pageWidthPx}
             height={pageHeightPx}
             rx="1"
-            fill="white"
+            fill={pageSetup.backgroundColor ?? "white"}
             stroke="var(--color-border)"
             stroke-width="1"
           />

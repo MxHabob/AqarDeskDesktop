@@ -250,7 +250,6 @@
 						? 'ar'
 						: 'en';
 					receiptDocForge.meta.pageSetup.size = 'A5';
-					receiptDocForge.meta.pageSetup.orientation = 'portrait';
 				}
 			}
 		} catch (cause) {
@@ -319,7 +318,6 @@
 			document.meta.entityType = 'receipt';
 			document.meta.locale = currentTemplate.locale.toLowerCase().startsWith('ar') ? 'ar' : 'en';
 			document.meta.pageSetup.size = 'A5';
-			document.meta.pageSetup.orientation = 'portrait';
 
 			const bytes = await desktopApi.documentPreviewPdf(serializeDocForgeTemplate(document));
 			if (request !== pdfRequest) return;

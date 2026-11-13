@@ -85,6 +85,8 @@ pub struct PageSetup {
     #[serde(default = "default_orientation")]
     pub orientation: Orientation,
     pub margins: Spacing,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_color: Option<String>,
     #[serde(default = "default_unit")]
     pub unit: String,
 }

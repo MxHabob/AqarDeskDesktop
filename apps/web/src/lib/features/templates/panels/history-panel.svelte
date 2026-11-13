@@ -71,7 +71,7 @@ function jumpToState(index: number) {
   </div>
 
   <!-- ClockRotateRight List -->
-  <div class="flex-grow overflow-y-auto scrollbar-hide">
+  <div class="min-h-0 flex-grow overflow-y-auto scrollbar-none">
     {#if history.length === 0}
       <div class="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <ClockRotateRight size={20} class="text-muted-foreground/30" />

@@ -85,6 +85,8 @@ export interface PageSetup {
   orientation: Orientation;
   /** Page margins in mm */
   margins: Spacing;
+  /** Optional page background color */
+  backgroundColor?: string;
   /** Measurement unit (always mm internally) */
   unit: "mm";
 }

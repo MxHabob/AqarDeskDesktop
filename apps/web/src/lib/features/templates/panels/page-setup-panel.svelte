@@ -4,12 +4,12 @@ import * as m from "#lib/paraglide/messages";
  * PageSetupPanel — Page size, orientation, margins, background color.
  */
 import type { EditorStore } from "../stores/editor-store.svelte";
+import type { PageSetup, PageSize } from "@docforge/core";
 import { Input } from "@aqardesk/ui/components/ui/input";
 import { Label } from "@aqardesk/ui/components/ui/label";
-import { Button } from "@aqardesk/ui/components/ui/button";
 import { Separator } from "@aqardesk/ui/components/ui/separator";
 import ColorPicker from "../shared/color-picker.svelte";
-import { DocumentPage, Refresh } from "../icons";
+import { DocumentPage } from "../icons";
 
 let {
   store,
@@ -21,7 +21,7 @@ const pageSetup = $derived(store.document.meta.pageSetup);
 const margins = $derived(pageSetup.margins);
 const isReceiptTemplate = $derived(store.document.meta.entityType === "receipt");
 
-const pageSizes = [
+const pageSizes: { id: PageSize; label: string; w: number; h: number }[] = [
   { id: "A4", label: "A4 (210×297)", w: 210, h: 297 },
   { id: "A3", label: "A3 (297×420)", w: 297, h: 420 },
   { id: "A5", label: "A5 (148×210)", w: 148, h: 210 },
@@ -32,26 +32,19 @@ const pageSizes = [
   { id: "Custom", label: m.template_size_custom(), w: 0, h: 0 },
 ];
 
-function updatePageSetup(updates: Record<string, unknown>) {
-  store.updatePageSetup(updates as any);
+function updatePageSetup(updates: Partial<PageSetup>) {
+  store.updatePageSetup(updates);
 }
 
-function updateMargin(side: string, value: number) {
+function updateMargin(side: keyof PageSetup["margins"], value: number) {
   updatePageSetup({
     margins: { ...margins, [side]: Math.max(0, value) },
-  });
-}
-
-function toggleOrientation() {
-  updatePageSetup({
-    orientation:
-      pageSetup.orientation === "portrait" ? "landscape" : "portrait",
   });
 }
 </script>
 
 <div class="page-setup-panel">
-  <div class="panel-content">
+  <div class="panel-content scrollbar-none">
     <!-- Page Size -->
     <div class="section">
       <Label class="text-xs font-medium text-foreground">{m.template_prop_page_size()}</Label>
@@ -69,7 +62,9 @@ function toggleOrientation() {
             <div class="size-info">
               <span class="size-name">{size.id}</span>
               {#if size.w > 0}
-                <span class="size-dims">{size.w}×{size.h}</span>
+                <span class="size-dims">
+                  {pageSetup.orientation === "landscape" ? size.h : size.w}×{pageSetup.orientation === "landscape" ? size.w : size.h}
+                </span>
               {/if}
             </div>
           </button>
@@ -82,35 +77,26 @@ function toggleOrientation() {
     <!-- Orientation -->
     <div class="section">
       <Label class="text-xs font-medium text-foreground">{m.template_prop_page_orientation()}</Label>
-      {#if isReceiptTemplate}
-        <div class="orientation-row">
-          <div class="orient-btn active">
-            <div class="orient-icon portrait-icon"></div>
-            <span>{m.template_orientation_vert()}</span>
-          </div>
-        </div>
-      {:else}
-        <div class="orientation-row">
-          <button
-            type="button"
-            class="orient-btn"
-            class:active={pageSetup.orientation === "portrait"}
-            onclick={() => updatePageSetup({ orientation: "portrait" })}
-          >
-            <div class="orient-icon portrait-icon"></div>
-            <span>{m.template_orientation_vert()}</span>
-          </button>
-          <button
-            type="button"
-            class="orient-btn"
-            class:active={pageSetup.orientation === "landscape"}
-            onclick={() => updatePageSetup({ orientation: "landscape" })}
-          >
-            <div class="orient-icon landscape-icon"></div>
-            <span>{m.template_orientation_horz()}</span>
-          </button>
-        </div>
-      {/if}
+      <div class="orientation-row">
+        <button
+          type="button"
+          class="orient-btn"
+          class:active={pageSetup.orientation === "portrait"}
+          onclick={() => updatePageSetup({ orientation: "portrait" })}
+        >
+          <div class="orient-icon portrait-icon"></div>
+          <span>{m.template_orientation_vert()}</span>
+        </button>
+        <button
+          type="button"
+          class="orient-btn"
+          class:active={pageSetup.orientation === "landscape"}
+          onclick={() => updatePageSetup({ orientation: "landscape" })}
+        >
+          <div class="orient-icon landscape-icon"></div>
+          <span>{m.template_orientation_horz()}</span>
+        </button>
+      </div>
     </div>
 
     <Separator class="opacity-30" />
@@ -145,7 +131,7 @@ function toggleOrientation() {
             type="number"
             value={margins.right}
             oninput={(e) => updateMargin("right", parseFloat(e.currentTarget.value) || 0)}
-            class="h-6 text-[10px] text-center"
+            class="h-8 text-xs text-center"
             min="0" max="100" step="1"
           />
         </div>
@@ -155,7 +141,7 @@ function toggleOrientation() {
             type="number"
             value={margins.left}
             oninput={(e) => updateMargin("left", parseFloat(e.currentTarget.value) || 0)}
-            class="h-6 text-[10px] text-center"
+            class="h-8 text-xs text-center"
             min="0" max="100" step="1"
           />
         </div>
@@ -192,6 +178,16 @@ function toggleOrientation() {
         </div>
       </div>
     {/if}
+
+    <Separator class="opacity-30" />
+
+    <div class="section">
+      <Label class="text-xs font-medium text-foreground">{m.template_inspector_background_color()}</Label>
+      <ColorPicker
+        value={pageSetup.backgroundColor ?? "#ffffff"}
+        onchange={(backgroundColor) => updatePageSetup({ backgroundColor })}
+      />
+    </div>
   </div>
 </div>
 
@@ -203,15 +199,14 @@ function toggleOrientation() {
   }
 
   .panel-content {
-    flex-grow: 1;
+    flex: 1 1 0%;
+    min-height: 0;
     overflow-y: auto;
     padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
-
-  .panel-content::-webkit-scrollbar { display: none; }
 
   .section {
     display: flex;

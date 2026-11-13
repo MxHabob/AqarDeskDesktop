@@ -170,9 +170,6 @@ async function initEditor() {
       templateRecord.locale,
       isReceiptTemplate ? "a5" : design.paper_size,
     );
-    if (isReceiptTemplate) {
-      doc.meta.pageSetup.orientation = "portrait";
-    }
     doc.meta.id = templateRecord.id;
     doc.meta.name = templateName;
     doc.meta.documentType = templateRecord.lease_type;
@@ -272,12 +269,8 @@ async function saveTemplate() {
   try {
     store.document.meta.name = templateName;
     const isReceiptTemplate = templateRecord.lease_type === "receipt";
-    if (
-      isReceiptTemplate &&
-      (store.document.meta.pageSetup.size !== "A5" ||
-        store.document.meta.pageSetup.orientation !== "portrait")
-    ) {
-      store.updatePageSetup({ size: "A5", orientation: "portrait" });
+    if (isReceiptTemplate && store.document.meta.pageSetup.size !== "A5") {
+      store.updatePageSetup({ size: "A5" });
     }
     const setup = store.document.meta.pageSetup;
     const paperSize: ContractDocumentStyle["paper_size"] =

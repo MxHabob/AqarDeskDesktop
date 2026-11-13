@@ -21,6 +21,7 @@ mod m20261112_000016_docforge_default_templates;
 mod m20261112_000017_yemen_legal_template_redesign;
 mod m20261112_000018_payment_allocation_contract_index;
 mod m20261112_000019_query_index_maintenance;
+mod m20261113_000020_refreshed_default_template_design;
 
 pub struct PlatformMigrator;
 
@@ -48,6 +49,7 @@ impl MigratorTrait for PlatformMigrator {
             Box::new(m20261112_000017_yemen_legal_template_redesign::Migration),
             Box::new(m20261112_000018_payment_allocation_contract_index::Migration),
             Box::new(m20261112_000019_query_index_maintenance::Migration),
+            Box::new(m20261113_000020_refreshed_default_template_design::Migration),
         ]
     }
 }

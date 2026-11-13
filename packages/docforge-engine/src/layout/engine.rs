@@ -100,6 +100,25 @@ impl<'a> LayoutEngine<'a> {
             let mut positioned_elements = Vec::new();
             let mut text_measure_registry = HashMap::new();
 
+            if let Some(fill) = doc
+                .meta
+                .page_setup
+                .background_color
+                .as_deref()
+                .and_then(Color::from_hex)
+            {
+                positioned_elements.push(PositionedElement::Rect(RectElement {
+                    x: 0.0,
+                    y: 0.0,
+                    width: page_width,
+                    height: page_height,
+                    fill: Some(fill),
+                    stroke: None,
+                    stroke_width: 0.0,
+                    border_radius: 0.0,
+                }));
+            }
+
             for node in nodes {
                 // Check if the node has an absolute position. If so, layout absolute.
                 if let Some(abs_pos) = get_absolute_position(node) {
@@ -1300,6 +1319,7 @@ mod tests {
                 left: 0.0,
                 right: 0.0,
             },
+            background_color: None,
             unit: "mm".to_string(),
         };
         let (width, height) = get_page_dimensions(&landscape_a4);
@@ -1317,6 +1337,7 @@ mod tests {
                 left: 0.0,
                 right: 0.0,
             },
+            background_color: None,
             unit: "mm".to_string(),
         };
         let (width, height) = get_page_dimensions(&landscape_custom);
@@ -1337,6 +1358,7 @@ mod tests {
                 left: 10.0,
                 right: 10.0,
             },
+            background_color: Some("#F8FAFC".to_string()),
             unit: "mm".to_string(),
         };
 
@@ -1419,6 +1441,13 @@ mod tests {
 
         // A4 standard width is 210mm (~595pt), height is 297mm (~841pt)
         assert!(page.width_pt > 590.0 && page.width_pt < 600.0);
+        match page.elements.first() {
+            Some(PositionedElement::Rect(background)) => {
+                let fill = background.fill.expect("page background color");
+                assert_eq!((fill.r, fill.g, fill.b), (248, 250, 252));
+            }
+            _ => panic!("page background should be rendered before document elements"),
+        }
 
         // We should have 2 text elements positioned
         let text_elems: Vec<&TextElement> = page
@@ -1451,6 +1480,7 @@ mod tests {
                 left: 15.0,
                 right: 15.0,
             },
+            background_color: None,
             unit: "mm".to_string(),
         };
 
@@ -1641,6 +1671,7 @@ mod tests {
                 left: 15.0,
                 right: 15.0,
             },
+            background_color: None,
             unit: "mm".to_string(),
         };
 

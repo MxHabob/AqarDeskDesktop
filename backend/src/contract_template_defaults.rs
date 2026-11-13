@@ -353,7 +353,7 @@ pub(crate) fn default_template_placeholders(template: &DefaultContractTemplate) 
             "font_family": if is_arabic { "Tahoma" } else { "Arial" },
             "font_size": if is_receipt { 14 } else { 16 },
             "alignment": "start",
-            "page_margin_mm": if is_receipt { 12 } else { 18 },
+            "page_margin_mm": if is_receipt { 8 } else { 18 },
             "show_branding": true,
             "brand_label": "",
             "show_contract_number": true,
@@ -586,10 +586,10 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
     let is_arabic = template.locale == "ar";
     let locale = if is_arabic { "ar" } else { "en" };
     let direction = if is_arabic { "rtl" } else { "ltr" };
-    let width = if is_receipt { 148.0 } else { 210.0 };
-    let inset = if is_receipt { 10.0 } else { 18.0 };
-    let navy = "#17324D";
-    let gold = "#C7962F";
+    let width = 210.0;
+    let inset = if is_receipt { 8.0 } else { 18.0 };
+    let navy = "#1F3B53";
+    let gold = "#C79A3B";
     let ink = "#263445";
     let muted = "#65758B";
     let soft = "#F3F6FA";
@@ -601,7 +601,7 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
             0.0,
             0.0,
             width,
-            if is_receipt { 29.0 } else { 36.0 },
+            if is_receipt { 22.0 } else { 30.0 },
             navy,
             navy,
             0.0,
@@ -610,16 +610,16 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
             "organization-logo",
             "{{organization.logo_url}}",
             inset,
-            if is_receipt { 5.0 } else { 7.0 },
-            if is_receipt { 17.0 } else { 22.0 },
-            if is_receipt { 18.0 } else { 22.0 },
+            if is_receipt { 3.0 } else { 7.0 },
+            if is_receipt { 16.0 } else { 22.0 },
+            if is_receipt { 16.0 } else { 22.0 },
         ),
         text_node(
             "organization-name",
             "{{organization.name}}",
-            if is_receipt { 32.0 } else { 46.0 },
-            if is_receipt { 7.0 } else { 9.0 },
-            width - if is_receipt { 42.0 } else { 64.0 },
+            if is_receipt { 30.0 } else { 46.0 },
+            if is_receipt { 4.0 } else { 9.0 },
+            width - if is_receipt { 40.0 } else { 64.0 },
             8.0,
             if is_receipt { 13.0 } else { 16.0 },
             true,
@@ -635,9 +635,9 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
             } else {
                 "PROPERTY MANAGEMENT"
             },
-            if is_receipt { 32.0 } else { 46.0 },
-            if is_receipt { 17.0 } else { 21.0 },
-            width - if is_receipt { 42.0 } else { 64.0 },
+            if is_receipt { 30.0 } else { 46.0 },
+            if is_receipt { 13.0 } else { 21.0 },
+            width - if is_receipt { 40.0 } else { 64.0 },
             5.0,
             8.0,
             false,
@@ -649,7 +649,7 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
         shape_node(
             "brand-rule",
             inset,
-            if is_receipt { 29.0 } else { 36.0 },
+            if is_receipt { 22.0 } else { 30.0 },
             width - inset * 2.0,
             1.0,
             gold,
@@ -735,7 +735,7 @@ fn default_docforge_document(template: &DefaultContractTemplate) -> String {
             "locale": locale,
             "pageSetup": {
                 "size": paper_size,
-                "orientation": "portrait",
+                "orientation": if is_receipt { "landscape" } else { "portrait" },
                 "margins": {
                     "top": inset,
                     "bottom": inset,
@@ -777,10 +777,10 @@ fn add_receipt_layout(
         "receipt-title",
         title,
         inset,
-        35.0,
+        27.0,
         content_width,
-        10.0,
-        19.0,
+        9.0,
+        16.0,
         true,
         navy,
         "center",
@@ -791,9 +791,9 @@ fn add_receipt_layout(
     children.push(shape_node(
         "receipt-info-card",
         inset,
-        48.0,
+        39.0,
         content_width,
-        23.0,
+        17.0,
         soft,
         "#DFE5ED",
         0.4,
@@ -807,10 +807,10 @@ fn add_receipt_layout(
             "Receipt no.: {{payment.receipt_number}}"
         },
         inset + 4.0,
-        51.0,
-        content_width * 0.53,
-        7.0,
-        9.0,
+        42.0,
+        content_width * 0.52,
+        5.0,
+        8.5,
         true,
         ink,
         "start",
@@ -827,9 +827,9 @@ fn add_receipt_layout(
             "Date: {{payment.date}}"
         },
         inset + content_width * 0.56,
-        51.0,
+        42.0,
         content_width * 0.40,
-        7.0,
+        5.0,
         8.0,
         false,
         muted,
@@ -847,10 +847,10 @@ fn add_receipt_layout(
             "Status: {{payment.status}}"
         },
         inset + 4.0,
-        60.0,
+        49.0,
         content_width - 8.0,
-        7.0,
-        8.0,
+        5.0,
+        7.5,
         false,
         muted,
         "start",
@@ -867,10 +867,10 @@ fn add_receipt_layout(
             "RECEIVED FROM"
         },
         inset,
-        77.0,
-        content_width,
-        5.0,
-        8.0,
+        60.0,
+        content_width * 0.64,
+        4.0,
+        7.0,
         true,
         muted,
         "start",
@@ -883,10 +883,10 @@ fn add_receipt_layout(
         "tenant-name",
         "{{payment.tenant}}",
         inset,
-        84.0,
-        content_width,
+        66.0,
+        content_width * 0.64,
         8.0,
-        13.0,
+        12.0,
         true,
         ink,
         "start",
@@ -896,10 +896,10 @@ fn add_receipt_layout(
     );
     children.push(shape_node(
         "amount-card",
-        inset,
-        97.0,
-        content_width,
-        27.0,
+        inset + content_width * 0.68,
+        60.0,
+        content_width * 0.32,
+        22.0,
         "#F8F5EC",
         gold,
         0.8,
@@ -912,11 +912,11 @@ fn add_receipt_layout(
         } else {
             "TOTAL RECEIVED"
         },
-        inset + 4.0,
-        100.0,
-        content_width - 8.0,
-        6.0,
-        8.0,
+        inset + content_width * 0.68 + 4.0,
+        62.0,
+        content_width * 0.32 - 8.0,
+        5.0,
+        7.0,
         true,
         muted,
         "start",
@@ -928,11 +928,11 @@ fn add_receipt_layout(
         children,
         "amount-value",
         "{{payment.amount}}",
-        inset + 4.0,
-        108.0,
-        content_width - 8.0,
-        12.0,
-        19.0,
+        inset + content_width * 0.68 + 4.0,
+        68.0,
+        content_width * 0.32 - 8.0,
+        10.0,
+        15.0,
         true,
         navy,
         "start",
@@ -949,7 +949,7 @@ fn add_receipt_layout(
             "PAYMENT ALLOCATION"
         },
         inset,
-        130.0,
+        86.0,
         content_width,
         6.0,
         9.0,
@@ -964,15 +964,15 @@ fn add_receipt_layout(
         "payment-allocations",
         "payments",
         vec![
-            json!({"header": if is_arabic { "العقد" } else { "Contract" }, "field": "contract_number", "width": 31, "align": "start"}),
-            json!({"header": if is_arabic { "العقار" } else { "Property" }, "field": "property_name", "width": 40, "align": "start"}),
-            json!({"header": if is_arabic { "الوحدة" } else { "Unit" }, "field": "unit_number", "width": 20, "align": "center"}),
-            json!({"header": if is_arabic { "المبلغ" } else { "Amount" }, "field": "amount", "width": 35, "align": "end"}),
+            json!({"header": if is_arabic { "العقد" } else { "Contract" }, "field": "contract_number", "width": 48, "align": "start"}),
+            json!({"header": if is_arabic { "العقار" } else { "Property" }, "field": "property_name", "width": 70, "align": "start"}),
+            json!({"header": if is_arabic { "الوحدة" } else { "Unit" }, "field": "unit_number", "width": 30, "align": "center"}),
+            json!({"header": if is_arabic { "المبلغ" } else { "Amount" }, "field": "amount", "width": 46, "align": "end"}),
         ],
         inset,
-        138.0,
+        93.0,
         content_width,
-        27.0,
+        26.0,
         direction,
         navy,
         "#FFFFFF",
@@ -987,10 +987,10 @@ fn add_receipt_layout(
             "Method: {{payment.method}}"
         },
         inset,
-        169.0,
-        content_width,
-        6.0,
-        8.0,
+        122.0,
+        content_width * 0.5,
+        5.0,
+        7.5,
         false,
         ink,
         "start",
@@ -1006,11 +1006,11 @@ fn add_receipt_layout(
         } else {
             "Reference: {{payment.reference}}"
         },
-        inset,
-        177.0,
-        content_width,
-        6.0,
-        8.0,
+        inset + content_width * 0.52,
+        122.0,
+        content_width * 0.48,
+        5.0,
+        7.5,
         false,
         ink,
         "start",
@@ -1027,10 +1027,10 @@ fn add_receipt_layout(
             "Notes: {{payment.notes}}"
         },
         inset,
-        185.0,
+        130.0,
         content_width,
-        6.0,
-        8.0,
+        5.0,
+        7.0,
         false,
         muted,
         "start",
@@ -1041,7 +1041,7 @@ fn add_receipt_layout(
     children.push(shape_node(
         "receipt-footer-rule",
         inset,
-        194.0,
+        137.0,
         content_width,
         0.5,
         "#DFE5ED",
@@ -1057,10 +1057,10 @@ fn add_receipt_layout(
             "Thank you for your trust · {{organization.name}}"
         },
         inset,
-        198.0,
+        140.0,
         content_width,
-        6.0,
-        7.0,
+        5.0,
+        6.5,
         false,
         muted,
         "center",
@@ -1904,7 +1904,10 @@ mod tests {
 
             assert_eq!(document["version"], "2.0");
             assert_eq!(document["meta"]["pageSetup"]["size"], expected_size);
-            assert_eq!(document["meta"]["pageSetup"]["orientation"], "portrait");
+            assert_eq!(
+                document["meta"]["pageSetup"]["orientation"],
+                if is_receipt { "landscape" } else { "portrait" }
+            );
             assert_eq!(pages.len(), if is_receipt { 1 } else { 2 });
             for page in pages {
                 let children = page["children"].as_array().expect("read page elements");
@@ -1924,6 +1927,12 @@ mod tests {
             }
 
             if is_receipt {
+                assert_eq!(
+                    document["meta"]["pageSetup"]["margins"]["left"]
+                        .as_f64()
+                        .expect("read receipt margin"),
+                    8.0
+                );
                 let children = pages[0]["children"]
                     .as_array()
                     .expect("read receipt elements");
@@ -1931,6 +1940,16 @@ mod tests {
                 assert!(children.iter().any(|node| {
                     node["id"] == "amount-value" && node["props"]["content"] == "{{payment.amount}}"
                 }));
+                for node in children {
+                    let position = &node["props"]["position"];
+                    let x = position["x"].as_f64().expect("read receipt x");
+                    let y = position["y"].as_f64().expect("read receipt y");
+                    let width = position["width"].as_f64().expect("read receipt width");
+                    let height = position["height"].as_f64().expect("read receipt height");
+                    assert!(x >= 0.0 && y >= 0.0);
+                    assert!(x + width <= 210.0, "receipt element exceeds page width");
+                    assert!(y + height <= 148.0, "receipt element exceeds page height");
+                }
             } else {
                 assert!(
                     pages[1]["children"]

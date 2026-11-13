@@ -106,7 +106,7 @@ function getIconColor(type: string): string {
 
   <!-- Pages tabs -->
   {#if store.pageCount > 1}
-    <div class="flex items-center gap-1.5 px-3 py-2 border-b border-border overflow-x-auto scrollbar-hide">
+    <div class="flex items-center gap-1.5 px-3 py-2 border-b border-border overflow-x-auto scrollbar-none">
       {#each store.pages as page, i (page.id)}
         <button
           type="button"
@@ -123,7 +123,7 @@ function getIconColor(type: string): string {
   {/if}
 
   <!-- Tree -->
-  <div class="flex-grow overflow-y-auto scrollbar-hide px-2 py-2">
+  <div class="min-h-0 flex-grow overflow-y-auto scrollbar-none px-2 py-2">
     {#if store.activePage}
       {#snippet treeNode(node: TemplateNode, depth: number)}
         {@const isContainer = isContainerNode(node)}
