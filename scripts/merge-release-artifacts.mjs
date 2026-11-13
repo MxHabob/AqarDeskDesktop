@@ -51,7 +51,7 @@ export function mergeUpdaterManifests({
     "windows-x86_64": /-setup\.exe$/,
     "darwin-aarch64": /\.app\.tar\.gz$/,
     "darwin-x86_64": /\.app\.tar\.gz$/,
-    "linux-x86_64": /\.AppImage\.tar\.gz$/,
+    "linux-x86_64": /\.AppImage$/,
   };
   const merged = { ...manifests[0], platforms: {} };
   for (const manifest of manifests) {

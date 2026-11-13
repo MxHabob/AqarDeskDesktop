@@ -20,7 +20,7 @@ const releaseTargets = {
   },
   "x86_64-unknown-linux-gnu": {
     bundle: "appimage",
-    pattern: /\.AppImage\.tar\.gz$/,
+    pattern: /\.AppImage$/,
   },
 };
 

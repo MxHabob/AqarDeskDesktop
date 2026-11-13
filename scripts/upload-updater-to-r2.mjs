@@ -19,7 +19,7 @@ const artifactPatterns = {
   "windows-x86_64": /-setup\.exe$/,
   "darwin-aarch64": /\.app\.tar\.gz$/,
   "darwin-x86_64": /\.app\.tar\.gz$/,
-  "linux-x86_64": /\.AppImage\.tar\.gz$/,
+  "linux-x86_64": /\.AppImage$/,
 };
 
 function compareReleaseTags(left, right) {

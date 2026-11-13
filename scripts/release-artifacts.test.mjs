@@ -39,11 +39,11 @@ test("creates platform updater metadata with versioned public R2 URLs", () => {
   const linux = createUpdaterManifest({
     ...base,
     target: "x86_64-unknown-linux-gnu",
-    artifactName: "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    artifactName: "AqarDesk_1.2.3_amd64.AppImage",
     signature: "linux-signature",
   });
   assert.deepEqual(linux.platforms["linux-x86_64"], {
-    url: "https://updates.example.com/aqardesk/releases/v1.2.3/AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    url: "https://updates.example.com/aqardesk/releases/v1.2.3/AqarDesk_1.2.3_amd64.AppImage",
     signature: "linux-signature",
   });
 });
@@ -85,7 +85,7 @@ test("merges complete Windows, macOS, and Linux updater metadata", () => {
   const linux = createUpdaterManifest({
     ...base,
     target: "x86_64-unknown-linux-gnu",
-    artifactName: "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    artifactName: "AqarDesk_1.2.3_amd64.AppImage",
     signature: "linux-signature",
   });
   const merged = mergeUpdaterManifests({
@@ -100,8 +100,8 @@ test("merges complete Windows, macOS, and Linux updater metadata", () => {
       "AqarDesk-aarch64.app.tar.gz.sig",
       "AqarDesk-x64.app.tar.gz",
       "AqarDesk-x64.app.tar.gz.sig",
-      "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
-      "AqarDesk_1.2.3_amd64.AppImage.tar.gz.sig",
+      "AqarDesk_1.2.3_amd64.AppImage",
+      "AqarDesk_1.2.3_amd64.AppImage.sig",
     ]),
   });
   assert.deepEqual(Object.keys(merged.platforms).sort(), [
@@ -164,7 +164,7 @@ test("plans versioned R2 bundle uploads before publishing the latest manifest", 
   const windowsName = "AqarDesk_1.2.3_x64-setup.exe";
   const macName = "AqarDesk-aarch64.app.tar.gz";
   const macIntelName = "AqarDesk-x64.app.tar.gz";
-  const linuxName = "AqarDesk_1.2.3_amd64.AppImage.tar.gz";
+  const linuxName = "AqarDesk_1.2.3_amd64.AppImage";
   const windows = createUpdaterManifest({
     ...base,
     target: "x86_64-pc-windows-msvc",
@@ -295,7 +295,7 @@ test("stages signed bundles from the Cargo workspace target directory", () => {
 test("stages Linux AppImage updater bundles and signatures", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-stage-linux-release-"));
   const target = "x86_64-unknown-linux-gnu";
-  const bundleName = "AqarDesk_1.2.3_amd64.AppImage.tar.gz";
+  const bundleName = "AqarDesk_1.2.3_amd64.AppImage";
   const bundleDir = path.join(root, "target", target, "release", "bundle", "appimage");
   mkdirSync(bundleDir, { recursive: true });
   writeFileSync(path.join(bundleDir, bundleName), "bundle");

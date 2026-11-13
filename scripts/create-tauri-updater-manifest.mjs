@@ -22,7 +22,7 @@ const targets = {
   },
   "x86_64-unknown-linux-gnu": {
     platform: "linux-x86_64",
-    pattern: /\.AppImage\.tar\.gz$/,
+    pattern: /\.AppImage$/,
   },
 };
 
