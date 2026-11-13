@@ -77,6 +77,10 @@
       }
     },
     "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false,

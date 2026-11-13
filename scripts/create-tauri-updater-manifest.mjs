@@ -16,6 +16,14 @@ const targets = {
     platform: "darwin-aarch64",
     pattern: /\.app\.tar\.gz$/,
   },
+  "x86_64-apple-darwin": {
+    platform: "darwin-x86_64",
+    pattern: /\.app\.tar\.gz$/,
+  },
+  "x86_64-unknown-linux-gnu": {
+    platform: "linux-x86_64",
+    pattern: /\.AppImage\.tar\.gz$/,
+  },
 };
 
 export function createUpdaterManifest({

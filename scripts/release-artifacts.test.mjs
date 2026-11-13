@@ -35,6 +35,17 @@ test("creates platform updater metadata with versioned public R2 URLs", () => {
     url: "https://updates.example.com/aqardesk/releases/v1.2.3/AqarDesk_1.2.3_x64-setup.exe",
     signature: "signed-signature",
   });
+
+  const linux = createUpdaterManifest({
+    ...base,
+    target: "x86_64-unknown-linux-gnu",
+    artifactName: "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    signature: "linux-signature",
+  });
+  assert.deepEqual(linux.platforms["linux-x86_64"], {
+    url: "https://updates.example.com/aqardesk/releases/v1.2.3/AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    signature: "linux-signature",
+  });
 });
 
 test("rejects mismatched tags, unsupported targets, and invalid artifacts", () => {
@@ -52,7 +63,7 @@ test("rejects mismatched tags, unsupported targets, and invalid artifacts", () =
   );
 });
 
-test("merges complete Windows and macOS updater metadata", () => {
+test("merges complete Windows, macOS, and Linux updater metadata", () => {
   const windows = createUpdaterManifest({
     ...base,
     target: "x86_64-pc-windows-msvc",
@@ -62,22 +73,43 @@ test("merges complete Windows and macOS updater metadata", () => {
   const mac = createUpdaterManifest({
     ...base,
     target: "aarch64-apple-darwin",
-    artifactName: "AqarDesk.app.tar.gz",
-    signature: "mac-signature",
+    artifactName: "AqarDesk-aarch64.app.tar.gz",
+    signature: "mac-arm-signature",
+  });
+  const macIntel = createUpdaterManifest({
+    ...base,
+    target: "x86_64-apple-darwin",
+    artifactName: "AqarDesk-x64.app.tar.gz",
+    signature: "mac-intel-signature",
+  });
+  const linux = createUpdaterManifest({
+    ...base,
+    target: "x86_64-unknown-linux-gnu",
+    artifactName: "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+    signature: "linux-signature",
   });
   const merged = mergeUpdaterManifests({
-    manifests: [windows, mac],
+    manifests: [windows, mac, macIntel, linux],
     version: base.version,
     tag: base.tag,
     publicUrl: base.publicUrl,
     files: new Set([
       "AqarDesk_1.2.3_x64-setup.exe",
       "AqarDesk_1.2.3_x64-setup.exe.sig",
-      "AqarDesk.app.tar.gz",
-      "AqarDesk.app.tar.gz.sig",
+      "AqarDesk-aarch64.app.tar.gz",
+      "AqarDesk-aarch64.app.tar.gz.sig",
+      "AqarDesk-x64.app.tar.gz",
+      "AqarDesk-x64.app.tar.gz.sig",
+      "AqarDesk_1.2.3_amd64.AppImage.tar.gz",
+      "AqarDesk_1.2.3_amd64.AppImage.tar.gz.sig",
     ]),
   });
-  assert.deepEqual(Object.keys(merged.platforms).sort(), ["darwin-aarch64", "windows-x86_64"]);
+  assert.deepEqual(Object.keys(merged.platforms).sort(), [
+    "darwin-aarch64",
+    "darwin-x86_64",
+    "linux-x86_64",
+    "windows-x86_64",
+  ]);
 });
 
 test("rejects incomplete or conflicting updater metadata", () => {
@@ -89,7 +121,7 @@ test("rejects incomplete or conflicting updater metadata", () => {
   });
   assert.throws(
     () => mergeUpdaterManifests({
-      manifests: [windows, windows],
+      manifests: [windows, windows, windows, windows],
       version: base.version,
       tag: base.tag,
       publicUrl: base.publicUrl,
@@ -130,7 +162,9 @@ test("isolates updater files with a safe shared-bucket prefix", () => {
 test("plans versioned R2 bundle uploads before publishing the latest manifest", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-r2-release-"));
   const windowsName = "AqarDesk_1.2.3_x64-setup.exe";
-  const macName = "AqarDesk.app.tar.gz";
+  const macName = "AqarDesk-aarch64.app.tar.gz";
+  const macIntelName = "AqarDesk-x64.app.tar.gz";
+  const linuxName = "AqarDesk_1.2.3_amd64.AppImage.tar.gz";
   const windows = createUpdaterManifest({
     ...base,
     target: "x86_64-pc-windows-msvc",
@@ -143,8 +177,20 @@ test("plans versioned R2 bundle uploads before publishing the latest manifest", 
     artifactName: macName,
     signature: "mac-signature",
   });
+  const macIntel = createUpdaterManifest({
+    ...base,
+    target: "x86_64-apple-darwin",
+    artifactName: macIntelName,
+    signature: "mac-intel-signature",
+  });
+  const linux = createUpdaterManifest({
+    ...base,
+    target: "x86_64-unknown-linux-gnu",
+    artifactName: linuxName,
+    signature: "linux-signature",
+  });
   const manifest = mergeUpdaterManifests({
-    manifests: [windows, mac],
+    manifests: [windows, mac, macIntel, linux],
     version: base.version,
     tag: base.tag,
     publicUrl: base.publicUrl,
@@ -153,10 +199,16 @@ test("plans versioned R2 bundle uploads before publishing the latest manifest", 
       `${windowsName}.sig`,
       macName,
       `${macName}.sig`,
+      macIntelName,
+      `${macIntelName}.sig`,
+      linuxName,
+      `${linuxName}.sig`,
     ]),
   });
   writeFileSync(path.join(root, windowsName), "windows bundle");
   writeFileSync(path.join(root, macName), "mac bundle");
+  writeFileSync(path.join(root, macIntelName), "mac Intel bundle");
+  writeFileSync(path.join(root, linuxName), "Linux bundle");
   writeFileSync(path.join(root, "latest.json"), JSON.stringify(manifest));
 
   try {
@@ -167,12 +219,14 @@ test("plans versioned R2 bundle uploads before publishing the latest manifest", 
       tag: base.tag,
       packageDir: root,
     });
-    assert.equal(plan.length, 3);
+    assert.equal(plan.length, 5);
     assert.deepEqual(
       plan.map((item) => item.destination),
       [
         `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${windowsName}`,
         `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${macName}`,
+        `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${macIntelName}`,
+        `s3://aqardesk-updates/aqardesk/releases/${base.tag}/${linuxName}`,
         "s3://aqardesk-updates/aqardesk/latest.json",
       ],
     );
@@ -233,6 +287,47 @@ test("stages signed bundles from the Cargo workspace target directory", () => {
     stage({ root, target, bundle: "nsis" });
     assert.equal(readFileSync(path.join(root, "ci-artifacts", bundleName), "utf8"), "bundle");
     assert.equal(readFileSync(path.join(root, "ci-artifacts", `${bundleName}.sig`), "utf8"), "signature");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("stages Linux AppImage updater bundles and signatures", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-stage-linux-release-"));
+  const target = "x86_64-unknown-linux-gnu";
+  const bundleName = "AqarDesk_1.2.3_amd64.AppImage.tar.gz";
+  const bundleDir = path.join(root, "target", target, "release", "bundle", "appimage");
+  mkdirSync(bundleDir, { recursive: true });
+  writeFileSync(path.join(bundleDir, bundleName), "bundle");
+  writeFileSync(path.join(bundleDir, `${bundleName}.sig`), "signature");
+
+  try {
+    stage({ root, target, bundle: "appimage" });
+    assert.equal(readFileSync(path.join(root, "ci-artifacts", bundleName), "utf8"), "bundle");
+    assert.equal(readFileSync(path.join(root, "ci-artifacts", `${bundleName}.sig`), "utf8"), "signature");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("stages macOS updater bundles with architecture-specific names", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aqardesk-stage-macos-release-"));
+  const bundleName = "AqarDesk.app.tar.gz";
+
+  try {
+    for (const [target, stagedName] of [
+      ["aarch64-apple-darwin", "AqarDesk-aarch64.app.tar.gz"],
+      ["x86_64-apple-darwin", "AqarDesk-x86_64.app.tar.gz"],
+    ]) {
+      const bundleDir = path.join(root, "target", target, "release", "bundle", "macos");
+      mkdirSync(bundleDir, { recursive: true });
+      writeFileSync(path.join(bundleDir, bundleName), "bundle");
+      writeFileSync(path.join(bundleDir, `${bundleName}.sig`), "signature");
+
+      stage({ root, target, bundle: "macos" });
+      assert.equal(readFileSync(path.join(root, "ci-artifacts", stagedName), "utf8"), "bundle");
+      assert.equal(readFileSync(path.join(root, "ci-artifacts", `${stagedName}.sig`), "utf8"), "signature");
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

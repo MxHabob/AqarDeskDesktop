@@ -8,11 +8,18 @@ import {
   normalizeUpdaterPublicUrl,
 } from "./prepare-tauri-updater-config.mjs";
 
-const expectedPlatforms = ["windows-x86_64", "darwin-aarch64"];
+const expectedPlatforms = [
+  "windows-x86_64",
+  "darwin-aarch64",
+  "darwin-x86_64",
+  "linux-x86_64",
+];
 const retainedReleaseCount = 3;
 const artifactPatterns = {
   "windows-x86_64": /-setup\.exe$/,
   "darwin-aarch64": /\.app\.tar\.gz$/,
+  "darwin-x86_64": /\.app\.tar\.gz$/,
+  "linux-x86_64": /\.AppImage\.tar\.gz$/,
 };
 
 function compareReleaseTags(left, right) {
@@ -84,7 +91,7 @@ export function createR2UploadPlan({
 
   const platformNames = Object.keys(manifest.platforms ?? {}).sort();
   if (platformNames.join(",") !== expectedPlatforms.slice().sort().join(",")) {
-    throw new Error("Updater manifest does not contain exactly the Windows and macOS builds.");
+    throw new Error("Updater manifest does not contain exactly the supported desktop builds.");
   }
 
   const endpointUrl = `https://${accountId}.r2.cloudflarestorage.com`;

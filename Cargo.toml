@@ -35,5 +35,8 @@ async-trait = "0.1"
 panic = "abort"
 
 [profile.release]
+opt-level = "z"
 codegen-units = 1
 lto = "thin"
+strip = "symbols"
+panic = "abort"

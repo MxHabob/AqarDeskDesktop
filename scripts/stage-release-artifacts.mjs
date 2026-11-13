@@ -11,6 +11,16 @@ const releaseTargets = {
   "aarch64-apple-darwin": {
     bundle: "macos",
     pattern: /\.app\.tar\.gz$/,
+    suffix: "-aarch64",
+  },
+  "x86_64-apple-darwin": {
+    bundle: "macos",
+    pattern: /\.app\.tar\.gz$/,
+    suffix: "-x86_64",
+  },
+  "x86_64-unknown-linux-gnu": {
+    bundle: "appimage",
+    pattern: /\.AppImage\.tar\.gz$/,
   },
 };
 
@@ -43,11 +53,14 @@ function stage({
     throw new Error(`Updater signature is missing: ${signaturePath}.`);
   }
 
+  const stagedBundle = config.suffix
+    ? bundle.replace(/\.app\.tar\.gz$/, `${config.suffix}.app.tar.gz`)
+    : bundle;
   const destination = path.resolve(root, "ci-artifacts");
   mkdirSync(destination, { recursive: true });
-  copyFileSync(path.join(bundleDir, bundle), path.join(destination, bundle));
-  copyFileSync(signaturePath, path.join(destination, `${bundle}.sig`));
-  console.log(`Staged signed updater bundle ${bundle}.`);
+  copyFileSync(path.join(bundleDir, bundle), path.join(destination, stagedBundle));
+  copyFileSync(signaturePath, path.join(destination, `${stagedBundle}.sig`));
+  console.log(`Staged signed updater bundle ${stagedBundle}.`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

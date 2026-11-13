@@ -14,7 +14,12 @@ import {
   normalizeUpdaterPublicUrl,
 } from "./prepare-tauri-updater-config.mjs";
 
-const expectedPlatforms = ["windows-x86_64", "darwin-aarch64"];
+const expectedPlatforms = [
+  "windows-x86_64",
+  "darwin-aarch64",
+  "darwin-x86_64",
+  "linux-x86_64",
+];
 
 function walkFiles(directory) {
   const files = [];
@@ -45,6 +50,8 @@ export function mergeUpdaterManifests({
   const artifactPatterns = {
     "windows-x86_64": /-setup\.exe$/,
     "darwin-aarch64": /\.app\.tar\.gz$/,
+    "darwin-x86_64": /\.app\.tar\.gz$/,
+    "linux-x86_64": /\.AppImage\.tar\.gz$/,
   };
   const merged = { ...manifests[0], platforms: {} };
   for (const manifest of manifests) {
@@ -111,7 +118,7 @@ function run() {
   const allFiles = walkFiles(releaseRoot);
   const manifestPaths = allFiles.filter((file) => path.basename(file) === "latest.json");
   if (manifestPaths.length !== expectedPlatforms.length) {
-    throw new Error(`Expected two latest.json files; found ${manifestPaths.length}.`);
+    throw new Error(`Expected ${expectedPlatforms.length} latest.json files; found ${manifestPaths.length}.`);
   }
   const manifests = manifestPaths.map((file) => JSON.parse(readFileSync(file, "utf8")));
   const assetNames = new Set(allFiles.filter((file) => !manifestPaths.includes(file)).map((file) => path.basename(file)));
