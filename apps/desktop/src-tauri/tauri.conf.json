@@ -79,7 +79,7 @@
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false,
-        "sidebarImage": "./images/orbis-installer-sidebar.bmp"
+        "sidebarImage": "./images/aqardesk-installer-sidebar.bmp"
       }
     },
     "icon": [
