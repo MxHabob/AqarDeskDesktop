@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "aqardesk-desktop"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "aqardesk-backend",
  "base64 0.22.1",
