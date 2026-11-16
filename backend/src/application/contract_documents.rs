@@ -28,6 +28,8 @@ pub struct ContractDocument {
     pub rent_amount_minor: i64,
     pub deposit_amount_minor: i64,
     pub document_body: String,
+    pub docforge_document_json: Option<String>,
+    pub docforge_context_json: Option<String>,
     pub document_style: ContractDocumentStyle,
     pub created_by: String,
     pub created_at: String,

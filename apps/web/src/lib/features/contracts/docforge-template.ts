@@ -97,10 +97,22 @@ export function docForgeDocumentFromPlaceholders(
 export function docForgeDocumentFromContract(
 	contract: Pick<
 		ContractDocument,
-		'contract_number' | 'template_name' | 'template_locale' | 'document_body' | 'document_style'
+		'contract_number'
+		| 'template_name'
+		| 'template_locale'
+		| 'document_body'
+		| 'docforge_document_json'
+		| 'document_style'
 	>,
 	footerFallback: string
 ) {
+	if (contract.docforge_document_json?.trim()) {
+		const document = deserializeDocument(contract.docforge_document_json);
+		assertDocForgeDocument(document);
+		document.meta.name = contract.template_name;
+		return document;
+	}
+
 	const { document_style: design } = contract;
 	const paperSize = pageSizes[design.paper_size];
 	const direction = contract.template_locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
@@ -276,6 +288,32 @@ export function docForgeDocumentFromContract(
 	if (!hasBodyContent && document.pages.length > 1) document.pages.pop();
 
 	return document;
+}
+
+export function docForgeContextFromContract(
+	contract: Pick<ContractDocument, 'docforge_context_json' | 'document_style'>
+): Record<string, unknown> {
+	let context: Record<string, unknown> = {};
+	if (contract.docforge_context_json?.trim()) {
+		const parsed: unknown = JSON.parse(contract.docforge_context_json);
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			throw new Error('The saved contract template data is invalid.');
+		}
+		context = parsed as Record<string, unknown>;
+	}
+
+	const organizationValue = context.organization;
+	const organization =
+		organizationValue && typeof organizationValue === 'object' && !Array.isArray(organizationValue)
+			? (organizationValue as Record<string, unknown>)
+			: {};
+	return {
+		...context,
+		organization: {
+			...organization,
+			logo_url: contract.document_style.organization_logo_data_url ?? ''
+		}
+	};
 }
 
 export function docForgeDocumentJsonFromPlaceholders(value: string | null | undefined) {

@@ -157,7 +157,7 @@ async function initEditor() {
   isLoading = true;
   error = null;
   try {
-    const version = templateRecord.versions[templateRecord.versions.length - 1];
+    const version = templateRecord.versions[0];
     const placeholders = version?.placeholders_json;
     const isReceiptTemplate = templateRecord.lease_type === "receipt";
     const design = contractDocumentStyleFromPlaceholders(
@@ -281,7 +281,7 @@ async function saveTemplate() {
           : setup.size === "Letter"
             ? "letter"
             : "a4";
-    const version = templateRecord.versions[templateRecord.versions.length - 1];
+    const version = templateRecord.versions[0];
     const design = contractDocumentStyleFromPlaceholders(
       version?.placeholders_json,
       isReceiptTemplate ? "a5" : "a4",

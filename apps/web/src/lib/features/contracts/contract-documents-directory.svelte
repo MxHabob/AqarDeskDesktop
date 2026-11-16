@@ -26,6 +26,7 @@
 	import { getLocale } from '#lib/paraglide/runtime';
 	import * as m from '#lib/paraglide/messages';
 	import {
+		docForgeContextFromContract,
 		docForgeDocumentFromContract,
 		serializeDocForgeTemplate
 	} from '#lib/features/contracts/docforge-template';
@@ -151,7 +152,10 @@
 			const documentJson = serializeDocForgeTemplate(
 				docForgeDocumentFromContract(contract, m.contracts_disclaimer())
 			);
-			const bytes = await desktopApi.documentPreviewPdf(documentJson);
+			const bytes = await desktopApi.documentPreviewPdf(
+				documentJson,
+				docForgeContextFromContract(contract)
+			);
 			if (request !== contractPdfRequest) return;
 			const pdfBytes = new Uint8Array(bytes);
 			if (

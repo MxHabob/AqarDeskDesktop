@@ -144,6 +144,8 @@ pub struct Model {
     rent_amount_minor: i64,
     deposit_amount_minor: i64,
     document_body: String,
+    docforge_document_json: Option<String>,
+    docforge_context_json: Option<String>,
     document_style_json: String,
     created_by: String,
     created_at: DateTimeUtc,
@@ -376,6 +378,8 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
         .join("، ");
         let values = HashMap::from([
             ("tenant.full_name", tenant.full_name.clone()),
+            ("tenant.name", tenant.full_name.clone()),
+            ("tenant.national_id", String::new()),
             (
                 "tenant.email",
                 tenant.email.unwrap_or_else(|| "—".to_string()),
@@ -423,6 +427,10 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             ("contract.start_date", input.start_date.clone()),
             ("contract.end_date", input.end_date.clone()),
             (
+                "contract.rent",
+                format_amount_value(input.rent_amount_minor, currency.decimal_digits),
+            ),
+            (
                 "contract.deposit",
                 if input.deposit_amount_minor == 0 {
                     "—".to_string()
@@ -434,12 +442,22 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
                     )
                 },
             ),
+            ("organization.name_ar", String::new()),
+            ("organization.phone", String::new()),
+            ("organization.website", String::new()),
+            ("organization.address", String::new()),
+            ("organization.logo_url", String::new()),
             ("organization.name", organization.name),
         ]);
         let document_body = resolve_template(&content, &values)?;
         if document_body.trim().is_empty() || document_body.len() > 500_000 {
             return Err(validation("The generated contract document is invalid."));
         }
+        let docforge_document_json = docforge_document_snapshot(&placeholders)?;
+        let docforge_context_json = docforge_document_json
+            .as_ref()
+            .map(|_| serialize_docforge_context(&values))
+            .transpose()?;
 
         let id = existing_draft
             .as_ref()
@@ -467,6 +485,8 @@ impl ContractDocumentRepository for SeaOrmContractDocumentRepository {
             rent_amount_minor: Set(input.rent_amount_minor),
             deposit_amount_minor: Set(input.deposit_amount_minor),
             document_body: Set(document_body),
+            docforge_document_json: Set(docforge_document_json),
+            docforge_context_json: Set(docforge_context_json),
             document_style_json: Set(document_style_json),
             created_by: Set(existing_draft
                 .as_ref()
@@ -735,6 +755,70 @@ fn resolve_template(
     Ok(rendered)
 }
 
+fn docforge_document_snapshot(
+    placeholders: &serde_json::Value,
+) -> Result<Option<String>, ApplicationError> {
+    let Some(document) = placeholders.get("docforge_document") else {
+        return Ok(None);
+    };
+    let document_json = document
+        .as_str()
+        .ok_or_else(|| validation("The saved DocForge template document is invalid."))?;
+    if document_json.trim().is_empty() {
+        return Ok(None);
+    }
+    if document_json.len() > 2_000_000 {
+        return Err(validation(
+            "The saved DocForge template document is too large.",
+        ));
+    }
+
+    let value: serde_json::Value = serde_json::from_str(document_json)
+        .map_err(|_| validation("The saved DocForge template document is invalid."))?;
+    let valid_page = |page: &serde_json::Value| {
+        page.get("type").and_then(serde_json::Value::as_str) == Some("Page")
+            && page
+                .get("children")
+                .and_then(serde_json::Value::as_array)
+                .is_some()
+    };
+    let has_root = value.get("root").is_some_and(valid_page);
+    let has_pages = value
+        .get("pages")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|pages| !pages.is_empty() && pages.iter().all(valid_page));
+    if !value.is_object()
+        || !value.get("meta").is_some_and(serde_json::Value::is_object)
+        || !(has_root || has_pages)
+    {
+        return Err(validation(
+            "The saved DocForge template document is invalid.",
+        ));
+    }
+
+    Ok(Some(document_json.to_string()))
+}
+
+fn serialize_docforge_context(values: &HashMap<&str, String>) -> Result<String, ApplicationError> {
+    let mut context = serde_json::Map::new();
+    for (path, value) in values {
+        let Some((group, field)) = path.split_once('.') else {
+            continue;
+        };
+        let group = context
+            .entry(group.to_string())
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        group
+            .as_object_mut()
+            .expect("template context groups are JSON objects")
+            .insert(field.to_string(), serde_json::Value::String(value.clone()));
+    }
+    serde_json::to_string(&serde_json::Value::Object(context)).map_err(|error| {
+        tracing::error!(%error, "Contract DocForge context could not be encoded");
+        ApplicationError::Persistence
+    })
+}
+
 fn format_amount(amount_minor: i64, decimal_digits: i16, currency_code: &str) -> String {
     format!(
         "{} {currency_code}",
@@ -782,6 +866,8 @@ fn to_contract_document(model: Model) -> Result<ContractDocument, ApplicationErr
         rent_amount_minor: model.rent_amount_minor,
         deposit_amount_minor: model.deposit_amount_minor,
         document_body: model.document_body,
+        docforge_document_json: model.docforge_document_json,
+        docforge_context_json: model.docforge_context_json,
         document_style,
         created_by: model.created_by,
         created_at: model.created_at.to_rfc3339(),
@@ -870,6 +956,37 @@ mod tests {
 
         let templates =
             ContractTemplateService::new(SeaOrmContractTemplateRepository::new(&database));
+        let docforge_document_json = serde_json::json!({
+            "version": "2.0",
+            "meta": {
+                "name": "Snapshot lease",
+                "documentType": "contract",
+                "entityType": "contract",
+                "locale": "en",
+                "pageSetup": {
+                    "size": "A4",
+                    "orientation": "portrait",
+                    "margins": { "top": 18, "bottom": 18, "left": 18, "right": 18 },
+                    "unit": "mm"
+                }
+            },
+            "variables": {},
+            "assets": {},
+            "pages": [{
+                "type": "Page",
+                "id": "snapshot-page",
+                "children": [{
+                    "type": "Text",
+                    "id": "tenant-name",
+                    "props": {
+                        "content": "{{tenant.full_name}} · {{unit.number}}",
+                        "fontSize": 14,
+                        "fontFamily": "Tahoma"
+                    }
+                }]
+            }]
+        })
+        .to_string();
         let template_input = ContractTemplateInput {
             template_key: "snapshot-lease".to_string(),
             name: "Snapshot lease".to_string(),
@@ -881,8 +998,21 @@ mod tests {
                 "{{tenant.full_name}} - {{property.name}} - {{unit.number}} - {{contract.number}}"
                     .to_string(),
             placeholders_json: Some(
-                r##"{"design":{"paper_size":"letter","accent_color":"#245A74","font_family":"Georgia","font_size":18,"alignment":"justify","page_margin_mm":22,"show_branding":true,"brand_label":"Example Realty","show_footer":false}}"##
-                    .to_string(),
+                serde_json::json!({
+                    "design": {
+                        "paper_size": "letter",
+                        "accent_color": "#245A74",
+                        "font_family": "Georgia",
+                        "font_size": 18,
+                        "alignment": "justify",
+                        "page_margin_mm": 22,
+                        "show_branding": true,
+                        "brand_label": "Example Realty",
+                        "show_footer": false
+                    },
+                    "docforge_document": docforge_document_json.clone()
+                })
+                .to_string(),
             ),
             change_note: None,
         };
@@ -970,8 +1100,27 @@ mod tests {
         assert_eq!(original.document_style.accent_color, "#245A74");
         assert_eq!(original.document_style.brand_label, "Example Realty");
         assert!(!original.document_style.show_footer);
+        assert_eq!(
+            original.docforge_document_json.as_deref(),
+            Some(docforge_document_json.as_str())
+        );
+        let saved_context: serde_json::Value = serde_json::from_str(
+            original
+                .docforge_context_json
+                .as_deref()
+                .expect("custom design keeps its contract context"),
+        )
+        .expect("parse saved DocForge context");
+        assert_eq!(saved_context["tenant"]["full_name"], "Snapshot tenant");
+        assert_eq!(saved_context["property"]["name"], "Snapshot property");
+        assert_eq!(saved_context["unit"]["number"], "A-1");
+        assert_eq!(
+            saved_context["contract"]["number"],
+            document.contract_number
+        );
         assert_eq!(updated.document_style.paper_size, "a4");
         assert_eq!(updated.document_style.accent_color, "#C7962F");
+        assert!(updated.docforge_document_json.is_none());
 
         let contracts =
             ContractDocumentService::new(SeaOrmContractDocumentRepository::new(&database));

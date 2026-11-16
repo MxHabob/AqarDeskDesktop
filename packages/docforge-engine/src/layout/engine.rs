@@ -379,11 +379,11 @@ fn layout_absolute_node(
             })])
         }
         EvaluatedNode::Image(n) => {
-            let (mime, data) = match n.props.src.as_deref() {
-                Some(src) => crate::render::image_loader::decode_data_uri(src)?
-                    .unwrap_or_else(|| ("image/png".to_string(), Vec::new())),
-                None => ("image/png".to_string(), Vec::new()),
+            let Some(src) = n.props.src.as_deref().filter(|src| !src.trim().is_empty()) else {
+                return Ok(Vec::new());
             };
+            let (mime, data) = crate::render::image_loader::decode_data_uri(src)?
+                .unwrap_or_else(|| ("image/png".to_string(), Vec::new()));
             Ok(vec![PositionedElement::Image(ImageElement {
                 x,
                 y,
@@ -1304,6 +1304,32 @@ mod tests {
         assert!((resolve_text_line_height(12.0, Some(15.0)) - 15.0).abs() < 0.01);
         assert!((resolve_text_line_height(14.0, None) - 16.8).abs() < 0.01);
         assert!((resolve_text_line_height(14.0, Some(f64::NAN)) - 16.8).abs() < 0.01);
+    }
+
+    #[test]
+    fn empty_image_sources_are_omitted_from_layout() {
+        let image: TemplateNode = serde_json::from_value(json!({
+            "type": "Image",
+            "id": "organization-logo",
+            "props": {
+                "position": { "x": 0, "y": 0, "width": 20, "height": 20 },
+                "src": ""
+            }
+        }))
+        .expect("deserialize image node");
+        let evaluated = evaluate_node_tree(&image, &json!({}));
+        let position = serde_json::from_value(json!({
+            "x": 0,
+            "y": 0,
+            "width": 20,
+            "height": 20
+        }))
+        .expect("deserialize image position");
+
+        let elements = layout_absolute_node(&evaluated[0], &position, 0.0, 0.0, 100.0, 100.0)
+            .expect("layout image without a source");
+
+        assert!(elements.is_empty());
     }
 
     #[test]

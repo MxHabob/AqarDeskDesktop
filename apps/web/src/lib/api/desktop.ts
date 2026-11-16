@@ -52,6 +52,8 @@ export type ContractDocument = {
 	rent_amount_minor: number;
 	deposit_amount_minor: number;
 	document_body: string;
+	docforge_document_json: string | null;
+	docforge_context_json: string | null;
 	document_style: ContractDocumentStyle;
 	created_by: string;
 	created_at: string;
