@@ -163,6 +163,7 @@ async function initEditor() {
     const design = contractDocumentStyleFromPlaceholders(
       placeholders,
       isReceiptTemplate ? "a5" : "a4",
+      isReceiptTemplate ? 8 : 12,
     );
     const doc = docForgeDocumentFromPlaceholders(
       placeholders,
@@ -285,6 +286,7 @@ async function saveTemplate() {
     const design = contractDocumentStyleFromPlaceholders(
       version?.placeholders_json,
       isReceiptTemplate ? "a5" : "a4",
+      isReceiptTemplate ? 8 : 12,
     );
     const updateRequest: ContractTemplateInput = {
       name: templateName,

@@ -17,7 +17,8 @@ export const DEFAULT_CONTRACT_DOCUMENT_STYLE: ContractDocumentStyle = {
 
 export function contractDocumentStyleFromPlaceholders(
 	value: string | null | undefined,
-	defaultPaperSize: ContractDocumentStyle['paper_size'] = DEFAULT_CONTRACT_DOCUMENT_STYLE.paper_size
+	defaultPaperSize: ContractDocumentStyle['paper_size'] = DEFAULT_CONTRACT_DOCUMENT_STYLE.paper_size,
+	minimumPageMargin = 12
 ): ContractDocumentStyle {
 	const defaultStyle = { ...DEFAULT_CONTRACT_DOCUMENT_STYLE, paper_size: defaultPaperSize };
 	if (!value?.trim()) return defaultStyle;
@@ -58,7 +59,7 @@ export function contractDocumentStyleFromPlaceholders(
 		!(alignment === 'start' || alignment === 'justify') ||
 		typeof pageMargin !== 'number' ||
 		!Number.isInteger(pageMargin) ||
-		pageMargin < 12 ||
+		pageMargin < minimumPageMargin ||
 		pageMargin > 30 ||
 		typeof showBranding !== 'boolean' ||
 		typeof brandLabel !== 'string' ||
