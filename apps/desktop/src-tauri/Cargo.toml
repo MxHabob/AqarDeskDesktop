@@ -1,6 +1,6 @@
 [package]
 name = "aqardesk-desktop"
-version = "1.0.6"
+version = "1.0.7"
 description = "AqarDesk Desktop application"
 authors = ["you"]
 license = ""
